@@ -1,6 +1,6 @@
 package com.weai.server.domain.health.controller;
 
-import com.weai.server.domain.health.dto.HealthCheckResponse;
+import com.weai.server.domain.health.response.HealthCheckResponse;
 import com.weai.server.global.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

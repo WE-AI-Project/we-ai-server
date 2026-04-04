@@ -1,0 +1,2 @@
+org.springframework.context.ApplicationContextInitializer=\
+com.weai.server.global.config.DotenvApplicationContextInitializer

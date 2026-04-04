@@ -1,16 +1,125 @@
 services:
+  app:
+    profiles: ["staging"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: '${APP_CONTAINER_NAME:-we-ai-app}'
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      SPRING_PROFILES_ACTIVE: '${APP_PROFILE:-stag}'
+      SERVER_PORT: '8080'
+      DB_HOST: 'mysql'
+      DB_PORT: '3306'
+      DB_NAME: '${DB_NAME:-we_ai}'
+      DB_USERNAME: '${DB_USERNAME:-weai}'
+      DB_PASSWORD: '${DB_PASSWORD:-change-me-db-password}'
+      JWT_SECRET: '${JWT_SECRET:-change-this-jwt-secret-key-at-least-32-bytes}'
+      JWT_ISSUER: '${JWT_ISSUER:-we-ai-server}'
+      JWT_ACCESS_TOKEN_EXPIRATION: '${JWT_ACCESS_TOKEN_EXPIRATION:-PT1H}'
+      JWT_REFRESH_TOKEN_EXPIRATION: '${JWT_REFRESH_TOKEN_EXPIRATION:-P7D}'
+    expose:
+      - '8080'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS http://127.0.0.1:8080/actuator/health > /dev/null || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
   mysql:
     image: 'mysql:${MYSQL_IMAGE_TAG:-8.4}'
     container_name: '${MYSQL_CONTAINER_NAME:-we-ai-mysql}'
     environment:
       - 'MYSQL_DATABASE=${DB_NAME:-we_ai}'
-      - 'MYSQL_PASSWORD=${DB_PASSWORD:-weai1234}'
-      - 'MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root1234}'
+      - 'MYSQL_PASSWORD=${DB_PASSWORD:-change-me-db-password}'
+      - 'MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-change-me-root-password}'
       - 'MYSQL_USER=${DB_USERNAME:-weai}'
     ports:
       - '${DB_PORT:-3306}:3306'
     volumes:
       - 'we-ai-mysql-data:/var/lib/mysql'
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - -h
+        - 127.0.0.1
+        - -u${DB_USERNAME:-weai}
+        - -p${DB_PASSWORD:-change-me-db-password}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: 'quay.io/minio/minio:${MINIO_IMAGE_TAG:-latest}'
+    container_name: '${MINIO_CONTAINER_NAME:-we-ai-minio}'
+    command: server /data --console-address ":9001"
+    environment:
+      - 'MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}'
+      - 'MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-change-me-minio-password}'
+    ports:
+      - '${MINIO_API_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - 'we-ai-minio-data:/data'
+
+  minio-init:
+    image: 'quay.io/minio/mc:${MINIO_MC_IMAGE_TAG:-latest}'
+    container_name: '${MINIO_INIT_CONTAINER_NAME:-we-ai-minio-init}'
+    depends_on:
+      - minio
+    restart: "no"
+    environment:
+      - 'MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}'
+      - 'MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-change-me-minio-password}'
+      - 'MINIO_PUBLIC_BUCKET=${MINIO_PUBLIC_BUCKET:-we-ai-public}'
+      - 'MINIO_PRIVATE_BUCKET=${MINIO_PRIVATE_BUCKET:-we-ai-private}'
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
+        echo 'Waiting for MinIO to be ready...';
+        sleep 2;
+      done;
+      mc mb --ignore-existing local/$$MINIO_PUBLIC_BUCKET;
+      mc mb --ignore-existing local/$$MINIO_PRIVATE_BUCKET;
+      mc anonymous set download local/$$MINIO_PUBLIC_BUCKET;
+      echo 'MinIO buckets are ready.';
+      "
+
+  nginx:
+    image: 'nginx:${NGINX_IMAGE_TAG:-stable-alpine}'
+    container_name: '${NGINX_CONTAINER_NAME:-we-ai-nginx}'
+    environment:
+      BACKEND_UPSTREAM: '${BACKEND_UPSTREAM:-host.docker.internal:8080}'
+    depends_on:
+      app:
+        condition: service_healthy
+        required: false
+      mysql:
+        condition: service_started
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_started
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '${NGINX_PORT:-80}:80'
+    volumes:
+      - './docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro'
+      - './docker/nginx/index.html:/usr/share/nginx/html/index.html:ro'
 
 volumes:
   we-ai-mysql-data:
+  we-ai-minio-data:

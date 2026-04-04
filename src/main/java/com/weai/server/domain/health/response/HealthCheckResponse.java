@@ -1,4 +1,4 @@
-package com.weai.server.domain.health.dto;
+package com.weai.server.domain.health.response;
 
 import java.time.LocalDateTime;
 

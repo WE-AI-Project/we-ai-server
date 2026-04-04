@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WE AI Local Stack</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #14213d;
+      --muted: #5c677d;
+      --accent: #0f62fe;
+      --border: #d7deea;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(180deg, #eef3ff 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 56px 24px 72px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 40px;
+    }
+
+    p {
+      margin: 0 0 24px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .card {
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: 0 16px 40px rgba(15, 34, 61, 0.08);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+
+    .card a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .card code {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #edf3ff;
+      color: #1144aa;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>WE AI Local Stack</h1>
+    <p>Docker로 띄운 nginx, MinIO, MySQL과 로컬 Spring Boot 백엔드를 한눈에 확인하는 개발용 진입 페이지입니다.</p>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Swagger UI</h2>
+        <p>로컬에서 실행 중인 Spring Boot 앱의 Swagger 문서를 nginx를 통해 엽니다.</p>
+        <a href="/swagger-ui.html">/swagger-ui.html</a>
+        <br>
+        <code>backend -> host.docker.internal:8080</code>
+      </article>
+
+      <article class="card">
+        <h2>Health Check</h2>
+        <p>백엔드 상태를 빠르게 확인할 수 있는 헬스체크 엔드포인트입니다.</p>
+        <a href="/api/v1/health">/api/v1/health</a>
+      </article>
+
+      <article class="card">
+        <h2>MinIO Console</h2>
+        <p>MinIO 웹 콘솔로 이동합니다.</p>
+        <a href="/minio/">/minio/</a>
+      </article>
+
+      <article class="card">
+        <h2>MinIO API</h2>
+        <p>S3 호환 API 엔드포인트입니다. SDK 연결 시 사용할 수 있습니다.</p>
+        <a href="/minio-api/">/minio-api/</a>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

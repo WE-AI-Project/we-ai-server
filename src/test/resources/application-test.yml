@@ -4,6 +4,8 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+  flyway:
+    enabled: false
   jpa:
     open-in-view: false
     hibernate:
@@ -11,7 +13,17 @@ spring:
   docker:
     compose:
       enabled: false
+  jwt:
+    secret: test-secret-key-that-is-at-least-32-bytes-long
+    issuer: we-ai-server-test
+    accessTokenExpiration: PT30M
+    refreshTokenExpiration: PT12H
 
 management:
   endpoints:
     enabled-by-default: false
+
+app:
+  auth:
+    username: test-admin
+    password: test-admin1234!

@@ -19,7 +19,7 @@ public class ApiResponse<T> {
 	private final LocalDateTime timestamp;
 
 	public static <T> ApiResponse<T> success(T data) {
-		return new ApiResponse<>(true, "SUCCESS", "요청이 성공적으로 처리되었습니다.", data, LocalDateTime.now());
+		return new ApiResponse<>(true, "SUCCESS", "Request completed successfully.", data, LocalDateTime.now());
 	}
 
 	public static ApiResponse<Void> successMessage(String message) {

@@ -7,7 +7,18 @@ spring:
       enabled: true
     livereload:
       enabled: true
+  docker:
+    compose:
+      enabled: true
+      lifecycle-management: start_only
 
 logging:
+  level:
+    org.hibernate.SQL: debug
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [req:%X{requestId:-}] %-5level %logger{36} - %msg%n"
+
+app:
+  auth:
+    username: ${APP_AUTH_USERNAME:dev-admin}
+    password: ${APP_AUTH_PASSWORD:change-me-dev-admin-password}
