@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name _;
+    server_name we-ai.duckdns.org;
     root /usr/share/nginx/html;
 
     client_max_body_size 100m;
