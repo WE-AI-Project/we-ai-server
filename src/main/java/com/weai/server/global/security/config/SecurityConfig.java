@@ -59,7 +59,10 @@ public class SecurityConfig {
 					"/api/v1/auth/login",
 					"/api/v1/auth/signup",
 					"/api/v1/auth/refresh",
-					"/api/v1/auth/logout"
+					"/api/v1/auth/logout",
+						"/api/v1/auth/kakao/callback",
+						"/api/v1/auth/naver/callback",
+						"/api/v1/auth/google/callback"
 				).permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 				.requestMatchers("/api/v1/users/**").hasAnyRole("USER", "ADMIN")

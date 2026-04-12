@@ -1,140 +1,193 @@
 package com.weai.server.domain.auth.service;
 
 import com.weai.server.domain.auth.domain.RefreshToken;
+import com.weai.server.domain.auth.dto.google.GoogleUserResponse;
+import com.weai.server.domain.user.domain.UserRole;
+import com.weai.server.domain.auth.dto.naver.NaverUserResponse;
 import com.weai.server.domain.auth.repository.RefreshTokenRepository;
 import com.weai.server.domain.auth.request.LoginRequest;
-import com.weai.server.domain.auth.request.LogoutRequest;
-import com.weai.server.domain.auth.request.RefreshTokenRequest;
-import com.weai.server.domain.auth.request.SignUpRequest;
 import com.weai.server.domain.auth.response.TokenResponse;
 import com.weai.server.domain.user.domain.User;
-import com.weai.server.domain.user.response.UserResponse;
-import com.weai.server.domain.user.service.UserService;
+import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
-import com.weai.server.global.security.jwt.JwtProperties;
 import com.weai.server.global.security.jwt.JwtTokenProvider;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.HexFormat;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class AuthService {
 
-	private static final int REFRESH_TOKEN_BYTES = 48;
-	private static final int MAX_TOKEN_GENERATION_ATTEMPTS = 5;
-
-	private final AuthenticationManager authenticationManager;
-	private final JwtTokenProvider jwtTokenProvider;
-	private final JwtProperties jwtProperties;
-	private final UserService userService;
+	private final UserRepository userRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final PasswordEncoder passwordEncoder;
+	private final JwtTokenProvider jwtTokenProvider;
 
-	private final SecureRandom secureRandom = new SecureRandom();
-
-	@Transactional
-	public UserResponse signUp(SignUpRequest request) {
-		return userService.registerUser(request);
-	}
+	private final NaverOAuthService naverOAuthService;
+	private final GoogleOAuthService googleOAuthService;
 
 	@Transactional
 	public TokenResponse login(LoginRequest request) {
-		Authentication authentication = authenticationManager.authenticate(
-			new UsernamePasswordAuthenticationToken(request.username(), request.password())
-		);
+		// 1. 유저 존재 여부 확인 (record이므로 request.email() 호출)
+		User user = userRepository.findByEmail(request.email())
+				.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "가입되지 않은 이메일이거나 사용자를 찾을 수 없습니다."));
 
-		User user = userService.getUserEntityByUsername(authentication.getName());
-		return issueTokenPair(user);
-	}
-
-	@Transactional
-	public TokenResponse refresh(RefreshTokenRequest request) {
-		RefreshToken storedToken = refreshTokenRepository.findByTokenHash(hashRefreshToken(request.refreshToken()))
-			.orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "Refresh token is invalid or expired."));
-
-		Instant now = Instant.now();
-		if (storedToken.isExpired(now)) {
-			refreshTokenRepository.delete(storedToken);
-			throw new ApiException(ErrorCode.UNAUTHORIZED, "Refresh token is invalid or expired.");
+		// 2. 비밀번호 일치 여부 검증 (record이므로 request.password() 호출)
+		if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+			throw new ApiException(ErrorCode.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
 		}
 
-		User user = storedToken.getUser();
-		return issueTokenPair(user, storedToken);
-	}
-
-	@Transactional
-	public void logout(LogoutRequest request) {
-		refreshTokenRepository.findByTokenHash(hashRefreshToken(request.refreshToken()))
-			.ifPresent(refreshTokenRepository::delete);
-	}
-
-	private TokenResponse issueTokenPair(User user) {
-		RefreshToken storedToken = refreshTokenRepository.findByUserId(user.getId()).orElse(null);
-		return issueTokenPair(user, storedToken);
-	}
-
-	private TokenResponse issueTokenPair(User user, RefreshToken storedToken) {
-		Instant refreshExpiresAt = Instant.now().plus(jwtProperties.getRefreshTokenExpiration());
-		String rawRefreshToken = generateUniqueRefreshTokenValue();
-		String refreshTokenHash = hashRefreshToken(rawRefreshToken);
-
-		if (storedToken == null) {
-			storedToken = RefreshToken.issue(user, refreshTokenHash, refreshExpiresAt);
-		} else {
-			storedToken.rotate(refreshTokenHash, refreshExpiresAt);
-		}
-
-		refreshTokenRepository.save(storedToken);
-
+		// 3. JWT Access Token 발급 (User 엔티티 전체를 넘김)
 		String accessToken = jwtTokenProvider.createAccessToken(user);
+		long accessTokenExpiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
+
+		// 4. Refresh Token 생성 및 저장 (고유 UUID 생성 후 저장)
+		String refreshTokenString = UUID.randomUUID().toString();
+		long refreshTokenExpiresIn = 604800; // 예: 7일(초 단위)
+		Instant expiresAt = Instant.now().plusSeconds(refreshTokenExpiresIn);
+
+		// RefreshToken 엔티티의 정적 팩토리 메서드 활용
+		RefreshToken refreshToken = RefreshToken.issue(user, refreshTokenString, expiresAt);
+		refreshTokenRepository.save(refreshToken);
+
+		// 5. TokenResponse 반환 (record 생성자 파라미터 순서에 맞춤)
 		return new TokenResponse(
-			"Bearer",
-			accessToken,
-			jwtTokenProvider.getAccessTokenExpirationSeconds(),
-			rawRefreshToken,
-			jwtProperties.getRefreshTokenExpiration().getSeconds(),
-			user.getUsername(),
-			user.getEmail(),
-			user.getRole()
+				"Bearer",
+				accessToken,
+				accessTokenExpiresIn,
+				refreshTokenString,
+				refreshTokenExpiresIn,
+				user.getUsername(),
+				user.getEmail(),
+				user.getRole()
 		);
 	}
 
-	private String generateUniqueRefreshTokenValue() {
-		for (int attempt = 0; attempt < MAX_TOKEN_GENERATION_ATTEMPTS; attempt++) {
-			String candidate = generateRandomTokenValue();
-			if (!refreshTokenRepository.existsByTokenHash(hashRefreshToken(candidate))) {
-				return candidate;
-			}
+	@Transactional
+	public TokenResponse naverLogin(String code, String state) {
+		// 1. 네이버 서버로부터 Access Token 받아오기
+		String naverAccessToken = naverOAuthService.getAccessToken(code, state);
+
+		// 2. Access Token으로 유저 정보 받아오기
+		NaverUserResponse naverUserInfo = naverOAuthService.getUserInfo(naverAccessToken);
+		NaverUserResponse.Response profile = naverUserInfo.getResponse();
+
+		// 3. DB에 유저가 있는지 이메일로 확인하고, 없으면 회원가입(저장) 처리
+		User user = userRepository.findByEmail(profile.getEmail())
+				.orElseGet(() -> saveNaverUser(profile));
+
+		// 4. 기존 login 로직과 동일하게 JWT 토큰(Access/Refresh) 발급 및 저장
+		String accessToken = jwtTokenProvider.createAccessToken(user);
+		long accessTokenExpiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
+
+		String refreshTokenString = UUID.randomUUID().toString();
+		long refreshTokenExpiresIn = 604800; // 7일(초 단위)
+		Instant expiresAt = Instant.now().plusSeconds(refreshTokenExpiresIn);
+
+		RefreshToken refreshToken = RefreshToken.issue(user, refreshTokenString, expiresAt);
+		refreshTokenRepository.findByUserId(user.getId())
+				.ifPresentOrElse(
+						// 4-1. 기존 토큰이 존재하면 새로운 값으로 업데이트 (rotate)
+						existingToken -> existingToken.rotate(refreshTokenString, expiresAt),
+						// 4-2. 기존 토큰이 없으면(첫 로그인) 새로 생성하여 저장
+						() -> refreshTokenRepository.save(RefreshToken.issue(user, refreshTokenString, expiresAt))
+				);
+
+		// 5. 응답 반환
+		return new TokenResponse(
+				"Bearer",
+				accessToken,
+				accessTokenExpiresIn,
+				refreshTokenString,
+				refreshTokenExpiresIn,
+				user.getUsername(),
+				user.getEmail(),
+				user.getRole()
+		);
+	}
+
+	private User saveNaverUser(NaverUserResponse.Response profile) {
+		// 1. 네이버에서 넘겨준 실제 이름 (없을 경우 임시 이름 부여)
+		String realName = profile.getName() != null ? profile.getName() : "네이버유저";
+
+		// 2. 닉네임이 있으면 닉네임 사용, 없으면 실제 이름 사용
+		String username = profile.getNickname() != null ? profile.getNickname() : realName;
+
+		// 3. 만약 둘 다 없거나 중복 방지가 필요하다면 임의 문자열 추가
+		if (username.equals("네이버유저")) {
+			username = "네이버_" + UUID.randomUUID().toString().substring(0, 8);
 		}
 
-		throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "Could not generate a unique refresh token.");
+		User newUser = User.builder()
+				.email(profile.getEmail())
+				.name(realName)
+				.username(username)
+				.password(passwordEncoder.encode(UUID.randomUUID().toString())) // 소셜 로그인은 임의 암호화
+				.role(UserRole.USER)
+				.build();
+
+		return userRepository.save(newUser);
 	}
 
-	private String generateRandomTokenValue() {
-		byte[] tokenBytes = new byte[REFRESH_TOKEN_BYTES];
-		secureRandom.nextBytes(tokenBytes);
-		return Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
+	@Transactional
+	public TokenResponse googleLogin(String code) {
+		// 1. 구글 서버로부터 Access Token 받아오기
+		String googleAccessToken = googleOAuthService.getAccessToken(code);
+
+		// 2. Access Token으로 유저 정보 받아오기
+		GoogleUserResponse profile = googleOAuthService.getUserInfo(googleAccessToken);
+
+		// 3. DB에 유저 확인 및 저장 (이메일 기준)
+		User user = userRepository.findByEmail(profile.getEmail())
+				.orElseGet(() -> saveGoogleUser(profile));
+
+		// 4. JWT 토큰 발급
+		String accessToken = jwtTokenProvider.createAccessToken(user);
+		long accessTokenExpiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
+
+		String refreshTokenString = UUID.randomUUID().toString();
+		long refreshTokenExpiresIn = 604800; // 7일
+		Instant expiresAt = Instant.now().plusSeconds(refreshTokenExpiresIn);
+
+		// 5. Refresh Token 갱신 또는 생성
+		refreshTokenRepository.findByUserId(user.getId())
+				.ifPresentOrElse(
+						existingToken -> existingToken.rotate(refreshTokenString, expiresAt),
+						() -> refreshTokenRepository.save(RefreshToken.issue(user, refreshTokenString, expiresAt))
+				);
+
+		return new TokenResponse(
+				"Bearer",
+				accessToken,
+				accessTokenExpiresIn,
+				refreshTokenString,
+				refreshTokenExpiresIn,
+				user.getUsername(),
+				user.getEmail(),
+				user.getRole()
+		);
 	}
 
-	private String hashRefreshToken(String rawToken) {
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			byte[] hashedToken = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
-			return HexFormat.of().formatHex(hashedToken);
-		} catch (NoSuchAlgorithmException exception) {
-			throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "Could not hash refresh token.");
-		}
+	private User saveGoogleUser(GoogleUserResponse profile) {
+		String realName = profile.getName() != null ? profile.getName() : "구글유저";
+
+		// 구글은 닉네임을 따로 주지 않으므로 이름이나 이메일 앞부분을 username으로 사용
+		String username = profile.getEmail().split("@")[0];
+
+		User newUser = User.builder()
+				.email(profile.getEmail())
+				.name(realName)
+				.username(username)
+				.password(passwordEncoder.encode(UUID.randomUUID().toString()))
+				.role(UserRole.USER)
+				.build();
+
+		return userRepository.save(newUser);
 	}
+
 }

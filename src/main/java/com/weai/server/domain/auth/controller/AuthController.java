@@ -1,103 +1,68 @@
 package com.weai.server.domain.auth.controller;
 
 import com.weai.server.domain.auth.request.LoginRequest;
-import com.weai.server.domain.auth.request.LogoutRequest;
-import com.weai.server.domain.auth.request.RefreshTokenRequest;
 import com.weai.server.domain.auth.request.SignUpRequest;
 import com.weai.server.domain.auth.response.TokenResponse;
 import com.weai.server.domain.auth.service.AuthService;
-import com.weai.server.domain.user.response.UserResponse;
+import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.dto.ApiResponse;
-import com.weai.server.global.error.ErrorCode;
-import com.weai.server.global.swagger.SwaggerErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+import com.weai.server.domain.auth.service.KakaoOAuthService;
 
-@Tag(name = "Auth", description = "JWT authentication API")
+@Tag(name = "Auth", description = "인증 관련 API (로그인, 회원가입)")
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
 	private final AuthService authService;
+	private final UserService userService; // 기존 유저 서비스 재활용
 
-	@Operation(summary = "Sign up", description = "Register a new user account in the database.")
-	@ApiResponses({
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "User registered successfully"),
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Username or email already exists", content = @Content)
-	})
-	@SecurityRequirements
-	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.CONFLICT})
+	@Operation(summary = "회원가입", description = "새로운 계정을 생성합니다.")
 	@PostMapping("/signup")
-	public ApiResponse<UserResponse> signUp(@Valid @RequestBody SignUpRequest request) {
-		return ApiResponse.success(authService.signUp(request));
+	@ResponseStatus(HttpStatus.CREATED)
+	public ApiResponse<Void> signUp(@Valid @RequestBody SignUpRequest request) {
+		// 기존에 이미 잘 구현되어 있는 UserService의 메서드를 호출합니다.
+		userService.registerUser(request);
+		return ApiResponse.successMessage("회원가입이 성공적으로 완료되었습니다.");
 	}
 
-	@Operation(
-		summary = "Login and issue token pair",
-		description = "Authenticate with database-backed credentials and issue both access and refresh tokens."
-	)
-	@ApiResponses({
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Token issued successfully"),
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(
-			responseCode = "401",
-			description = "Authentication failed",
-			content = @Content
-		)
-	})
-	@SecurityRequirements
-	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED})
+	@Operation(summary = "이메일 로그인", description = "로그인하여 JWT 토큰을 발급받습니다.")
 	@PostMapping("/login")
 	public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-		return ApiResponse.success(authService.login(request));
+		TokenResponse tokenResponse = authService.login(request);
+		return ApiResponse.success(tokenResponse);
 	}
 
-	@Operation(
-		summary = "Refresh access token",
-		description = "Rotate the stored refresh token and issue a fresh access token pair."
-	)
-	@ApiResponses({
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(
-			responseCode = "200",
-			description = "Token refreshed successfully"
-		),
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(
-			responseCode = "401",
-			description = "Refresh token is invalid or expired",
-			content = @Content
-		)
-	})
-	@SecurityRequirements
-	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED})
-	@PostMapping("/refresh")
-	public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
-		return ApiResponse.success(authService.refresh(request));
+	private final KakaoOAuthService kakaoOAuthService; // 주입 추가
+
+	@Operation(summary = "카카오 로그인/회원가입", description = "카카오 인가 코드를 받아 소셜 로그인을 진행합니다.")
+	@GetMapping("/kakao/callback")
+	public ApiResponse<TokenResponse> kakaoLogin(@RequestParam("code") String code) {
+		TokenResponse tokenResponse = kakaoOAuthService.loginOrSignUp(code);
+		return ApiResponse.success(tokenResponse);
 	}
 
-	@Operation(
-		summary = "Logout",
-		description = "Revoke the currently stored refresh token for the user session."
-	)
-	@ApiResponses({
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(
-			responseCode = "200",
-			description = "Refresh token revoked successfully"
-		)
-	})
-	@SecurityRequirements
-	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT})
-	@PostMapping("/logout")
-	public ApiResponse<Void> logout(@Valid @RequestBody LogoutRequest request) {
-		authService.logout(request);
-		return ApiResponse.successMessage("Logged out successfully.");
+	// 네이버에서 리다이렉트되는 주소 (브라우저가 GET으로 호출함)
+	@GetMapping("/naver/callback")
+	public ApiResponse<TokenResponse> naverCallback(
+			@RequestParam("code") String code,
+			@RequestParam("state") String state
+	) {
+		// 서비스의 naverLogin 로직 호출
+		TokenResponse tokenResponse = authService.naverLogin(code, state);
+		return ApiResponse.success(tokenResponse);
+	}
+
+	@GetMapping("/google/callback")
+	public ApiResponse<TokenResponse> googleCallback(@RequestParam("code") String code) {
+		// 구글은 state 파라미터를 강제하지 않으므로 code만 받아도 됩니다.
+		TokenResponse tokenResponse = authService.googleLogin(code);
+		return ApiResponse.success(tokenResponse);
 	}
 }
