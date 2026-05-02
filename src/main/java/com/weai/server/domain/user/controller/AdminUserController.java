@@ -6,6 +6,7 @@ import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.dto.PageResponse;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @Validated
+@Hidden
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Admin User", description = "ADMIN-only user management API")
 @RestController

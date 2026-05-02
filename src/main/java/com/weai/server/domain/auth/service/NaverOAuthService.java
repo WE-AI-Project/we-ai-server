@@ -2,6 +2,8 @@ package com.weai.server.domain.auth.service;
 
 import com.weai.server.domain.auth.dto.naver.NaverTokenResponse;
 import com.weai.server.domain.auth.dto.naver.NaverUserResponse;
+import com.weai.server.domain.auth.response.SocialAuthorizationUrlResponse;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -12,70 +14,83 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 @RequiredArgsConstructor
 public class NaverOAuthService {
 
-    @Value("${oauth.naver.client-id}")
-    private String clientId;
+	@Value("${oauth.naver.client-id}")
+	private String clientId;
 
-    @Value("${oauth.naver.client-secret}")
-    private String clientSecret;
+	@Value("${oauth.naver.client-secret}")
+	private String clientSecret;
 
-    @Value("${oauth.naver.token-uri}")
-    private String tokenUri;
+	@Value("${oauth.naver.redirect-uri}")
+	private String redirectUri;
 
-    @Value("${oauth.naver.user-info-uri}")
-    private String userInfoUri;
+	@Value("${oauth.naver.token-uri}")
+	private String tokenUri;
 
-    private final RestTemplate restTemplate; // Config에서 Bean으로 등록되어 있어야 합니다.
+	@Value("${oauth.naver.user-info-uri}")
+	private String userInfoUri;
 
-    // 1. 인가 코드로 네이버 액세스 토큰 발급 받기
-    public String getAccessToken(String code, String state) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("Content-type", "application/x-www-form-urlencoded;charset=utf-8");
+	private final RestTemplate restTemplate;
 
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("grant_type", "authorization_code");
-        params.add("client_id", clientId);
-        params.add("client_secret", clientSecret);
-        params.add("code", code);
-        params.add("state", state); // 카카오와 달리 state가 필수 파라미터입니다.
+	public SocialAuthorizationUrlResponse createAuthorizationUrl() {
+		String state = UUID.randomUUID().toString();
+		String authorizationUrl = UriComponentsBuilder
+			.fromUriString("https://nid.naver.com/oauth2.0/authorize")
+			.queryParam("response_type", "code")
+			.queryParam("client_id", clientId)
+			.queryParam("state", state)
+			.queryParam("redirect_uri", redirectUri)
+			.build()
+			.encode()
+			.toUriString();
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
+		return new SocialAuthorizationUrlResponse("naver", authorizationUrl, state);
+	}
 
-        ResponseEntity<NaverTokenResponse> response = restTemplate.postForEntity(
-                tokenUri,
-                request,
-                NaverTokenResponse.class
-        );
+	public String getAccessToken(String code, String state) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Content-type", "application/x-www-form-urlencoded;charset=utf-8");
 
-        NaverTokenResponse tokenBody = response.getBody();
+		MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+		params.add("grant_type", "authorization_code");
+		params.add("client_id", clientId);
+		params.add("client_secret", clientSecret);
+		params.add("code", code);
+		params.add("state", state);
 
+		HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
+		ResponseEntity<NaverTokenResponse> response = restTemplate.postForEntity(
+			tokenUri,
+			request,
+			NaverTokenResponse.class
+		);
 
-        if (tokenBody == null || tokenBody.getAccessToken() == null) {
-            throw new RuntimeException("네이버 토큰 발급 실패: " + tokenBody.getErrorDescription());
-        }
+		NaverTokenResponse tokenBody = response.getBody();
+		if (tokenBody == null || tokenBody.getAccessToken() == null) {
+			throw new RuntimeException("Failed to issue Naver access token.");
+		}
 
-        return response.getBody().getAccessToken();
-    }
+		return tokenBody.getAccessToken();
+	}
 
-    // 2. 액세스 토큰으로 유저 정보 가져오기
-    public NaverUserResponse getUserInfo(String accessToken) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("Authorization", "Bearer " + accessToken);
-        headers.add("Content-type", "application/x-www-form-urlencoded;charset=utf-8");
+	public NaverUserResponse getUserInfo(String accessToken) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + accessToken);
+		headers.add("Content-type", "application/x-www-form-urlencoded;charset=utf-8");
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(headers);
+		HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(headers);
+		ResponseEntity<NaverUserResponse> response = restTemplate.exchange(
+			userInfoUri,
+			HttpMethod.GET,
+			request,
+			NaverUserResponse.class
+		);
 
-        ResponseEntity<NaverUserResponse> response = restTemplate.exchange(
-                userInfoUri,
-                HttpMethod.GET,
-                request,
-                NaverUserResponse.class
-        );
-
-        return response.getBody();
-    }
+		return response.getBody();
+	}
 }

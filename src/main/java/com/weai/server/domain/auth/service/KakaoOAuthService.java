@@ -1,14 +1,16 @@
 package com.weai.server.domain.auth.service;
 
-import com.weai.server.domain.auth.domain.RefreshToken;
 import com.weai.server.domain.auth.dto.kakao.KakaoTokenResponse;
 import com.weai.server.domain.auth.dto.kakao.KakaoUserResponse;
 import com.weai.server.domain.auth.repository.RefreshTokenRepository;
+import com.weai.server.domain.auth.response.SocialAuthorizationUrlResponse;
 import com.weai.server.domain.auth.response.TokenResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.security.jwt.JwtTokenProvider;
+import java.time.Instant;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -18,107 +20,123 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
-
-import java.time.Instant;
-import java.util.UUID;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 @RequiredArgsConstructor
 public class KakaoOAuthService {
 
-    private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final PasswordEncoder passwordEncoder;
+	private static final long REFRESH_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
-    @Value("${oauth.kakao.client-id}")
-    private String clientId;
+	private final UserRepository userRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
+	private final JwtTokenProvider jwtTokenProvider;
+	private final PasswordEncoder passwordEncoder;
 
-    @Value("${oauth.kakao.redirect-uri}")
-    private String redirectUri;
+	@Value("${oauth.kakao.client-id}")
+	private String clientId;
 
-    private final RestClient restClient = RestClient.create();
+	@Value("${oauth.kakao.redirect-uri}")
+	private String redirectUri;
 
-    @Transactional
-    public TokenResponse loginOrSignUp(String code) {
-        // 1. 카카오 Access Token 받아오기
-        String kakaoAccessToken = getKakaoAccessToken(code);
+	private final RestClient restClient = RestClient.create();
 
-        // 2. 카카오 사용자 정보 받아오기
-        KakaoUserResponse kakaoUserInfo = getKakaoUserInfo(kakaoAccessToken);
+	public SocialAuthorizationUrlResponse createAuthorizationUrl() {
+		String authorizationUrl = UriComponentsBuilder
+			.fromUriString("https://kauth.kakao.com/oauth/authorize")
+			.queryParam("response_type", "code")
+			.queryParam("client_id", clientId)
+			.queryParam("redirect_uri", redirectUri)
+			.queryParam("prompt", "login")
+			.build()
+			.encode()
+			.toUriString();
 
-        // 3. 우리 서비스 유저로 변환 (없으면 회원가입, 있으면 조회)
-        User user = registerOrLoginKakaoUser(kakaoUserInfo);
+		return new SocialAuthorizationUrlResponse("kakao", authorizationUrl, null);
+	}
 
-        // 4. JWT 토큰 발급 및 응답 (기존 로그인 로직과 동일)
-        String accessToken = jwtTokenProvider.createAccessToken(user);
-        long accessTokenExpiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
-        String refreshTokenString = UUID.randomUUID().toString();
-        long refreshTokenExpiresIn = 604800;
+	@Transactional
+	public TokenResponse loginOrSignUp(String code) {
+		String kakaoAccessToken = getKakaoAccessToken(code);
+		KakaoUserResponse kakaoUserInfo = getKakaoUserInfo(kakaoAccessToken);
+		User user = registerOrLoginKakaoUser(kakaoUserInfo);
+		return issueTokens(user);
+	}
 
-        RefreshToken refreshToken = RefreshToken.issue(user, refreshTokenString, Instant.now().plusSeconds(refreshTokenExpiresIn));
-        refreshTokenRepository.save(refreshToken);
+	private TokenResponse issueTokens(User user) {
+		String accessToken = jwtTokenProvider.createAccessToken(user);
+		long accessTokenExpiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
 
-        return new TokenResponse(
-                "Bearer", accessToken, accessTokenExpiresIn,
-                refreshTokenString, refreshTokenExpiresIn,
-                user.getUsername(), user.getEmail(), user.getRole()
-        );
-    }
+		String refreshTokenString = UUID.randomUUID().toString();
+		Instant refreshTokenExpiresAt = Instant.now().plusSeconds(REFRESH_TOKEN_EXPIRES_IN_SECONDS);
 
-    private String getKakaoAccessToken(String code) {
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("grant_type", "authorization_code");
-        params.add("client_id", clientId);
-        params.add("redirect_uri", redirectUri);
-        params.add("code", code);
+		refreshTokenRepository.findByUserId(user.getId())
+			.ifPresentOrElse(
+				existingToken -> existingToken.rotate(refreshTokenString, refreshTokenExpiresAt),
+				() -> refreshTokenRepository.save(
+					com.weai.server.domain.auth.domain.RefreshToken.issue(user, refreshTokenString, refreshTokenExpiresAt)
+				)
+			);
 
-        KakaoTokenResponse response = restClient.post()
-                .uri("https://kauth.kakao.com/oauth/token")
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(params)
-                .retrieve()
-                .body(KakaoTokenResponse.class);
+		return new TokenResponse(
+			"Bearer",
+			accessToken,
+			accessTokenExpiresIn,
+			refreshTokenString,
+			REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+			user.getUsername(),
+			user.getEmail(),
+			user.getRole()
+		);
+	}
 
-        return response.accessToken();
-    }
+	private String getKakaoAccessToken(String code) {
+		MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+		params.add("grant_type", "authorization_code");
+		params.add("client_id", clientId);
+		params.add("redirect_uri", redirectUri);
+		params.add("code", code);
 
-    private KakaoUserResponse getKakaoUserInfo(String accessToken) {
-        return restClient.get()
-                .uri("https://kapi.kakao.com/v2/user/me")
-                .header("Authorization", "Bearer " + accessToken)
-                .retrieve()
-                .body(KakaoUserResponse.class);
-    }
+		KakaoTokenResponse response = restClient.post()
+			.uri("https://kauth.kakao.com/oauth/token")
+			.contentType(MediaType.APPLICATION_FORM_URLENCODED)
+			.body(params)
+			.retrieve()
+			.body(KakaoTokenResponse.class);
 
-    private User registerOrLoginKakaoUser(KakaoUserResponse kakaoInfo) {
-        // 1. 카카오 계정 정보가 아예 없는 경우 예외 처리
-        if (kakaoInfo.kakaoAccount() == null || kakaoInfo.kakaoAccount().profile() == null) {
-            throw new IllegalArgumentException("카카오 계정 정보를 가져올 수 없습니다.");
-        }
+		return response.accessToken();
+	}
 
-        String kakaoNickname = kakaoInfo.kakaoAccount().profile().nickname();
-        String kakaoEmail = kakaoInfo.kakaoAccount().email();
+	private KakaoUserResponse getKakaoUserInfo(String accessToken) {
+		return restClient.get()
+			.uri("https://kapi.kakao.com/v2/user/me")
+			.header("Authorization", "Bearer " + accessToken)
+			.retrieve()
+			.body(KakaoUserResponse.class);
+	}
 
-        // 2. 사용자가 이메일 제공에 동의하지 않은 경우 가짜 이메일 생성 (DB 충돌 방지)
-        if (kakaoEmail == null || kakaoEmail.isBlank()) {
-            kakaoEmail = kakaoInfo.id() + "@kakao.user";
-        }
+	private User registerOrLoginKakaoUser(KakaoUserResponse kakaoInfo) {
+		if (kakaoInfo.kakaoAccount() == null || kakaoInfo.kakaoAccount().profile() == null) {
+			throw new IllegalArgumentException("Failed to load Kakao account profile.");
+		}
 
-        String uniqueUsername = "kakao_" + kakaoInfo.id();
-        String finalKakaoEmail = kakaoEmail; // 람다식 내부에서 쓰기 위한 final 처리
+		String kakaoNickname = kakaoInfo.kakaoAccount().profile().nickname();
+		String kakaoEmail = kakaoInfo.kakaoAccount().email();
 
-        // 3. 이메일로 기존 가입 여부 확인 및 자동 회원가입
-        return userRepository.findByEmail(finalKakaoEmail)
-                .orElseGet(() -> {
-                    User newUser = User.create(
-                            uniqueUsername,
-                            passwordEncoder.encode(UUID.randomUUID().toString()),
-                            kakaoNickname,
-                            finalKakaoEmail,
-                            UserRole.USER
-                    );
-                    return userRepository.save(newUser);
-                });
-    }
+		if (kakaoEmail == null || kakaoEmail.isBlank()) {
+			kakaoEmail = kakaoInfo.id() + "@kakao.user";
+		}
+
+		String uniqueUsername = "kakao_" + kakaoInfo.id();
+		String finalKakaoEmail = kakaoEmail;
+
+		return userRepository.findByEmail(finalKakaoEmail)
+			.orElseGet(() -> userRepository.save(User.create(
+				uniqueUsername,
+				passwordEncoder.encode(UUID.randomUUID().toString()),
+				kakaoNickname,
+				finalKakaoEmail,
+				UserRole.USER
+			)));
+	}
 }

@@ -4,15 +4,15 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
-@Schema(description = "로그인 요청")
+@Schema(description = "Login request")
 public record LoginRequest(
-		@Schema(description = "이메일", example = "user@example.com")
-		@NotBlank(message = "이메일을 입력해주세요.")
-		@Email(message = "올바른 이메일 형식이 아닙니다.")
+		@Schema(description = "Email address", example = "royalkim@example.com")
+		@NotBlank(message = "email is required.")
+		@Email(message = "email must be a valid address.")
 		String email,
 
-		@Schema(description = "비밀번호", example = "password1234!")
-		@NotBlank(message = "비밀번호를 입력해주세요.")
+		@Schema(description = "Password", example = "kmh0707!")
+		@NotBlank(message = "password is required.")
 		String password
 ) {
 }

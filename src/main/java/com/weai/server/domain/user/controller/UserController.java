@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "User", description = "Authenticated user API")
+@Tag(name = "사용자", description = "로그인한 사용자 정보 조회 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/users")
@@ -25,14 +25,14 @@ public class UserController {
 
 	private final UserService userService;
 
-	@Operation(summary = "Get current user profile", description = "Return the currently authenticated user.")
+	@Operation(summary = "내 정보 조회", description = "현재 로그인한 사용자의 정보를 조회합니다.")
 	@ApiResponses({
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
 			responseCode = "200",
-			description = "Current user loaded successfully"
+			description = "현재 사용자 정보를 성공적으로 조회했습니다."
 		),
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Authentication is required"),
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Access token does not have user access", content = @Content)
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증이 필요합니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "사용자 권한이 없는 토큰입니다.", content = @Content)
 	})
 	@SwaggerErrorResponses({ErrorCode.UNAUTHORIZED, ErrorCode.RESOURCE_NOT_FOUND})
 	@GetMapping("/me")
