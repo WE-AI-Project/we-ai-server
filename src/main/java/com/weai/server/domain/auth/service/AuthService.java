@@ -2,7 +2,6 @@ package com.weai.server.domain.auth.service;
 
 import com.weai.server.domain.auth.dto.google.GoogleUserResponse;
 import com.weai.server.domain.auth.dto.naver.NaverUserResponse;
-import com.weai.server.domain.auth.repository.RefreshTokenRepository;
 import com.weai.server.domain.auth.request.LoginRequest;
 import com.weai.server.domain.auth.response.TokenResponse;
 import com.weai.server.domain.user.domain.User;
@@ -10,8 +9,6 @@ import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
-import com.weai.server.global.security.jwt.JwtTokenProvider;
-import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,12 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
-	private static final long REFRESH_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
-
 	private final UserRepository userRepository;
-	private final RefreshTokenRepository refreshTokenRepository;
 	private final PasswordEncoder passwordEncoder;
-	private final JwtTokenProvider jwtTokenProvider;
+	private final TokenService tokenService;
 	private final NaverOAuthService naverOAuthService;
 	private final GoogleOAuthService googleOAuthService;
 
@@ -43,7 +37,17 @@ public class AuthService {
 			throw new ApiException(ErrorCode.UNAUTHORIZED, "Password does not match.");
 		}
 
-		return issueTokens(user);
+		return tokenService.issueTokens(user);
+	}
+
+	@Transactional
+	public TokenResponse refresh(String rawRefreshToken) {
+		return tokenService.refresh(rawRefreshToken);
+	}
+
+	@Transactional
+	public void logout(String rawRefreshToken) {
+		tokenService.logout(rawRefreshToken);
 	}
 
 	@Transactional
@@ -55,7 +59,7 @@ public class AuthService {
 		User user = userRepository.findByEmail(profile.getEmail())
 			.orElseGet(() -> saveNaverUser(profile));
 
-		return issueTokens(user);
+		return tokenService.issueTokens(user);
 	}
 
 	@Transactional
@@ -66,34 +70,7 @@ public class AuthService {
 		User user = userRepository.findByEmail(profile.getEmail())
 			.orElseGet(() -> saveGoogleUser(profile));
 
-		return issueTokens(user);
-	}
-
-	private TokenResponse issueTokens(User user) {
-		String accessToken = jwtTokenProvider.createAccessToken(user);
-		long accessTokenExpiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
-
-		String refreshTokenString = UUID.randomUUID().toString();
-		Instant refreshTokenExpiresAt = Instant.now().plusSeconds(REFRESH_TOKEN_EXPIRES_IN_SECONDS);
-
-		refreshTokenRepository.findByUserId(user.getId())
-			.ifPresentOrElse(
-				existingToken -> existingToken.rotate(refreshTokenString, refreshTokenExpiresAt),
-				() -> refreshTokenRepository.save(
-					com.weai.server.domain.auth.domain.RefreshToken.issue(user, refreshTokenString, refreshTokenExpiresAt)
-				)
-			);
-
-		return new TokenResponse(
-			"Bearer",
-			accessToken,
-			accessTokenExpiresIn,
-			refreshTokenString,
-			REFRESH_TOKEN_EXPIRES_IN_SECONDS,
-			user.getUsername(),
-			user.getEmail(),
-			user.getRole()
-		);
+		return tokenService.issueTokens(user);
 	}
 
 	private User saveNaverUser(NaverUserResponse.Response profile) {

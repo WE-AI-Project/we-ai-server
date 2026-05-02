@@ -9,18 +9,18 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.UUID;
+import java.util.Base64;
 import java.util.HexFormat;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
@@ -44,14 +44,15 @@ class AuthIntegrationTest {
 	@Test
 	void userCanSignUpLoginRefreshLogoutAndFetchProfileFromDatabase() throws Exception {
 		String username = "member-" + UUID.randomUUID().toString().substring(0, 8);
+		String email = username + "@example.com";
 		String signUpRequestBody = """
 			{
 			  "username": "%s",
 			  "name": "Kim Coding",
-			  "email": "%s@example.com",
+			  "email": "%s",
 			  "password": "password1234!"
 			}
-			""".formatted(username, username);
+			""".formatted(username, email);
 
 		HttpResponse<String> signUpResponse = httpClient.send(
 			HttpRequest.newBuilder()
@@ -62,12 +63,11 @@ class AuthIntegrationTest {
 			HttpResponse.BodyHandlers.ofString()
 		);
 
-		assertThat(signUpResponse.statusCode()).isEqualTo(200);
-		assertThat(signUpResponse.body()).contains("\"username\":\"" + username + "\"");
-		assertThat(signUpResponse.body()).contains("\"role\":\"USER\"");
+		assertThat(signUpResponse.statusCode()).isEqualTo(201);
+		assertThat(signUpResponse.body()).contains("\"message\":\"User registration completed successfully.\"");
 
-		TokenPair loginTokens = login(username, "password1234!");
-		assertAccessTokenClaims(loginTokens.accessToken(), username + "@example.com", "USER");
+		TokenPair loginTokens = login(email, "password1234!");
+		assertAccessTokenClaims(loginTokens.accessToken(), email, "USER");
 		assertStoredRefreshTokenIsHashed(username, loginTokens.refreshToken());
 
 		HttpResponse<String> meResponse = httpClient.send(
@@ -99,6 +99,7 @@ class AuthIntegrationTest {
 		assertThat(refreshResponse.statusCode()).isEqualTo(200);
 		TokenPair refreshedTokens = extractTokenPair(refreshResponse.body());
 		assertThat(refreshedTokens.refreshToken()).isNotEqualTo(loginTokens.refreshToken());
+		assertStoredRefreshTokenIsHashed(username, refreshedTokens.refreshToken());
 
 		HttpResponse<String> refreshedMeResponse = httpClient.send(
 			HttpRequest.newBuilder()
@@ -148,14 +149,15 @@ class AuthIntegrationTest {
 	@Test
 	void regularUserCannotAccessAdminOnlyUserEndpoints() throws Exception {
 		String username = "viewer-" + UUID.randomUUID().toString().substring(0, 8);
+		String email = username + "@example.com";
 		String signUpRequestBody = """
 			{
 			  "username": "%s",
 			  "name": "View Only",
-			  "email": "%s@example.com",
+			  "email": "%s",
 			  "password": "password1234!"
 			}
-			""".formatted(username, username);
+			""".formatted(username, email);
 
 		httpClient.send(
 			HttpRequest.newBuilder()
@@ -166,7 +168,7 @@ class AuthIntegrationTest {
 			HttpResponse.BodyHandlers.ofString()
 		);
 
-		String accessToken = login(username, "password1234!").accessToken();
+		String accessToken = login(email, "password1234!").accessToken();
 
 		HttpResponse<String> response = httpClient.send(
 			HttpRequest.newBuilder()
@@ -181,13 +183,13 @@ class AuthIntegrationTest {
 		assertThat(response.body()).contains("\"code\":\"COMMON_403\"");
 	}
 
-	private TokenPair login(String username, String password) throws Exception {
+	private TokenPair login(String email, String password) throws Exception {
 		String requestBody = """
 			{
-			  "username": "%s",
+			  "email": "%s",
 			  "password": "%s"
 			}
-			""".formatted(username, password);
+			""".formatted(email, password);
 
 		HttpResponse<String> response = httpClient.send(
 			HttpRequest.newBuilder()

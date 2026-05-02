@@ -8,7 +8,45 @@ spring:
 
 logging:
   level:
+    root: warn
+    com.weai.server: info
+    org.springframework.security: warn
     org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: error
 
 server:
   forward-headers-strategy: framework
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+app:
+  web:
+    base-url: ${APP_BASE_URL:https://api.example.com}
+    frontend-base-url: ${APP_FRONTEND_BASE_URL:https://app.example.com}
+    external-domains:
+      api-domain: ${APP_API_DOMAIN:api.example.com}
+      frontend-domain: ${APP_FRONTEND_DOMAIN:app.example.com}
+      storage-console-domain: ${APP_STORAGE_CONSOLE_DOMAIN:minio.example.com}
+    cors:
+      allowed-origins:
+        - ${APP_FRONTEND_BASE_URL:https://app.example.com}
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - Authorization
+        - Content-Type
+        - X-Requested-With
+        - X-Request-Id
+      exposed-headers:
+        - X-Request-Id
+      allow-credentials: true
+      max-age: 1h

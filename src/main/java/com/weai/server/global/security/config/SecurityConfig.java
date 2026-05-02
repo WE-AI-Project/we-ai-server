@@ -1,11 +1,10 @@
 package com.weai.server.global.security.config;
 
+import com.weai.server.global.config.AppWebProperties;
 import com.weai.server.global.security.jwt.JwtAccessDeniedHandler;
 import com.weai.server.global.security.jwt.JwtAuthenticationEntryPoint;
 import com.weai.server.global.security.jwt.JwtAuthenticationFilter;
-import com.weai.server.global.security.jwt.JwtProperties;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,12 +21,15 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @RequiredArgsConstructor
-@EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 
+	private final AppWebProperties appWebProperties;
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 	private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
@@ -95,5 +97,22 @@ public class SecurityConfig {
 	@Bean
 	public PasswordEncoder passwordEncoder() {
 		return new BCryptPasswordEncoder();
+	}
+
+	@Bean
+	public CorsConfigurationSource corsConfigurationSource() {
+		AppWebProperties.Cors cors = appWebProperties.getCors();
+
+		CorsConfiguration configuration = new CorsConfiguration();
+		configuration.setAllowedOrigins(cors.getAllowedOrigins());
+		configuration.setAllowedMethods(cors.getAllowedMethods());
+		configuration.setAllowedHeaders(cors.getAllowedHeaders());
+		configuration.setExposedHeaders(cors.getExposedHeaders());
+		configuration.setAllowCredentials(cors.isAllowCredentials());
+		configuration.setMaxAge(cors.getMaxAge().getSeconds());
+
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", configuration);
+		return source;
 	}
 }

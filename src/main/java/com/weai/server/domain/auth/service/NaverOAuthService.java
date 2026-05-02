@@ -1,11 +1,11 @@
 package com.weai.server.domain.auth.service;
 
+import com.weai.server.domain.auth.config.OAuthProperties;
 import com.weai.server.domain.auth.dto.naver.NaverTokenResponse;
 import com.weai.server.domain.auth.dto.naver.NaverUserResponse;
 import com.weai.server.domain.auth.response.SocialAuthorizationUrlResponse;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -20,31 +20,18 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RequiredArgsConstructor
 public class NaverOAuthService {
 
-	@Value("${oauth.naver.client-id}")
-	private String clientId;
-
-	@Value("${oauth.naver.client-secret}")
-	private String clientSecret;
-
-	@Value("${oauth.naver.redirect-uri}")
-	private String redirectUri;
-
-	@Value("${oauth.naver.token-uri}")
-	private String tokenUri;
-
-	@Value("${oauth.naver.user-info-uri}")
-	private String userInfoUri;
-
+	private final OAuthProperties oauthProperties;
 	private final RestTemplate restTemplate;
 
 	public SocialAuthorizationUrlResponse createAuthorizationUrl() {
+		OAuthProperties.Naver naver = oauthProperties.getNaver();
 		String state = UUID.randomUUID().toString();
 		String authorizationUrl = UriComponentsBuilder
-			.fromUriString("https://nid.naver.com/oauth2.0/authorize")
+			.fromUriString(naver.getAuthorizationUri())
 			.queryParam("response_type", "code")
-			.queryParam("client_id", clientId)
+			.queryParam("client_id", naver.getClientId())
 			.queryParam("state", state)
-			.queryParam("redirect_uri", redirectUri)
+			.queryParam("redirect_uri", naver.getRedirectUri())
 			.build()
 			.encode()
 			.toUriString();
@@ -53,19 +40,20 @@ public class NaverOAuthService {
 	}
 
 	public String getAccessToken(String code, String state) {
+		OAuthProperties.Naver naver = oauthProperties.getNaver();
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("Content-type", "application/x-www-form-urlencoded;charset=utf-8");
 
 		MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
 		params.add("grant_type", "authorization_code");
-		params.add("client_id", clientId);
-		params.add("client_secret", clientSecret);
+		params.add("client_id", naver.getClientId());
+		params.add("client_secret", naver.getClientSecret());
 		params.add("code", code);
 		params.add("state", state);
 
 		HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 		ResponseEntity<NaverTokenResponse> response = restTemplate.postForEntity(
-			tokenUri,
+			naver.getTokenUri(),
 			request,
 			NaverTokenResponse.class
 		);
@@ -85,7 +73,7 @@ public class NaverOAuthService {
 
 		HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(headers);
 		ResponseEntity<NaverUserResponse> response = restTemplate.exchange(
-			userInfoUri,
+			oauthProperties.getNaver().getUserInfoUri(),
 			HttpMethod.GET,
 			request,
 			NaverUserResponse.class

@@ -1,6 +1,6 @@
 services:
   app:
-    profiles: ["staging"]
+    profiles: ["stag", "prod"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -33,6 +33,11 @@ services:
       GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID}'
       GOOGLE_CLIENT_SECRET: '${GOOGLE_CLIENT_SECRET}'
       GOOGLE_REDIRECT_URI: '${GOOGLE_REDIRECT_URI}'
+      MINIO_ENDPOINT: '${MINIO_ENDPOINT:-http://minio:9000}'
+      MINIO_ROOT_USER: '${MINIO_ROOT_USER:-minioadmin}'
+      MINIO_ROOT_PASSWORD: '${MINIO_ROOT_PASSWORD:-change-me-minio-password}'
+      MINIO_PUBLIC_BUCKET: '${MINIO_PUBLIC_BUCKET:-we-ai-public}'
+      MINIO_PRIVATE_BUCKET: '${MINIO_PRIVATE_BUCKET:-we-ai-private}'
     expose:
       - '8080'
     healthcheck:
@@ -47,6 +52,7 @@ services:
   mysql:
     image: 'mysql:${MYSQL_IMAGE_TAG:-8.4}'
     container_name: '${MYSQL_CONTAINER_NAME:-we-ai-mysql}'
+    restart: unless-stopped
     environment:
       - 'MYSQL_DATABASE=${DB_NAME:-we_ai}'
       - 'MYSQL_PASSWORD=${DB_PASSWORD:-change-me-db-password}'
@@ -72,6 +78,7 @@ services:
   minio:
     image: 'quay.io/minio/minio:${MINIO_IMAGE_TAG:-latest}'
     container_name: '${MINIO_CONTAINER_NAME:-we-ai-minio}'
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       - 'MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}'
@@ -108,14 +115,14 @@ services:
   nginx:
     image: 'nginx:${NGINX_IMAGE_TAG:-stable-alpine}'
     container_name: '${NGINX_CONTAINER_NAME:-we-ai-nginx}'
+    restart: unless-stopped
     environment:
       BACKEND_UPSTREAM: '${BACKEND_UPSTREAM:-host.docker.internal:8080}'
+      NGINX_SERVER_NAME: '${NGINX_SERVER_NAME:-_}'
     depends_on:
       app:
         condition: service_healthy
         required: false
-      mysql:
-        condition: service_started
       minio:
         condition: service_started
       minio-init:

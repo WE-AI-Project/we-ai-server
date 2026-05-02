@@ -1,18 +1,15 @@
 package com.weai.server.domain.auth.service;
 
+import com.weai.server.domain.auth.config.OAuthProperties;
 import com.weai.server.domain.auth.dto.kakao.KakaoTokenResponse;
 import com.weai.server.domain.auth.dto.kakao.KakaoUserResponse;
-import com.weai.server.domain.auth.repository.RefreshTokenRepository;
 import com.weai.server.domain.auth.response.SocialAuthorizationUrlResponse;
 import com.weai.server.domain.auth.response.TokenResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.repository.UserRepository;
-import com.weai.server.global.security.jwt.JwtTokenProvider;
-import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,27 +23,20 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RequiredArgsConstructor
 public class KakaoOAuthService {
 
-	private static final long REFRESH_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
-
 	private final UserRepository userRepository;
-	private final RefreshTokenRepository refreshTokenRepository;
-	private final JwtTokenProvider jwtTokenProvider;
 	private final PasswordEncoder passwordEncoder;
-
-	@Value("${oauth.kakao.client-id}")
-	private String clientId;
-
-	@Value("${oauth.kakao.redirect-uri}")
-	private String redirectUri;
-
+	private final TokenService tokenService;
+	private final OAuthProperties oauthProperties;
 	private final RestClient restClient = RestClient.create();
 
 	public SocialAuthorizationUrlResponse createAuthorizationUrl() {
+		OAuthProperties.Kakao kakao = oauthProperties.getKakao();
+
 		String authorizationUrl = UriComponentsBuilder
-			.fromUriString("https://kauth.kakao.com/oauth/authorize")
+			.fromUriString(kakao.getAuthorizationUri())
 			.queryParam("response_type", "code")
-			.queryParam("client_id", clientId)
-			.queryParam("redirect_uri", redirectUri)
+			.queryParam("client_id", kakao.getClientId())
+			.queryParam("redirect_uri", kakao.getRedirectUri())
 			.queryParam("prompt", "login")
 			.build()
 			.encode()
@@ -60,45 +50,19 @@ public class KakaoOAuthService {
 		String kakaoAccessToken = getKakaoAccessToken(code);
 		KakaoUserResponse kakaoUserInfo = getKakaoUserInfo(kakaoAccessToken);
 		User user = registerOrLoginKakaoUser(kakaoUserInfo);
-		return issueTokens(user);
-	}
-
-	private TokenResponse issueTokens(User user) {
-		String accessToken = jwtTokenProvider.createAccessToken(user);
-		long accessTokenExpiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
-
-		String refreshTokenString = UUID.randomUUID().toString();
-		Instant refreshTokenExpiresAt = Instant.now().plusSeconds(REFRESH_TOKEN_EXPIRES_IN_SECONDS);
-
-		refreshTokenRepository.findByUserId(user.getId())
-			.ifPresentOrElse(
-				existingToken -> existingToken.rotate(refreshTokenString, refreshTokenExpiresAt),
-				() -> refreshTokenRepository.save(
-					com.weai.server.domain.auth.domain.RefreshToken.issue(user, refreshTokenString, refreshTokenExpiresAt)
-				)
-			);
-
-		return new TokenResponse(
-			"Bearer",
-			accessToken,
-			accessTokenExpiresIn,
-			refreshTokenString,
-			REFRESH_TOKEN_EXPIRES_IN_SECONDS,
-			user.getUsername(),
-			user.getEmail(),
-			user.getRole()
-		);
+		return tokenService.issueTokens(user);
 	}
 
 	private String getKakaoAccessToken(String code) {
+		OAuthProperties.Kakao kakao = oauthProperties.getKakao();
 		MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
 		params.add("grant_type", "authorization_code");
-		params.add("client_id", clientId);
-		params.add("redirect_uri", redirectUri);
+		params.add("client_id", kakao.getClientId());
+		params.add("redirect_uri", kakao.getRedirectUri());
 		params.add("code", code);
 
 		KakaoTokenResponse response = restClient.post()
-			.uri("https://kauth.kakao.com/oauth/token")
+			.uri(kakao.getTokenUri())
 			.contentType(MediaType.APPLICATION_FORM_URLENCODED)
 			.body(params)
 			.retrieve()
@@ -109,7 +73,7 @@ public class KakaoOAuthService {
 
 	private KakaoUserResponse getKakaoUserInfo(String accessToken) {
 		return restClient.get()
-			.uri("https://kapi.kakao.com/v2/user/me")
+			.uri(oauthProperties.getKakao().getUserInfoUri())
 			.header("Authorization", "Bearer " + accessToken)
 			.retrieve()
 			.body(KakaoUserResponse.class);

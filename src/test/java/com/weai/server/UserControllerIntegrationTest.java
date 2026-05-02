@@ -2,14 +2,14 @@ package com.weai.server;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.weai.server.domain.user.repository.UserRepository;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -19,10 +19,10 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 class UserControllerIntegrationTest {
 
-	private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"accessToken\":\"([^\"]+)\"");
-	private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\":(\\d+)");
-
 	private final HttpClient httpClient = HttpClient.newHttpClient();
+
+	@Autowired
+	private UserRepository userRepository;
 
 	@LocalServerPort
 	private int port;
@@ -43,12 +43,31 @@ class UserControllerIntegrationTest {
 	}
 
 	@Test
+	void healthEndpointAppliesCorsHeadersForAllowedOrigin() throws Exception {
+		HttpResponse<String> response = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/health".formatted(port)))
+				.header("Origin", "http://localhost:3000")
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(response.statusCode()).isEqualTo(200);
+		assertThat(response.headers().firstValue("access-control-allow-origin"))
+			.hasValue("http://localhost:3000");
+		assertThat(response.headers().firstValue("access-control-expose-headers"))
+			.hasValueSatisfying(headers -> assertThat(headers).contains("X-Request-Id"));
+	}
+
+	@Test
 	void adminCanFetchBootstrapAdminUserById() throws Exception {
 		String adminToken = issueAdminAccessToken();
+		Long adminUserId = userRepository.findByUsername("test-admin").orElseThrow().getId();
 
 		HttpResponse<String> response = httpClient.send(
 			HttpRequest.newBuilder()
-				.uri(URI.create("http://localhost:%d/api/v1/admin/users/1".formatted(port)))
+				.uri(URI.create("http://localhost:%d/api/v1/admin/users/%d".formatted(port, adminUserId)))
 				.header("Authorization", "Bearer " + adminToken)
 				.GET()
 				.build(),
@@ -63,7 +82,8 @@ class UserControllerIntegrationTest {
 
 	@Test
 	void signedUpUserAppearsInAdminUserList() throws Exception {
-		String signupRequest = createSignupRequestBody("member-" + UUID.randomUUID().toString().substring(0, 8));
+		String username = "member-" + UUID.randomUUID().toString().substring(0, 8);
+		String signupRequest = createSignupRequestBody(username);
 
 		HttpResponse<String> signUpResponse = httpClient.send(
 			HttpRequest.newBuilder()
@@ -74,8 +94,8 @@ class UserControllerIntegrationTest {
 			HttpResponse.BodyHandlers.ofString()
 		);
 
-		assertThat(signUpResponse.statusCode()).isEqualTo(200);
-		long createdUserId = extractCreatedUserId(signUpResponse.body());
+		assertThat(signUpResponse.statusCode()).isEqualTo(201);
+		long createdUserId = userRepository.findByUsername(username).orElseThrow().getId();
 
 		String adminToken = issueAdminAccessToken();
 
@@ -101,15 +121,17 @@ class UserControllerIntegrationTest {
 		assertThat(listResponse.body()).contains("\"content\"");
 		assertThat(listResponse.body()).contains("\"page\":0");
 		assertThat(listResponse.body()).contains("\"size\":10");
+		assertThat(listResponse.body()).contains("\"username\":\"" + username + "\"");
 		assertThat(listResponse.body()).contains("\"role\":\"USER\"");
 		assertThat(userResponse.statusCode()).isEqualTo(200);
+		assertThat(userResponse.body()).contains("\"username\":\"" + username + "\"");
 		assertThat(userResponse.body()).contains("\"role\":\"USER\"");
 	}
 
 	private String issueAdminAccessToken() throws Exception {
 		String loginRequestBody = """
 			{
-			  "username": "test-admin",
+			  "email": "test-admin@local.we-ai",
 			  "password": "test-admin1234!"
 			}
 			""";
@@ -124,10 +146,7 @@ class UserControllerIntegrationTest {
 		);
 
 		assertThat(response.statusCode()).isEqualTo(200);
-
-		Matcher matcher = ACCESS_TOKEN_PATTERN.matcher(response.body());
-		assertThat(matcher.find()).isTrue();
-		return matcher.group(1);
+		return extractAccessToken(response.body());
 	}
 
 	private String createSignupRequestBody(String username) {
@@ -141,9 +160,14 @@ class UserControllerIntegrationTest {
 			""".formatted(username, username);
 	}
 
-	private long extractCreatedUserId(String responseBody) {
-		Matcher matcher = USER_ID_PATTERN.matcher(responseBody);
-		assertThat(matcher.find()).isTrue();
-		return Long.parseLong(matcher.group(1));
+	private String extractAccessToken(String responseBody) {
+		String tokenMarker = "\"accessToken\":\"";
+		int startIndex = responseBody.indexOf(tokenMarker);
+		assertThat(startIndex).isGreaterThanOrEqualTo(0);
+
+		int tokenValueStart = startIndex + tokenMarker.length();
+		int tokenValueEnd = responseBody.indexOf('"', tokenValueStart);
+		assertThat(tokenValueEnd).isGreaterThan(tokenValueStart);
+		return responseBody.substring(tokenValueStart, tokenValueEnd);
 	}
 }

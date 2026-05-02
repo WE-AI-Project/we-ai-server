@@ -19,6 +19,19 @@ spring:
     accessTokenExpiration: PT30M
     refreshTokenExpiration: PT12H
 
+oauth:
+  kakao:
+    client-id: test-kakao-client-id
+    redirect-uri: http://localhost/test/kakao/callback
+  naver:
+    client-id: test-naver-client-id
+    client-secret: test-naver-client-secret
+    redirect-uri: http://localhost/test/naver/callback
+  google:
+    client-id: test-google-client-id
+    client-secret: test-google-client-secret
+    redirect-uri: http://localhost/test/google/callback
+
 management:
   endpoints:
     enabled-by-default: false
@@ -27,3 +40,29 @@ app:
   auth:
     username: test-admin
     password: test-admin1234!
+  web:
+    base-url: http://localhost:8080
+    frontend-base-url: http://localhost:3000
+    external-domains:
+      api-domain: localhost
+      frontend-domain: localhost
+      storage-console-domain: localhost
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - Authorization
+        - Content-Type
+        - X-Requested-With
+        - X-Request-Id
+      exposed-headers:
+        - X-Request-Id
+      allow-credentials: true
+      max-age: 1h
