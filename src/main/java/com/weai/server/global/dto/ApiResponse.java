@@ -19,11 +19,19 @@ public class ApiResponse<T> {
 	private final LocalDateTime timestamp;
 
 	public static <T> ApiResponse<T> success(T data) {
-		return new ApiResponse<>(true, "SUCCESS", "Request completed successfully.", data, LocalDateTime.now());
+		return success("SUCCESS", "Request completed successfully.", data);
+	}
+
+	public static <T> ApiResponse<T> success(String code, String message, T data) {
+		return new ApiResponse<>(true, code, message, data, LocalDateTime.now());
 	}
 
 	public static ApiResponse<Void> successMessage(String message) {
-		return new ApiResponse<>(true, "SUCCESS", message, null, LocalDateTime.now());
+		return successMessage("SUCCESS", message);
+	}
+
+	public static ApiResponse<Void> successMessage(String code, String message) {
+		return new ApiResponse<>(true, code, message, null, LocalDateTime.now());
 	}
 
 	public static ApiResponse<Void> failure(ErrorCode errorCode) {

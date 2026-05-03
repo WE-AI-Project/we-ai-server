@@ -18,10 +18,23 @@ public enum ErrorCode {
 	UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "COMMON_415", "The content type is not supported."),
 	INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_500", "An unexpected server error occurred."),
 
-	// Auth & User Errors 추가
-	DUPLICATE_EMAIL(HttpStatus.CONFLICT, "AUTH_409_1", "이미 사용 중인 이메일입니다."),
-	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_404_1", "가입되지 않은 이메일이거나 사용자를 찾을 수 없습니다."),
-	INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "AUTH_401_1", "비밀번호가 일치하지 않습니다.");
+	// Auth & User Errors
+	DUPLICATE_EMAIL(HttpStatus.CONFLICT, "AUTH_409_1", "The email address is already in use."),
+	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_404_1", "The requested user could not be found."),
+	INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "AUTH_401_1", "The password does not match."),
+
+	// Project Errors
+	PROJECT_NAME_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_1", "Project name is required."),
+	PROJECT_NAME_TOO_LONG(HttpStatus.BAD_REQUEST, "PROJECT_400_2", "Project name must be 50 characters or fewer."),
+	INVALID_PROJECT_DATE(HttpStatus.BAD_REQUEST, "PROJECT_400_3", "Target date cannot be earlier than the start date."),
+	PROJECT_CODE_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_4", "Project code is required."),
+	INVALID_PROJECT_CODE_FORMAT(HttpStatus.BAD_REQUEST, "PROJECT_400_5", "Project code must be 8 uppercase letters or digits."),
+	PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_1", "The requested project could not be found."),
+	PROJECT_NOT_ACTIVE(HttpStatus.FORBIDDEN, "PROJECT_403_1", "This project is not active."),
+	ALREADY_JOINED_PROJECT(HttpStatus.CONFLICT, "PROJECT_409_1", "You have already joined this project."),
+	PROJECT_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_1", "Failed to generate a project code."),
+	PROJECT_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_2", "Failed to create the project."),
+	PROJECT_JOIN_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_3", "Failed to join the project.");
 
 	private final HttpStatus status;
 	private final String code;
