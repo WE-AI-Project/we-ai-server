@@ -6,24 +6,24 @@ import com.weai.server.domain.project.domain.ProjectMemberRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
-@Schema(description = "Project join response")
+@Schema(description = "프로젝트 참여 응답")
 public record ProjectJoinResponse(
-	@Schema(description = "Project id", example = "1")
+	@Schema(description = "프로젝트 ID", example = "1")
 	Long projectId,
 
-	@Schema(description = "Project name", example = "WE&AI Enterprise")
+	@Schema(description = "프로젝트명", example = "WE&AI Enterprise")
 	String projectName,
 
-	@Schema(description = "Project invite code", example = "WEAI2025")
+	@Schema(description = "프로젝트 참여 코드", example = "WEAI2025")
 	String projectCode,
 
-	@Schema(description = "Joined role", example = "MEMBER")
+	@Schema(description = "참여 역할", example = "MEMBER")
 	ProjectMemberRole role,
 
-	@Schema(description = "Joined department", example = "BACKEND")
+	@Schema(description = "참여 부서", example = "BACKEND")
 	ProjectDepartment department,
 
-	@Schema(description = "Join time", example = "2026-05-03T11:00:00")
+	@Schema(description = "참여 시각", example = "2026-05-03T11:00:00")
 	LocalDateTime joinedAt
 ) {
 

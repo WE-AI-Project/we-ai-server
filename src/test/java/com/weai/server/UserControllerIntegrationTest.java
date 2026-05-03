@@ -101,7 +101,7 @@ class UserControllerIntegrationTest {
 
 		HttpResponse<String> listResponse = httpClient.send(
 			HttpRequest.newBuilder()
-				.uri(URI.create("http://localhost:%d/api/v1/admin/users?page=0&size=10".formatted(port)))
+				.uri(URI.create("http://localhost:%d/api/v1/admin/users?page=0&size=50".formatted(port)))
 				.header("Authorization", "Bearer " + adminToken)
 				.GET()
 				.build(),
@@ -120,7 +120,7 @@ class UserControllerIntegrationTest {
 		assertThat(listResponse.statusCode()).isEqualTo(200);
 		assertThat(listResponse.body()).contains("\"content\"");
 		assertThat(listResponse.body()).contains("\"page\":0");
-		assertThat(listResponse.body()).contains("\"size\":10");
+		assertThat(listResponse.body()).contains("\"size\":50");
 		assertThat(listResponse.body()).contains("\"username\":\"" + username + "\"");
 		assertThat(listResponse.body()).contains("\"role\":\"USER\"");
 		assertThat(userResponse.statusCode()).isEqualTo(200);
