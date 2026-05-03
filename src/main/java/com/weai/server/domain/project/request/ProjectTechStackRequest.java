@@ -6,22 +6,22 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-@Schema(description = "Project tech stack item")
+@Schema(description = "프로젝트 기술 스택 항목")
 public record ProjectTechStackRequest(
-	@Schema(description = "Tech stack name", example = "Spring Boot")
+	@Schema(description = "기술 스택 이름", example = "Spring Boot")
 	@NotBlank(message = "techStacks.name is required.")
 	@Size(max = 50, message = "techStacks.name must be 50 characters or fewer.")
 	String name,
 
-	@Schema(description = "Tech stack version", example = "3.2.5")
+	@Schema(description = "기술 스택 버전", example = "3.2.5")
 	@Size(max = 30, message = "techStacks.version must be 30 characters or fewer.")
 	String version,
 
-	@Schema(description = "Tech stack category", example = "BACKEND")
+	@Schema(description = "기술 스택 분류", example = "BACKEND")
 	@NotNull(message = "techStacks.category is required.")
 	ProjectTechStackCategory category,
 
-	@Schema(description = "Whether this stack is required", example = "true")
+	@Schema(description = "필수 스택 여부", example = "true")
 	Boolean isRequired
 ) {
 

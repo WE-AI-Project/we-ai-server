@@ -53,11 +53,13 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectCreateResponse createProject(String userEmail, ProjectCreateRequest request) {
-		validateCreateRequest(request);
+		LocalDate today = LocalDate.now();
+		validateCreateRequest(request, today);
 
 		User creator = userService.getUserEntityByEmail(userEmail);
 		String projectCode = generateProjectCode();
 		ProjectDepartment leaderDepartment = resolveLeaderDepartment(request);
+		List<String> techStackNames = extractTechStackNames(request.techStacksOrEmpty());
 
 		try {
 			Project project = projectRepository.save(Project.create(
@@ -65,21 +67,22 @@ public class ProjectService {
 				trimToNull(request.description()),
 				projectCode,
 				trimToNull(request.localPath()),
-				request.startDate(),
-				request.targetDate(),
+				today,
+				request.deadlineDate(),
 				creator
 			));
 
 			ProjectMember leader = projectMemberRepository.save(ProjectMember.leader(project, creator, leaderDepartment));
 			saveTechStacks(project, request.techStacksOrEmpty());
 
-			return ProjectCreateResponse.from(project, leader);
+			return ProjectCreateResponse.from(project, leader, techStackNames, today);
 		} catch (DataIntegrityViolationException exception) {
-			throw new ApiException(ErrorCode.PROJECT_CREATE_FAILED, "Project could not be created.");
+			throw new ApiException(ErrorCode.PROJECT_CREATE_FAILED, "프로젝트를 저장하지 못했습니다.");
 		}
 	}
 
 	public List<MyProjectResponse> getMyProjects(String userEmail) {
+		LocalDate today = LocalDate.now();
 		User user = userService.getUserEntityByEmail(userEmail);
 		List<ProjectMember> projectMembers = projectMemberRepository.findActiveProjectsByUserId(
 			user.getId(),
@@ -110,7 +113,8 @@ public class ProjectService {
 			.map(projectMember -> MyProjectResponse.from(
 				projectMember,
 				techStacksByProjectId.getOrDefault(projectMember.getProject().getId(), List.of()),
-				memberCounts.getOrDefault(projectMember.getProject().getId(), 0L)
+				memberCounts.getOrDefault(projectMember.getProject().getId(), 0L),
+				today
 			))
 			.toList();
 	}
@@ -147,22 +151,28 @@ public class ProjectService {
 			ProjectMember joinedMember = projectMemberRepository.save(ProjectMember.member(project, user, request.department()));
 			return ProjectJoinResponse.from(joinedMember);
 		} catch (DataIntegrityViolationException exception) {
-			throw new ApiException(ErrorCode.PROJECT_JOIN_FAILED, "Project join could not be completed.");
+			throw new ApiException(ErrorCode.PROJECT_JOIN_FAILED, "프로젝트 참여를 완료하지 못했습니다.");
 		}
 	}
 
-	private void validateCreateRequest(ProjectCreateRequest request) {
+	private void validateCreateRequest(ProjectCreateRequest request, LocalDate today) {
 		String projectName = trimToNull(request.projectName());
 		if (projectName == null) {
 			throw new ApiException(ErrorCode.PROJECT_NAME_REQUIRED);
 		}
 		if (projectName.length() < 2) {
-			throw new ApiException(ErrorCode.INVALID_INPUT, "Project name must be at least 2 characters long.");
+			throw new ApiException(ErrorCode.INVALID_INPUT, "프로젝트명은 2자 이상이어야 합니다.");
 		}
 		if (projectName.length() > 50) {
 			throw new ApiException(ErrorCode.PROJECT_NAME_TOO_LONG);
 		}
-		validateProjectDates(request.startDate(), request.targetDate());
+
+		String localPath = trimToNull(request.localPath());
+		if (localPath == null) {
+			throw new ApiException(ErrorCode.PROJECT_PATH_REQUIRED);
+		}
+
+		validateProjectDeadline(request.deadlineDate(), today);
 	}
 
 	private void validateJoinRequest(ProjectJoinRequest request) {
@@ -175,8 +185,8 @@ public class ProjectService {
 		}
 	}
 
-	private void validateProjectDates(LocalDate startDate, LocalDate targetDate) {
-		if (startDate != null && targetDate != null && targetDate.isBefore(startDate)) {
+	private void validateProjectDeadline(LocalDate deadlineDate, LocalDate today) {
+		if (deadlineDate != null && deadlineDate.isBefore(today)) {
 			throw new ApiException(ErrorCode.INVALID_PROJECT_DATE);
 		}
 	}
@@ -198,6 +208,16 @@ public class ProjectService {
 			.toList();
 
 		projectTechStackRepository.saveAll(entities);
+	}
+
+	private List<String> extractTechStackNames(Collection<ProjectTechStackRequest> techStacks) {
+		return techStacks.stream()
+			.filter(Objects::nonNull)
+			.map(ProjectTechStackRequest::name)
+			.filter(Objects::nonNull)
+			.map(String::trim)
+			.filter(name -> !name.isEmpty())
+			.toList();
 	}
 
 	private ProjectDepartment resolveLeaderDepartment(ProjectCreateRequest request) {

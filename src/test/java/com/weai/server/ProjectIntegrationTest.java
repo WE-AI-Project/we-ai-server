@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.LocalDate;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,6 +32,7 @@ class ProjectIntegrationTest {
 	void userCanCreateProjectViewItAndAnotherUserCanJoinIt() throws Exception {
 		UserSession leader = signUpAndLogin("leader");
 		UserSession member = signUpAndLogin("member");
+		LocalDate deadlineDate = LocalDate.now().plusDays(42);
 
 		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
 			{
@@ -38,8 +40,7 @@ class ProjectIntegrationTest {
 			  "description": "AI-based developer collaboration platform",
 			  "localPath": "D:\\\\WE_AI\\\\enterprise",
 			  "department": "BACKEND",
-			  "startDate": "2026-05-03",
-			  "targetDate": "2026-06-30",
+			  "deadlineDate": "%s",
 			  "techStacks": [
 			    {
 			      "name": "Java",
@@ -55,11 +56,15 @@ class ProjectIntegrationTest {
 			    }
 			  ]
 			}
-			""");
+			""".formatted(deadlineDate));
 
 		assertThat(createResponse.statusCode()).isEqualTo(201);
 		assertThat(createResponse.body()).contains("\"code\":\"PROJECT_CREATE_SUCCESS\"");
 		assertThat(createResponse.body()).contains("\"projectName\":\"WE&AI Enterprise\"");
+		assertThat(createResponse.body()).contains("\"localPath\":\"D:\\\\WE_AI\\\\enterprise\"");
+		assertThat(createResponse.body()).contains("\"deadlineDate\":\"" + deadlineDate + "\"");
+		assertThat(createResponse.body()).contains("\"daysRemaining\":42");
+		assertThat(createResponse.body()).contains("\"techStackCount\":2");
 		assertThat(createResponse.body()).contains("\"role\":\"LEADER\"");
 
 		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
@@ -69,6 +74,8 @@ class ProjectIntegrationTest {
 		assertThat(leaderProjectsBeforeJoin.statusCode()).isEqualTo(200);
 		assertThat(leaderProjectsBeforeJoin.body()).contains("\"code\":\"PROJECT_LIST_SUCCESS\"");
 		assertThat(leaderProjectsBeforeJoin.body()).contains("\"projectCode\":\"" + projectCode + "\"");
+		assertThat(leaderProjectsBeforeJoin.body()).contains("\"deadlineDate\":\"" + deadlineDate + "\"");
+		assertThat(leaderProjectsBeforeJoin.body()).contains("\"daysRemaining\":42");
 		assertThat(leaderProjectsBeforeJoin.body()).contains("\"memberCount\":1");
 		assertThat(leaderProjectsBeforeJoin.body()).contains("\"techStacks\":[\"Java\",\"Spring Boot\"]");
 
@@ -103,7 +110,7 @@ class ProjectIntegrationTest {
 		assertThat(response.statusCode()).isEqualTo(200);
 		assertThat(response.body()).contains("\"code\":\"PROJECT_LIST_SUCCESS\"");
 		assertThat(response.body()).contains("\"data\":[]");
-		assertThat(response.body()).contains("\"message\":\"There are no active projects joined by this user.\"");
+		assertThat(response.body()).contains("\"message\":\"참여 중인 프로젝트가 없습니다.\"");
 	}
 
 	@Test
@@ -132,19 +139,35 @@ class ProjectIntegrationTest {
 	}
 
 	@Test
-	void projectCreateRejectsInvalidDateRange() throws Exception {
+	void projectCreateRejectsPastDeadline() throws Exception {
 		UserSession leader = signUpAndLogin("invalid-date");
+		LocalDate pastDeadline = LocalDate.now().minusDays(1);
 
 		HttpResponse<String> response = createProject(leader.accessToken(), """
 			{
 			  "projectName": "Invalid Date Project",
-			  "startDate": "2026-06-30",
-			  "targetDate": "2026-05-03"
+			  "localPath": "D:\\\\WE_AI\\\\invalid-date",
+			  "deadlineDate": "%s"
+			}
+			""".formatted(pastDeadline));
+
+		assertThat(response.statusCode()).isEqualTo(400);
+		assertThat(response.body()).contains("\"code\":\"PROJECT_400_3\"");
+	}
+
+	@Test
+	void projectCreateRejectsBlankLocalPath() throws Exception {
+		UserSession leader = signUpAndLogin("missing-path");
+
+		HttpResponse<String> response = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Missing Path Project",
+			  "localPath": "   "
 			}
 			""");
 
 		assertThat(response.statusCode()).isEqualTo(400);
-		assertThat(response.body()).contains("\"code\":\"PROJECT_400_3\"");
+		assertThat(response.body()).contains("\"code\":\"PROJECT_400_6\"");
 	}
 
 	private UserSession signUpAndLogin(String prefix) throws Exception {
@@ -206,9 +229,10 @@ class ProjectIntegrationTest {
 		HttpResponse<String> response = createProject(accessToken, """
 			{
 			  "projectName": "%s",
-			  "description": "Project for integration testing"
+			  "description": "Project for integration testing",
+			  "localPath": "D:\\\\WE_AI\\\\integration-%s"
 			}
-			""".formatted(projectName));
+			""".formatted(projectName, projectName.toLowerCase().replace(" ", "-")));
 
 		assertThat(response.statusCode()).isEqualTo(201);
 		return extractValue(response.body(), PROJECT_CODE_PATTERN);
