@@ -43,8 +43,8 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"/api/v1/projects/my\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/join\"");
 		assertThat(response.body()).contains("\"/api/v1/users/me\"");
-		assertThat(response.body()).contains("\"/api/v1/admin/users\"");
-		assertThat(response.body()).contains("\"/api/v1/admin/users/{userId}\"");
+		assertThat(response.body()).doesNotContain("\"/api/v1/admin/users\"");
+		assertThat(response.body()).doesNotContain("\"/api/v1/admin/users/{userId}\"");
 		assertThat(response.body()).contains("\"COMMON_401\"");
 		assertThat(response.body()).contains("\"COMMON_409\"");
 		assertThat(response.body()).contains("\"PROJECT_404_1\"");

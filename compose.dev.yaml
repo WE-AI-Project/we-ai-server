@@ -1,0 +1,69 @@
+name: we-ai-dev
+
+services:
+  mysql:
+    image: "mysql:8.4"
+    container_name: "we-ai-mysql-dev"
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: "we_ai"
+      MYSQL_USER: "weai"
+      MYSQL_PASSWORD: "change-me-db-password"
+      MYSQL_ROOT_PASSWORD: "change-me-root-password"
+    ports:
+      - "3307:3306"
+    volumes:
+      - "we-ai-dev-mysql-data:/var/lib/mysql"
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - -h
+        - 127.0.0.1
+        - -uweai
+        - -pchange-me-db-password
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: "quay.io/minio/minio:latest"
+    container_name: "we-ai-minio-dev"
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "change-me-minio-password"
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - "we-ai-dev-minio-data:/data"
+
+  minio-init:
+    image: "quay.io/minio/mc:latest"
+    container_name: "we-ai-minio-init-dev"
+    restart: "no"
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "change-me-minio-password"
+      MINIO_PUBLIC_BUCKET: "we-ai-public"
+      MINIO_PRIVATE_BUCKET: "we-ai-private"
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
+        echo 'Waiting for MinIO to be ready...';
+        sleep 2;
+      done;
+      mc mb --ignore-existing local/$$MINIO_PUBLIC_BUCKET;
+      mc mb --ignore-existing local/$$MINIO_PRIVATE_BUCKET;
+      mc anonymous set download local/$$MINIO_PUBLIC_BUCKET;
+      echo 'MinIO buckets are ready.';
+      "
+
+volumes:
+  we-ai-dev-mysql-data:
+  we-ai-dev-minio-data:

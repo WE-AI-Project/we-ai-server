@@ -2,6 +2,7 @@
 .gradle/
 build/
 out/
+tools/node_modules/
 *.iml
 .env
 .env.*

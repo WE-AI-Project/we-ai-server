@@ -28,7 +28,7 @@ public class DotenvApplicationContextInitializer
 		ConfigurableEnvironment environment = applicationContext.getEnvironment();
 		Map<String, Object> dotenvProperties = loadDotenvProperties(BASE_DOTENV_FILE_NAME);
 
-		resolveActiveProfiles(environment, dotenvProperties).forEach(profile ->
+		resolveActiveProfiles(environment).forEach(profile ->
 			dotenvProperties.putAll(loadDotenvProperties(PROFILE_DOTENV_FILE_PREFIX + profile))
 		);
 
@@ -57,16 +57,11 @@ public class DotenvApplicationContextInitializer
 		return dotenvProperties;
 	}
 
-	private Set<String> resolveActiveProfiles(
-		ConfigurableEnvironment environment,
-		Map<String, Object> dotenvProperties
-	) {
+	private Set<String> resolveActiveProfiles(ConfigurableEnvironment environment) {
 		Set<String> activeProfiles = new LinkedHashSet<>();
 
 		addProfiles(activeProfiles, environment.getProperty(AbstractEnvironment.ACTIVE_PROFILES_PROPERTY_NAME));
 		addProfiles(activeProfiles, environment.getProperty(APP_PROFILE_PROPERTY_NAME));
-		addProfiles(activeProfiles, asString(dotenvProperties.get(SPRING_ACTIVE_PROFILE_ENV_NAME)));
-		addProfiles(activeProfiles, asString(dotenvProperties.get(APP_PROFILE_PROPERTY_NAME)));
 
 		return activeProfiles;
 	}
@@ -80,9 +75,5 @@ public class DotenvApplicationContextInitializer
 			.map(String::trim)
 			.filter(StringUtils::hasText)
 			.forEach(activeProfiles::add);
-	}
-
-	private String asString(Object value) {
-		return value instanceof String stringValue ? stringValue : null;
 	}
 }

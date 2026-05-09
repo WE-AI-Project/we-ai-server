@@ -17,6 +17,12 @@ logging:
 server:
   forward-headers-strategy: framework
 
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+
 app:
   web:
     base-url: ${APP_BASE_URL:https://api-stag.example.com}
