@@ -64,7 +64,7 @@ class AuthIntegrationTest {
 		);
 
 		assertThat(signUpResponse.statusCode()).isEqualTo(201);
-		assertThat(signUpResponse.body()).contains("\"message\":\"User registration completed successfully.\"");
+		assertThat(signUpResponse.body()).contains("\"success\":true");
 
 		TokenPair loginTokens = login(email, "password1234!");
 		assertAccessTokenClaims(loginTokens.accessToken(), email, "USER");
@@ -127,7 +127,7 @@ class AuthIntegrationTest {
 		);
 
 		assertThat(logoutResponse.statusCode()).isEqualTo(200);
-		assertThat(logoutResponse.body()).contains("\"message\":\"Logged out successfully.\"");
+		assertThat(logoutResponse.body()).contains("\"success\":true");
 
 		HttpResponse<String> refreshAfterLogoutResponse = httpClient.send(
 			HttpRequest.newBuilder()
@@ -181,6 +181,47 @@ class AuthIntegrationTest {
 
 		assertThat(response.statusCode()).isEqualTo(403);
 		assertThat(response.body()).contains("\"code\":\"COMMON_403\"");
+	}
+
+	@Test
+	void userCanSignUpWithoutUsernameWhenFrontendSendsExtraFields() throws Exception {
+		String email = "frontend-" + UUID.randomUUID().toString().substring(0, 8) + "@example.com";
+		String signUpRequestBody = """
+			{
+			  "name": "Frontend User",
+			  "email": "%s",
+			  "password": "password1234!",
+			  "socialProvider": null,
+			  "agreedMarketing": true,
+			  "agreedPush": false
+			}
+			""".formatted(email);
+
+		HttpResponse<String> signUpResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString(signUpRequestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(signUpResponse.statusCode()).isEqualTo(201);
+		assertThat(signUpResponse.body()).contains("\"success\":true");
+
+		TokenPair loginTokens = login(email, "password1234!");
+		HttpResponse<String> meResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/users/me".formatted(port)))
+				.header("Authorization", "Bearer " + loginTokens.accessToken())
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(meResponse.statusCode()).isEqualTo(200);
+		assertThat(meResponse.body()).contains("\"email\":\"" + email + "\"");
+		assertThat(meResponse.body()).contains("\"username\":\"frontend-");
 	}
 
 	private TokenPair login(String email, String password) throws Exception {

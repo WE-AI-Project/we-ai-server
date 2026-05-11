@@ -8,6 +8,7 @@ import com.weai.server.domain.user.response.UserResponse;
 import com.weai.server.global.dto.PageResponse;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -84,10 +86,11 @@ public class UserService {
 	}
 
 	private UserResponse registerUser(SignUpRequest request, UserRole role) {
-		validateDuplicateUser(request.username(), request.email());
+		String resolvedUsername = resolveUsername(request);
+		validateDuplicateUser(resolvedUsername, request.email());
 
 		User createdUser = userRepository.save(User.create(
-			request.username(),
+			resolvedUsername,
 			passwordEncoder.encode(request.password()),
 			request.name(),
 			request.email(),
@@ -95,6 +98,39 @@ public class UserService {
 		));
 
 		return UserResponse.from(createdUser);
+	}
+
+	private String resolveUsername(SignUpRequest request) {
+		if (StringUtils.hasText(request.username())) {
+			return request.username().trim();
+		}
+
+		String emailLocalPart = request.email().substring(0, request.email().indexOf('@'));
+		String sanitizedBase = emailLocalPart
+			.toLowerCase(Locale.ROOT)
+			.replaceAll("[^a-z0-9._-]", "");
+		String baseUsername = StringUtils.hasText(sanitizedBase) ? sanitizedBase : "user";
+
+		if (baseUsername.length() < 4) {
+			baseUsername = (baseUsername + "user").substring(0, 4);
+		}
+
+		return generateUniqueUsername(baseUsername);
+	}
+
+	private String generateUniqueUsername(String baseUsername) {
+		String normalizedBase = baseUsername.length() > 50 ? baseUsername.substring(0, 50) : baseUsername;
+		String candidate = normalizedBase;
+		int suffix = 1;
+
+		while (userRepository.existsByUsername(candidate)) {
+			String suffixValue = "-" + suffix++;
+			int maxBaseLength = 50 - suffixValue.length();
+			String truncatedBase = normalizedBase.substring(0, Math.min(normalizedBase.length(), maxBaseLength));
+			candidate = truncatedBase + suffixValue;
+		}
+
+		return candidate;
 	}
 
 	private void validateDuplicateUser(String username, String email) {

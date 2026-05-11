@@ -45,15 +45,34 @@ public class OpenApiConfig {
 	}
 
 	private List<Server> buildServers() {
+		String localBaseUrl = normalizeBaseUrl(appWebProperties.getLocalBaseUrl());
+		String publicBaseUrl = normalizeBaseUrl(appWebProperties.getBaseUrl());
 		Map<String, String> serverDescriptions = new LinkedHashMap<>();
-		serverDescriptions.put("/", "Current request host");
 		serverDescriptions.put(
-			appWebProperties.getBaseUrl(),
-			"Configured public API base URL (%s)".formatted(appWebProperties.getExternalDomains().getApiDomain())
+			localBaseUrl,
+			"Local test server (%s)".formatted(buildSwaggerUiUrl(localBaseUrl, "/swagger-ui.html"))
 		);
+		if (!localBaseUrl.equals(publicBaseUrl)) {
+			serverDescriptions.put(
+				publicBaseUrl,
+				"Configured public server (%s)".formatted(buildSwaggerUiUrl(publicBaseUrl, "/swagger-ui/index.html"))
+			);
+		}
 
 		return serverDescriptions.entrySet().stream()
 			.map(entry -> new Server().url(entry.getKey()).description(entry.getValue()))
 			.toList();
+	}
+
+	private String buildSwaggerUiUrl(String baseUrl, String swaggerPath) {
+		return normalizeBaseUrl(baseUrl) + swaggerPath;
+	}
+
+	private String normalizeBaseUrl(String url) {
+		String normalizedUrl = url;
+		while (normalizedUrl.endsWith("/") && normalizedUrl.length() > 1) {
+			normalizedUrl = normalizedUrl.substring(0, normalizedUrl.length() - 1);
+		}
+		return normalizedUrl;
 	}
 }

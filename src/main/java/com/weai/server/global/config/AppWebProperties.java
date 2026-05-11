@@ -22,6 +22,9 @@ public class AppWebProperties {
 	private String baseUrl = "http://localhost:8080";
 
 	@NotBlank
+	private String localBaseUrl = "http://localhost:8080";
+
+	@NotBlank
 	private String frontendBaseUrl = "http://localhost:3000";
 
 	@Valid

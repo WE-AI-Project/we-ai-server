@@ -94,6 +94,7 @@ storage:
 
 app:
   web:
+    local-base-url: ${APP_LOCAL_BASE_URL:http://localhost:${SERVER_PORT:8080}}
     base-url: ${APP_BASE_URL:http://localhost:${SERVER_PORT:8080}}
     frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:3000}
     external-domains:
@@ -104,6 +105,7 @@ app:
       allowed-origins:
         - ${APP_FRONTEND_BASE_URL:http://localhost:3000}
         - ${APP_ADDITIONAL_LOCAL_FRONTEND_BASE_URL:http://127.0.0.1:3000}
+        - ${APP_VITE_FRONTEND_BASE_URL:http://localhost:5173}
       allowed-methods:
         - GET
         - POST
