@@ -47,6 +47,9 @@ public class Project extends BaseEntity {
 	@Column(name = "project_code", nullable = false, length = 20, unique = true)
 	private String projectCode;
 
+	@Column(name = "repository_url", length = 500)
+	private String repositoryUrl;
+
 	@Column(name = "local_path", length = 500)
 	private String localPath;
 
@@ -68,6 +71,7 @@ public class Project extends BaseEntity {
 		String projectName,
 		String description,
 		String projectCode,
+		String repositoryUrl,
 		String localPath,
 		LocalDate startDate,
 		LocalDate targetDate,
@@ -77,11 +81,24 @@ public class Project extends BaseEntity {
 			.projectName(projectName)
 			.description(description)
 			.projectCode(projectCode)
+			.repositoryUrl(repositoryUrl)
 			.localPath(localPath)
 			.status(ProjectStatus.ACTIVE)
 			.startDate(startDate)
 			.targetDate(targetDate)
 			.createdBy(createdBy)
 			.build();
+	}
+
+	public static Project create(
+		String projectName,
+		String description,
+		String projectCode,
+		String localPath,
+		LocalDate startDate,
+		LocalDate targetDate,
+		User createdBy
+	) {
+		return create(projectName, description, projectCode, null, localPath, startDate, targetDate, createdBy);
 	}
 }

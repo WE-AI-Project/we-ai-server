@@ -42,6 +42,10 @@ public class UserService {
 		return UserResponse.from(findUserEntityById(userId));
 	}
 
+	public User getUserEntityById(Long userId) {
+		return findUserEntityById(userId);
+	}
+
 	public UserResponse findByEmail(String email) {
 		return UserResponse.from(getUserEntityByEmail(email));
 	}

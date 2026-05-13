@@ -24,18 +24,24 @@ public enum ErrorCode {
 	INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "AUTH_401_1", "The password does not match."),
 
 	// Project Errors
-	PROJECT_NAME_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_1", "프로젝트명은 필수입니다."),
-	PROJECT_NAME_TOO_LONG(HttpStatus.BAD_REQUEST, "PROJECT_400_2", "프로젝트명은 50자 이하여야 합니다."),
-	INVALID_PROJECT_DATE(HttpStatus.BAD_REQUEST, "PROJECT_400_3", "마감일은 오늘보다 이전일 수 없습니다."),
-	PROJECT_CODE_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_4", "참여 코드는 필수입니다."),
-	INVALID_PROJECT_CODE_FORMAT(HttpStatus.BAD_REQUEST, "PROJECT_400_5", "참여 코드는 영문 대문자와 숫자 8자리여야 합니다."),
-	PROJECT_PATH_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_6", "프로젝트 저장 위치는 필수입니다."),
-	PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_1", "프로젝트를 찾을 수 없습니다."),
-	PROJECT_NOT_ACTIVE(HttpStatus.FORBIDDEN, "PROJECT_403_1", "비활성화된 프로젝트에는 참여할 수 없습니다."),
-	ALREADY_JOINED_PROJECT(HttpStatus.CONFLICT, "PROJECT_409_1", "이미 참여 중인 프로젝트입니다."),
-	PROJECT_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_1", "참여 코드 생성에 실패했습니다."),
-	PROJECT_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_2", "프로젝트 생성에 실패했습니다."),
-	PROJECT_JOIN_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_3", "프로젝트 참여에 실패했습니다.");
+	PROJECT_NAME_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_1", "Project name is required."),
+	PROJECT_NAME_TOO_LONG(HttpStatus.BAD_REQUEST, "PROJECT_400_2", "Project name must be 50 characters or fewer."),
+	INVALID_PROJECT_DATE(HttpStatus.BAD_REQUEST, "PROJECT_400_3", "Project deadline cannot be earlier than today."),
+	PROJECT_CODE_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_4", "Project code is required."),
+	INVALID_PROJECT_CODE_FORMAT(HttpStatus.BAD_REQUEST, "PROJECT_400_5", "Project code must be 8 uppercase letters or digits."),
+	PROJECT_PATH_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_6", "Project localPath is required."),
+	ASSIGNEE_NOT_PROJECT_MEMBER(HttpStatus.BAD_REQUEST, "PROJECT_400_7", "The assignee must be an active member of the project."),
+	SCHEDULE_TITLE_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_8", "Schedule title is required."),
+	INVALID_SCHEDULE_DATE(HttpStatus.BAD_REQUEST, "PROJECT_400_9", "Schedule endDate must be the same as or after startDate."),
+	PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_1", "The requested project could not be found."),
+	ASSIGNEE_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_2", "The requested assignee could not be found."),
+	PROJECT_NOT_ACTIVE(HttpStatus.FORBIDDEN, "PROJECT_403_1", "The project is not active."),
+	PROJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "PROJECT_403_2", "You are not an active member of this project."),
+	ALREADY_JOINED_PROJECT(HttpStatus.CONFLICT, "PROJECT_409_1", "You are already an active member of this project."),
+	PROJECT_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_1", "Failed to generate a project code."),
+	PROJECT_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_2", "Failed to create the project."),
+	PROJECT_JOIN_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_3", "Failed to join the project."),
+	SCHEDULE_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_4", "Failed to create the project schedule.");
 
 	private final HttpStatus status;
 	private final String code;

@@ -12,42 +12,45 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-@Schema(description = "프로젝트 생성 응답")
+@Schema(description = "Project create response")
 public record ProjectCreateResponse(
-	@Schema(description = "프로젝트 ID", example = "1")
+	@Schema(description = "Project id", example = "1")
 	Long projectId,
 
-	@Schema(description = "프로젝트명", example = "WE&AI Enterprise")
+	@Schema(description = "Project name", example = "WE&AI Enterprise")
 	String projectName,
 
-	@Schema(description = "자동 생성된 8자리 참여 코드", example = "D0DZ26Q4")
+	@Schema(description = "Generated join code", example = "D0DZ26Q4")
 	String projectCode,
 
-	@Schema(description = "프로젝트 저장 위치", example = "D:\\WE_AI\\enterprise")
+	@Schema(description = "Repository URL", example = "https://github.com/example/we-ai")
+	String repositoryUrl,
+
+	@Schema(description = "Local working path", example = "D:\\WE_AI\\enterprise")
 	String localPath,
 
-	@Schema(description = "프로젝트 마감일", example = "2026-05-15")
+	@Schema(description = "Project deadline", example = "2026-05-15")
 	LocalDate deadlineDate,
 
-	@Schema(description = "오늘 기준 마감일까지 남은 일수. 마감일이 없으면 null 입니다.", example = "12")
+	@Schema(description = "Days remaining until deadline. Null when no deadline is set.", example = "12")
 	Integer daysRemaining,
 
-	@Schema(description = "저장된 기술 스택 개수", example = "6")
+	@Schema(description = "Registered tech stack count", example = "6")
 	int techStackCount,
 
-	@ArraySchema(schema = @Schema(description = "저장된 기술 스택 이름", example = "Spring Boot"))
+	@ArraySchema(schema = @Schema(description = "Registered tech stack name", example = "Spring Boot"))
 	List<String> techStacks,
 
-	@Schema(description = "생성자의 프로젝트 역할", example = "LEADER")
+	@Schema(description = "Creator role in the project", example = "LEADER")
 	ProjectMemberRole role,
 
-	@Schema(description = "생성자의 프로젝트 부서", example = "BACKEND")
+	@Schema(description = "Creator department in the project", example = "BACKEND")
 	ProjectDepartment department,
 
-	@Schema(description = "프로젝트 상태", example = "ACTIVE")
+	@Schema(description = "Project status", example = "ACTIVE")
 	ProjectStatus status,
 
-	@Schema(description = "생성 시각", example = "2026-05-03T10:30:00")
+	@Schema(description = "Created at", example = "2026-05-03T10:30:00")
 	LocalDateTime createdAt
 ) {
 
@@ -61,6 +64,7 @@ public record ProjectCreateResponse(
 			project.getId(),
 			project.getProjectName(),
 			project.getProjectCode(),
+			project.getRepositoryUrl(),
 			project.getLocalPath(),
 			project.getTargetDate(),
 			calculateDaysRemaining(today, project.getTargetDate()),

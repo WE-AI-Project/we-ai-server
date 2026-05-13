@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ProjectTechStackRepository extends JpaRepository<ProjectTechStack, Long> {
 
 	List<ProjectTechStack> findByProject_IdInOrderByProject_IdAscIdAsc(Collection<Long> projectIds);
+
+	List<ProjectTechStack> findByProject_IdOrderByCategoryAscIdAsc(Long projectId);
 }
