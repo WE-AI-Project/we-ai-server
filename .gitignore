@@ -9,3 +9,4 @@ tools/node_modules/
 !.env.example
 !.env.stag.example
 !.env.prod.example
+!.env.railway.example

@@ -26,14 +26,14 @@ springdoc:
 app:
   web:
     base-url: ${APP_BASE_URL:https://api.example.com}
-    frontend-base-url: ${APP_FRONTEND_BASE_URL:https://app.example.com}
+    frontend-base-url: ${APP_FRONTEND_BASE_URL:https://we-ai-client.vercel.app}
     external-domains:
       api-domain: ${APP_API_DOMAIN:api.example.com}
-      frontend-domain: ${APP_FRONTEND_DOMAIN:app.example.com}
+      frontend-domain: ${APP_FRONTEND_DOMAIN:we-ai-client.vercel.app}
       storage-console-domain: ${APP_STORAGE_CONSOLE_DOMAIN:minio.example.com}
     cors:
       allowed-origins:
-        - ${APP_FRONTEND_BASE_URL:https://app.example.com}
+        - ${APP_FRONTEND_BASE_URL:https://we-ai-client.vercel.app}
       allowed-methods:
         - GET
         - POST

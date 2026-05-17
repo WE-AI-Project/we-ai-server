@@ -50,6 +50,12 @@ app:
     username: ${APP_AUTH_USERNAME:dev-admin}
     password: ${APP_AUTH_PASSWORD:change-me-dev-admin-password}
   web:
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - http://127.0.0.1:3000
+        - http://localhost:5173
+        - http://localhost:5174
     base-url: ${APP_BASE_URL:http://localhost:8080}
     frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:3000}
     external-domains:

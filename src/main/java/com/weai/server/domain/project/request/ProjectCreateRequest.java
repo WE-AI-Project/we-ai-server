@@ -34,7 +34,7 @@ public record ProjectCreateRequest(
 	ProjectDepartment department,
 
 	@JsonAlias("targetDate")
-	@Schema(description = "Optional project deadline.", example = "2026-05-15")
+	@Schema(description = "프로젝트 마감일 선택", example = "2026-05-15")
 	LocalDate deadlineDate,
 
 	@ArraySchema(
