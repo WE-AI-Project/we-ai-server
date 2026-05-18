@@ -1,3 +1,10 @@
+ ollama:
+   base-url: https://ollama.yhy-server.com/
+   models:
+     oracle: SYNAIPSE_Oracle
+     architect: SYNAIPSE_Architect
+     sync: SYNAIPSE_Sync
+     
 spring:
   application:
     name: we-ai-server

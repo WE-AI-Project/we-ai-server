@@ -24,6 +24,10 @@ repositories {
 }
 
 dependencies {
+	implementation 'dev.langchain4j:langchain4j-ollama:0.31.0'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+	
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-flyway'
