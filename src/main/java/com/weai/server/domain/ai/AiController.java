@@ -2,6 +2,7 @@ package com.weai.server.domain.ai;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/ai")
@@ -11,8 +12,7 @@ public class AiController {
     private final AiAgentService aiAgentService;
 
     @PostMapping("/debate")
-    public AiDebateResponse chatWithAgents(@RequestBody AiRequest request) {
-        // 인공지능끼리 대화해서 결론을 가져옴
-        return aiAgentService.getBestSolution(request.getQuery());
+    public Map<String, Object> debate(@RequestBody Map<String, String> body) {
+        return aiAgentService.runAiDebate(body.get("query"));
     }
 }
