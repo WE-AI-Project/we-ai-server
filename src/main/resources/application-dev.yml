@@ -41,6 +41,11 @@ oauth:
     client-secret: ${GOOGLE_CLIENT_SECRET:temp-google-client-secret}
     redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/v1/auth/google/callback}
 
+auth:
+  verification:
+    mock-enabled: ${AUTH_VERIFICATION_MOCK_ENABLED:true}
+    expose-code-in-response: ${AUTH_VERIFICATION_EXPOSE_CODE_IN_RESPONSE:true}
+
 storage:
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9100}

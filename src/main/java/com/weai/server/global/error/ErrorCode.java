@@ -22,6 +22,13 @@ public enum ErrorCode {
 	DUPLICATE_EMAIL(HttpStatus.CONFLICT, "AUTH_409_1", "The email address is already in use."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_404_1", "The requested user could not be found."),
 	INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "AUTH_401_1", "The password does not match."),
+	INVALID_VERIFICATION_CODE(HttpStatus.BAD_REQUEST, "AUTH_400_1", "The verification code is invalid."),
+	EXPIRED_VERIFICATION_CODE(HttpStatus.BAD_REQUEST, "AUTH_400_2", "The verification code has expired."),
+	VERIFICATION_DELIVERY_FAILED(
+		HttpStatus.INTERNAL_SERVER_ERROR,
+		"AUTH_500_1",
+		"Failed to deliver the verification code."
+	),
 
 	// Project Errors
 	PROJECT_NAME_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_1", "Project name is required."),

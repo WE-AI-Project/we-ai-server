@@ -32,6 +32,11 @@ oauth:
     client-secret: test-google-client-secret
     redirect-uri: http://localhost/test/google/callback
 
+auth:
+  verification:
+    mock-enabled: true
+    expose-code-in-response: true
+
 management:
   endpoints:
     enabled-by-default: false

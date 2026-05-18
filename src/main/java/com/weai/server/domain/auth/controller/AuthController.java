@@ -1,11 +1,16 @@
 package com.weai.server.domain.auth.controller;
 
+import com.weai.server.domain.auth.request.EmailCodeLoginRequest;
+import com.weai.server.domain.auth.request.EmailLoginCodeSendRequest;
 import com.weai.server.domain.auth.request.LoginRequest;
 import com.weai.server.domain.auth.request.LogoutRequest;
+import com.weai.server.domain.auth.request.NaverSocialCodeLoginRequest;
 import com.weai.server.domain.auth.request.RefreshTokenRequest;
 import com.weai.server.domain.auth.request.SignUpRequest;
+import com.weai.server.domain.auth.request.SocialCodeLoginRequest;
 import com.weai.server.domain.auth.response.SocialAuthorizationUrlResponse;
 import com.weai.server.domain.auth.response.TokenResponse;
+import com.weai.server.domain.auth.response.VerificationCodeDispatchResponse;
 import com.weai.server.domain.auth.service.AuthService;
 import com.weai.server.domain.auth.service.GoogleOAuthService;
 import com.weai.server.domain.auth.service.KakaoOAuthService;
@@ -28,7 +33,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "인증", description = "회원가입, 로그인, 토큰 갱신, 로그아웃, 소셜 로그인 진입을 위한 API입니다.  ㅗ")
+@Tag(name = "Auth", description = "Authentication, social login, and email-code login APIs.")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -40,37 +45,69 @@ public class AuthController {
 	private final NaverOAuthService naverOAuthService;
 	private final GoogleOAuthService googleOAuthService;
 
-	@Operation(summary = "회원가입", description = "이메일과 비밀번호로 일반 사용자 계정을 생성합니다.")
+	@Operation(summary = "Sign up", description = "Creates a local account with email and password.")
 	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.CONFLICT})
 	@PostMapping("/signup")
 	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<Void> signUp(@Valid @RequestBody SignUpRequest request) {
 		userService.registerUser(request);
-		return ApiResponse.successMessage("회원가입이 완료되었습니다.");
+		return ApiResponse.successMessage("Sign-up completed successfully.");
 	}
 
-	@Operation(summary = "로그인", description = "이메일과 비밀번호로 인증한 뒤 JWT 토큰을 발급합니다.")
+	@Operation(summary = "Password login", description = "Issues JWT tokens with email and password.")
+	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.RESOURCE_NOT_FOUND, ErrorCode.UNAUTHORIZED})
 	@PostMapping("/login")
 	public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
 		return ApiResponse.success(authService.login(request));
 	}
 
-	@Operation(summary = "토큰 재발급", description = "리프레시 토큰으로 새 액세스 토큰을 발급하고 리프레시 토큰을 교체합니다.")
+	@Operation(
+		summary = "Send email login code",
+		description = "Sends a six-digit verification code for email login by email or Kakao Talk."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.RESOURCE_NOT_FOUND,
+		ErrorCode.VERIFICATION_DELIVERY_FAILED
+	})
+	@PostMapping("/email-login/code")
+	public ApiResponse<VerificationCodeDispatchResponse> sendEmailLoginCode(
+		@Valid @RequestBody EmailLoginCodeSendRequest request
+	) {
+		return ApiResponse.success(authService.sendEmailLoginCode(request));
+	}
+
+	@Operation(
+		summary = "Email-code login",
+		description = "Logs in with email and a six-digit verification code, then issues JWT tokens."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.RESOURCE_NOT_FOUND,
+		ErrorCode.INVALID_VERIFICATION_CODE,
+		ErrorCode.EXPIRED_VERIFICATION_CODE
+	})
+	@PostMapping("/email-login")
+	public ApiResponse<TokenResponse> loginWithEmailCode(@Valid @RequestBody EmailCodeLoginRequest request) {
+		return ApiResponse.success(authService.loginWithEmailCode(request));
+	}
+
+	@Operation(summary = "Refresh token", description = "Reissues access and refresh tokens.")
 	@PostMapping("/refresh")
 	public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
 		return ApiResponse.success(authService.refresh(request.refreshToken()));
 	}
 
-	@Operation(summary = "로그아웃", description = "현재 세션에서 사용 중인 리프레시 토큰을 무효화합니다.")
+	@Operation(summary = "Logout", description = "Invalidates the current refresh token.")
 	@PostMapping("/logout")
 	public ApiResponse<Void> logout(@Valid @RequestBody LogoutRequest request) {
 		authService.logout(request.refreshToken());
-		return ApiResponse.successMessage("로그아웃이 완료되었습니다.");
+		return ApiResponse.successMessage("Logout completed successfully.");
 	}
 
 	@Operation(
-		summary = "카카오 로그인 URL 조회",
-		description = "브라우저에서 카카오 로그인 절차를 시작할 수 있는 URL을 반환합니다."
+		summary = "Kakao login URL",
+		description = "Returns the Kakao authorization URL used for social login."
 	)
 	@GetMapping("/kakao/url")
 	public ApiResponse<SocialAuthorizationUrlResponse> getKakaoAuthorizationUrl() {
@@ -78,8 +115,17 @@ public class AuthController {
 	}
 
 	@Operation(
-		summary = "네이버 로그인 URL 조회",
-		description = "브라우저에서 네이버 로그인 절차를 시작할 수 있는 URL과 state 값을 반환합니다."
+		summary = "Kakao Talk message consent URL",
+		description = "Returns the Kakao authorization URL used to obtain talk_message consent for Kakao Talk delivery."
+	)
+	@GetMapping("/kakao/message-url")
+	public ApiResponse<SocialAuthorizationUrlResponse> getKakaoMessageAuthorizationUrl() {
+		return ApiResponse.success(kakaoOAuthService.createMessageAuthorizationUrl());
+	}
+
+	@Operation(
+		summary = "Naver login URL",
+		description = "Returns the Naver authorization URL and state used for social login."
 	)
 	@GetMapping("/naver/url")
 	public ApiResponse<SocialAuthorizationUrlResponse> getNaverAuthorizationUrl() {
@@ -87,18 +133,48 @@ public class AuthController {
 	}
 
 	@Operation(
-		summary = "구글 로그인 URL 조회",
-		description = "브라우저에서 구글 로그인 절차를 시작할 수 있는 URL을 반환합니다."
+		summary = "Google login URL",
+		description = "Returns the Google authorization URL used for social login."
 	)
 	@GetMapping("/google/url")
 	public ApiResponse<SocialAuthorizationUrlResponse> getGoogleAuthorizationUrl() {
 		return ApiResponse.success(googleOAuthService.createAuthorizationUrl());
 	}
 
+	@Operation(
+		summary = "Kakao social login",
+		description = "Exchanges the Kakao authorization code for an application access token and refresh token."
+	)
+	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.INTERNAL_SERVER_ERROR})
+	@PostMapping("/kakao/login")
+	public ApiResponse<TokenResponse> kakaoLogin(@Valid @RequestBody SocialCodeLoginRequest request) {
+		return ApiResponse.success(authService.kakaoLogin(request.code()));
+	}
+
+	@Operation(
+		summary = "Naver social login",
+		description = "Exchanges the Naver authorization code and state for an application access token and refresh token."
+	)
+	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.INTERNAL_SERVER_ERROR})
+	@PostMapping("/naver/login")
+	public ApiResponse<TokenResponse> naverLogin(@Valid @RequestBody NaverSocialCodeLoginRequest request) {
+		return ApiResponse.success(authService.naverLogin(request.code(), request.state()));
+	}
+
+	@Operation(
+		summary = "Google social login",
+		description = "Exchanges the Google authorization code for an application access token and refresh token."
+	)
+	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.INTERNAL_SERVER_ERROR})
+	@PostMapping("/google/login")
+	public ApiResponse<TokenResponse> googleLogin(@Valid @RequestBody SocialCodeLoginRequest request) {
+		return ApiResponse.success(authService.googleLogin(request.code()));
+	}
+
 	@Hidden
 	@GetMapping("/kakao/callback")
-	public ApiResponse<TokenResponse> kakaoLogin(@RequestParam("code") String code) {
-		return ApiResponse.success(kakaoOAuthService.loginOrSignUp(code));
+	public ApiResponse<TokenResponse> kakaoCallback(@RequestParam("code") String code) {
+		return ApiResponse.success(authService.kakaoLogin(code));
 	}
 
 	@Hidden

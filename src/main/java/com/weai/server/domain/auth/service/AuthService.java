@@ -2,8 +2,11 @@ package com.weai.server.domain.auth.service;
 
 import com.weai.server.domain.auth.dto.google.GoogleUserResponse;
 import com.weai.server.domain.auth.dto.naver.NaverUserResponse;
+import com.weai.server.domain.auth.request.EmailCodeLoginRequest;
+import com.weai.server.domain.auth.request.EmailLoginCodeSendRequest;
 import com.weai.server.domain.auth.request.LoginRequest;
 import com.weai.server.domain.auth.response.TokenResponse;
+import com.weai.server.domain.auth.response.VerificationCodeDispatchResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.repository.UserRepository;
@@ -22,21 +25,32 @@ public class AuthService {
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final TokenService tokenService;
+	private final VerificationCodeService verificationCodeService;
+	private final KakaoOAuthService kakaoOAuthService;
 	private final NaverOAuthService naverOAuthService;
 	private final GoogleOAuthService googleOAuthService;
 
 	@Transactional
 	public TokenResponse login(LoginRequest request) {
-		User user = userRepository.findByEmail(request.email())
-			.orElseThrow(() -> new ApiException(
-				ErrorCode.RESOURCE_NOT_FOUND,
-				"User with email '%s' could not be found.".formatted(request.email())
-			));
+		User user = ensureUserExists(request.email());
 
 		if (!passwordEncoder.matches(request.password(), user.getPassword())) {
 			throw new ApiException(ErrorCode.UNAUTHORIZED, "Password does not match.");
 		}
 
+		return tokenService.issueTokens(user);
+	}
+
+	@Transactional
+	public VerificationCodeDispatchResponse sendEmailLoginCode(EmailLoginCodeSendRequest request) {
+		ensureUserExists(request.email());
+		return verificationCodeService.sendEmailLoginCode(request);
+	}
+
+	@Transactional
+	public TokenResponse loginWithEmailCode(EmailCodeLoginRequest request) {
+		User user = ensureUserExists(request.email());
+		verificationCodeService.verifyEmailLoginCode(request.email(), request.verificationCode());
 		return tokenService.issueTokens(user);
 	}
 
@@ -48,6 +62,11 @@ public class AuthService {
 	@Transactional
 	public void logout(String rawRefreshToken) {
 		tokenService.logout(rawRefreshToken);
+	}
+
+	@Transactional
+	public TokenResponse kakaoLogin(String code) {
+		return kakaoOAuthService.loginOrSignUp(code);
 	}
 
 	@Transactional
@@ -105,5 +124,13 @@ public class AuthService {
 		);
 
 		return userRepository.save(newUser);
+	}
+
+	private User ensureUserExists(String email) {
+		return userRepository.findByEmail(email)
+			.orElseThrow(() -> new ApiException(
+				ErrorCode.RESOURCE_NOT_FOUND,
+				"User with email '%s' could not be found.".formatted(email)
+			));
 	}
 }

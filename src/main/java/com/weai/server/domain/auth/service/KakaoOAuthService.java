@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -30,19 +31,15 @@ public class KakaoOAuthService {
 	private final RestClient restClient = RestClient.create();
 
 	public SocialAuthorizationUrlResponse createAuthorizationUrl() {
-		OAuthProperties.Kakao kakao = oauthProperties.getKakao();
+		return buildAuthorizationUrl(null, "kakao");
+	}
 
-		String authorizationUrl = UriComponentsBuilder
-			.fromUriString(kakao.getAuthorizationUri())
-			.queryParam("response_type", "code")
-			.queryParam("client_id", kakao.getClientId())
-			.queryParam("redirect_uri", kakao.getRedirectUri())
-			.queryParam("prompt", "login")
-			.build()
-			.encode()
-			.toUriString();
+	public SocialAuthorizationUrlResponse createMessageAuthorizationUrl() {
+		return buildAuthorizationUrl("talk_message", "kakao-talk-message");
+	}
 
-		return new SocialAuthorizationUrlResponse("kakao", authorizationUrl, null);
+	public String exchangeAccessToken(String code) {
+		return getKakaoAccessToken(code);
 	}
 
 	@Transactional
@@ -51,6 +48,23 @@ public class KakaoOAuthService {
 		KakaoUserResponse kakaoUserInfo = getKakaoUserInfo(kakaoAccessToken);
 		User user = registerOrLoginKakaoUser(kakaoUserInfo);
 		return tokenService.issueTokens(user);
+	}
+
+	private SocialAuthorizationUrlResponse buildAuthorizationUrl(String scope, String provider) {
+		OAuthProperties.Kakao kakao = oauthProperties.getKakao();
+
+		UriComponentsBuilder builder = UriComponentsBuilder
+			.fromUriString(kakao.getAuthorizationUri())
+			.queryParam("response_type", "code")
+			.queryParam("client_id", kakao.getClientId())
+			.queryParam("redirect_uri", kakao.getRedirectUri())
+			.queryParam("prompt", "login");
+
+		if (StringUtils.hasText(scope)) {
+			builder.queryParam("scope", scope);
+		}
+
+		return new SocialAuthorizationUrlResponse(provider, builder.build().encode().toUriString(), null);
 	}
 
 	private String getKakaoAccessToken(String code) {

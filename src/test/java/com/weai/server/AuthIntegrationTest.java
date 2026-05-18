@@ -29,6 +29,7 @@ class AuthIntegrationTest {
 
 	private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"accessToken\":\"([^\"]+)\"");
 	private static final Pattern REFRESH_TOKEN_PATTERN = Pattern.compile("\"refreshToken\":\"([^\"]+)\"");
+	private static final Pattern DEBUG_CODE_PATTERN = Pattern.compile("\"debugCode\":\"([^\"]+)\"");
 
 	private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -222,6 +223,84 @@ class AuthIntegrationTest {
 		assertThat(meResponse.statusCode()).isEqualTo(200);
 		assertThat(meResponse.body()).contains("\"email\":\"" + email + "\"");
 		assertThat(meResponse.body()).contains("\"username\":\"frontend-");
+	}
+
+	@Test
+	void userCanLoginWithEmailVerificationCode() throws Exception {
+		String username = "code-" + UUID.randomUUID().toString().substring(0, 8);
+		String email = username + "@example.com";
+		String signUpRequestBody = """
+			{
+			  "username": "%s",
+			  "name": "Code Login",
+			  "email": "%s",
+			  "password": "password1234!"
+			}
+			""".formatted(username, email);
+
+		HttpResponse<String> signUpResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString(signUpRequestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(signUpResponse.statusCode()).isEqualTo(201);
+
+		HttpResponse<String> sendCodeResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/email-login/code".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s",
+					  "deliveryChannel": "EMAIL"
+					}
+					""".formatted(email)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(sendCodeResponse.statusCode()).isEqualTo(200);
+		assertThat(sendCodeResponse.body()).contains("\"deliveryMode\":\"SIMULATED\"");
+
+		String debugCode = extractToken(sendCodeResponse.body(), DEBUG_CODE_PATTERN);
+		HttpResponse<String> emailLoginResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/email-login".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s",
+					  "verificationCode": "%s"
+					}
+					""".formatted(email, debugCode)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(emailLoginResponse.statusCode()).isEqualTo(200);
+		TokenPair loginTokens = extractTokenPair(emailLoginResponse.body());
+		assertAccessTokenClaims(loginTokens.accessToken(), email, "USER");
+
+		HttpResponse<String> reuseCodeResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/email-login".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s",
+					  "verificationCode": "%s"
+					}
+					""".formatted(email, debugCode)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(reuseCodeResponse.statusCode()).isEqualTo(400);
+		assertThat(reuseCodeResponse.body()).contains("\"code\":\"AUTH_400_1\"");
 	}
 
 	private TokenPair login(String email, String password) throws Exception {

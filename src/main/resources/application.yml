@@ -1,13 +1,24 @@
- ollama:
-   base-url: https://ollama.yhy-server.com/
-   models:
-     oracle: SYNAIPSE_Oracle
-     architect: SYNAIPSE_Architect
-     sync: SYNAIPSE_Sync
-     
+ollama:
+  base-url: https://ollama.yhy-server.com/
+  models:
+    oracle: SYNAIPSE_Oracle
+    architect: SYNAIPSE_Architect
+    sync: SYNAIPSE_Sync
+
 spring:
   application:
     name: we-ai-server
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:we_ai}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
@@ -91,6 +102,17 @@ oauth:
     authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
     token-uri: https://oauth2.googleapis.com/token
     user-info-uri: https://www.googleapis.com/oauth2/v2/userinfo
+
+auth:
+  verification:
+    code-length: ${AUTH_VERIFICATION_CODE_LENGTH:6}
+    expiration: ${AUTH_VERIFICATION_EXPIRATION:PT5M}
+    mock-enabled: ${AUTH_VERIFICATION_MOCK_ENABLED:false}
+    expose-code-in-response: ${AUTH_VERIFICATION_EXPOSE_CODE_IN_RESPONSE:false}
+    email-subject: ${AUTH_VERIFICATION_EMAIL_SUBJECT:[WE AI] Login verification code}
+    email-from: ${AUTH_VERIFICATION_EMAIL_FROM:${MAIL_USERNAME:}}
+    kakao-talk:
+      message-uri: ${KAKAO_TALK_MESSAGE_URI:https://kapi.kakao.com/v2/api/talk/memo/default/send}
 
 storage:
   minio:

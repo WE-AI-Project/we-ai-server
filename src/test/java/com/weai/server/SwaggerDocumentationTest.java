@@ -35,9 +35,15 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"title\":\"WE AI Server API\"");
 		assertThat(response.body()).contains("\"bearerAuth\"");
 		assertThat(response.body()).contains("\"/api/v1/auth/login\"");
+		assertThat(response.body()).contains("\"/api/v1/auth/email-login\"");
+		assertThat(response.body()).contains("\"/api/v1/auth/email-login/code\"");
 		assertThat(response.body()).contains("\"/api/v1/auth/signup\"");
 		assertThat(response.body()).contains("\"/api/v1/auth/refresh\"");
 		assertThat(response.body()).contains("\"/api/v1/auth/logout\"");
+		assertThat(response.body()).contains("\"/api/v1/auth/kakao/login\"");
+		assertThat(response.body()).contains("\"/api/v1/auth/kakao/message-url\"");
+		assertThat(response.body()).contains("\"/api/v1/auth/naver/login\"");
+		assertThat(response.body()).contains("\"/api/v1/auth/google/login\"");
 		assertThat(response.body()).contains("\"/api/v1/health\"");
 		assertThat(response.body()).contains("\"/api/v1/projects\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/my\"");
@@ -52,6 +58,7 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).doesNotContain("\"/api/v1/admin/users/{userId}\"");
 		assertThat(response.body()).contains("\"COMMON_401\"");
 		assertThat(response.body()).contains("\"COMMON_409\"");
+		assertThat(response.body()).contains("\"COMMON_500\"");
 		assertThat(response.body()).contains("\"PROJECT_404_1\"");
 		assertThat(response.body()).contains("\"Invalid request input.\"");
 	}
