@@ -46,6 +46,7 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.7'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.7'
 	runtimeOnly 'com.mysql:mysql-connector-j'
+	runtimeOnly 'com.google.cloud.sql:mysql-socket-factory-connector-j-8:1.28.3'
 	annotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'com.h2database:h2'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
