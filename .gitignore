@@ -3,6 +3,7 @@
 build/
 out/
 tools/node_modules/
+.run/
 *.iml
 .env
 .env.*
