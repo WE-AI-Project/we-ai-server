@@ -34,6 +34,8 @@ app:
     cors:
       allowed-origins:
         - ${APP_FRONTEND_BASE_URL:https://we-ai-client.vercel.app}
+        - ${APP_VITE_FRONTEND_BASE_URL:http://localhost:5173}
+        - ${APP_ADDITIONAL_LOCAL_FRONTEND_BASE_URL:http://127.0.0.1:5173}
       allowed-methods:
         - GET
         - POST
