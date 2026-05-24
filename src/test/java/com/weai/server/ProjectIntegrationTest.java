@@ -24,6 +24,7 @@ class ProjectIntegrationTest {
 	private static final Pattern PROJECT_CODE_PATTERN = Pattern.compile("\"projectCode\":\"([A-Z0-9]{8})\"");
 	private static final Pattern PROJECT_ID_PATTERN = Pattern.compile("\"projectId\":(\\d+)");
 	private static final Pattern SCHEDULE_ID_PATTERN = Pattern.compile("\"scheduleId\":(\\d+)");
+	private static final Pattern TECH_STACK_ID_PATTERN = Pattern.compile("\"techStackId\":(\\d+)");
 	private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\":(\\d+)");
 
 	private final HttpClient httpClient = HttpClient.newHttpClient();
@@ -485,6 +486,139 @@ class ProjectIntegrationTest {
 		assertThat(response.body()).contains("\"code\":\"PROJECT_400_10\"");
 	}
 
+	@Test
+	void projectMemberCanFilterSchedulesAndManageProjectTechStacks() throws Exception {
+		UserSession leader = signUpAndLogin("filter-tech-leader");
+		UserSession member = signUpAndLogin("filter-tech-member");
+
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Filter And Tech Stack Project",
+			  "localPath": "D:\\\\WE_AI\\\\filter-tech-stack-project"
+			}
+			""");
+		assertThat(createResponse.statusCode()).isEqualTo(201);
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+
+		HttpResponse<String> joinResponse = joinProject(member.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "FRONTEND"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> backendScheduleResponse = createProjectSchedule(leader.accessToken(), projectId, """
+			{
+			  "title": "프로젝트 일정 상세 API 구현",
+			  "description": "일정 상세 조회 API 개발",
+			  "assigneeId": %d,
+			  "department": "BACKEND",
+			  "startDate": "%s",
+			  "endDate": "%s",
+			  "priority": "HIGH",
+			  "status": "TODO"
+			}
+			""".formatted(member.userId(), LocalDate.now().plusDays(1), LocalDate.now().plusDays(1)));
+		assertThat(backendScheduleResponse.statusCode()).isEqualTo(201);
+
+		HttpResponse<String> frontendScheduleResponse = createProjectSchedule(member.accessToken(), projectId, """
+			{
+			  "title": "프론트엔드 UI 구성",
+			  "description": "메인 화면 UI 작업",
+			  "department": "FRONTEND",
+			  "startDate": "%s",
+			  "endDate": "%s",
+			  "priority": "MEDIUM",
+			  "status": "DONE"
+			}
+			""".formatted(LocalDate.now().plusDays(2), LocalDate.now().plusDays(3)));
+		assertThat(frontendScheduleResponse.statusCode()).isEqualTo(201);
+
+		HttpResponse<String> filterResponse = getFilteredProjectSchedules(
+			leader.accessToken(),
+			projectId,
+			"?department=BACKEND&status=TODO"
+		);
+		assertThat(filterResponse.statusCode()).isEqualTo(200);
+		assertThat(filterResponse.body()).contains("\"code\":\"PROJECT_SCHEDULE_FILTER_SUCCESS\"");
+		assertThat(filterResponse.body()).contains("\"title\":\"프로젝트 일정 상세 API 구현\"");
+		assertThat(filterResponse.body()).doesNotContain("\"title\":\"프론트엔드 UI 구성\"");
+
+		HttpResponse<String> createTechStackResponse = createProjectTechStack(leader.accessToken(), projectId, """
+			{
+			  "name": "Spring Boot",
+			  "version": "3.2.5",
+			  "category": "BACKEND",
+			  "isRequired": true
+			}
+			""");
+		assertThat(createTechStackResponse.statusCode()).isEqualTo(201);
+		assertThat(createTechStackResponse.body()).contains("\"code\":\"PROJECT_TECH_STACK_CREATE_SUCCESS\"");
+		assertThat(createTechStackResponse.body()).contains("\"name\":\"Spring Boot\"");
+		assertThat(createTechStackResponse.body()).contains("\"version\":\"3.2.5\"");
+		long techStackId = extractLongValue(createTechStackResponse.body(), TECH_STACK_ID_PATTERN);
+
+		HttpResponse<String> updateTechStackResponse = updateProjectTechStack(leader.accessToken(), projectId, techStackId, """
+			{
+			  "name": "Spring Boot",
+			  "version": "3.3.0",
+			  "category": "BACKEND",
+			  "isRequired": true
+			}
+			""");
+		assertThat(updateTechStackResponse.statusCode()).isEqualTo(200);
+		assertThat(updateTechStackResponse.body()).contains("\"code\":\"PROJECT_TECH_STACK_UPDATE_SUCCESS\"");
+		assertThat(updateTechStackResponse.body()).contains("\"version\":\"3.3.0\"");
+
+		HttpResponse<String> deleteTechStackResponse = deleteProjectTechStack(leader.accessToken(), projectId, techStackId);
+		assertThat(deleteTechStackResponse.statusCode()).isEqualTo(200);
+		assertThat(deleteTechStackResponse.body()).contains("\"code\":\"PROJECT_TECH_STACK_DELETE_SUCCESS\"");
+		assertThat(deleteTechStackResponse.body()).contains("\"techStackId\":" + techStackId);
+
+		HttpResponse<String> techStacksAfterDeleteResponse = getProjectTechStacks(leader.accessToken(), projectId);
+		assertThat(techStacksAfterDeleteResponse.statusCode()).isEqualTo(200);
+		assertThat(techStacksAfterDeleteResponse.body()).doesNotContain("\"name\":\"Spring Boot\"");
+	}
+
+	@Test
+	void techStackCreateRejectsDuplicateNameAndCategoryWithinProject() throws Exception {
+		UserSession leader = signUpAndLogin("tech-duplicate-leader");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Duplicate Tech Stack Project",
+			  "localPath": "D:\\\\WE_AI\\\\duplicate-tech-stack-project"
+			}
+			""");
+		assertThat(createResponse.statusCode()).isEqualTo(201);
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+
+		HttpResponse<String> firstCreateResponse = createProjectTechStack(leader.accessToken(), projectId, """
+			{
+			  "name": "Spring Boot",
+			  "version": "3.2.5",
+			  "category": "BACKEND",
+			  "isRequired": true
+			}
+			""");
+		assertThat(firstCreateResponse.statusCode()).isEqualTo(201);
+
+		HttpResponse<String> duplicateCreateResponse = createProjectTechStack(leader.accessToken(), projectId, """
+			{
+			  "name": "spring boot",
+			  "version": "3.3.0",
+			  "category": "BACKEND",
+			  "isRequired": false
+			}
+			""");
+
+		assertThat(duplicateCreateResponse.statusCode()).isEqualTo(409);
+		assertThat(duplicateCreateResponse.body()).contains("\"code\":\"PROJECT_409_2\"");
+	}
+
 	private UserSession signUpAndLogin(String prefix) throws Exception {
 		String username = prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
 		String email = username + "@example.com";
@@ -614,6 +748,18 @@ class ProjectIntegrationTest {
 		);
 	}
 
+	private HttpResponse<String> getFilteredProjectSchedules(String accessToken, long projectId, String queryString) throws Exception {
+		String suffix = queryString == null ? "" : queryString;
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/schedules/filter%s".formatted(port, projectId, suffix)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
 	private HttpResponse<String> getProjectDashboard(String accessToken, long projectId) throws Exception {
 		return httpClient.send(
 			HttpRequest.newBuilder()
@@ -684,6 +830,42 @@ class ProjectIntegrationTest {
 				.header("Authorization", "Bearer " + accessToken)
 				.header("Content-Type", "application/json")
 				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> createProjectTechStack(String accessToken, long projectId, String requestBody) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/tech-stacks".formatted(port, projectId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> updateProjectTechStack(String accessToken, long projectId, long techStackId, String requestBody)
+		throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/tech-stacks/%d".formatted(port, projectId, techStackId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.header("Content-Type", "application/json")
+				.method("PATCH", HttpRequest.BodyPublishers.ofString(requestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> deleteProjectTechStack(String accessToken, long projectId, long techStackId) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/tech-stacks/%d".formatted(port, projectId, techStackId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.DELETE()
 				.build(),
 			HttpResponse.BodyHandlers.ofString()
 		);

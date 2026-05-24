@@ -7,6 +7,8 @@ import com.weai.server.domain.project.request.ProjectJoinRequest;
 import com.weai.server.domain.project.request.ProjectScheduleCreateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleStatusUpdateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleUpdateRequest;
+import com.weai.server.domain.project.request.ProjectTechStackCreateRequest;
+import com.weai.server.domain.project.request.ProjectTechStackUpdateRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
@@ -17,14 +19,16 @@ import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
 import com.weai.server.domain.project.response.ProjectScheduleListResponse;
+import com.weai.server.domain.project.response.ProjectTechStackDeleteResponse;
 import com.weai.server.domain.project.response.ProjectTechStackListResponse;
+import com.weai.server.domain.project.response.ProjectTechStackResponse;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -45,7 +49,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "프로젝트", description = "로그인 이후 프로젝트 생성, 참여, 대시보드 진입에 사용하는 API")
+@Tag(name = "프로젝트", description = "프로젝트 생성, 참여, 멤버/일정/기술 스택 관리 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/projects")
@@ -55,7 +59,7 @@ public class ProjectController {
 
 	@Operation(
 		summary = "프로젝트 생성",
-		description = "프로젝트를 생성하고 생성자를 리더로 등록합니다. 저장 위치는 필수이며, 마감일은 선택값입니다. 마감일을 보내면 응답에서 오늘 기준 남은 일수를 함께 반환합니다."
+		description = "프로젝트를 생성하고 생성자를 리더로 등록합니다. 설명과 마감일은 선택값입니다."
 	)
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
@@ -110,7 +114,7 @@ public class ProjectController {
 		return ApiResponse.success("PROJECT_LIST_SUCCESS", message, projects);
 	}
 
-	@Operation(summary = "참여 코드로 프로젝트 참여", description = "8자리 참여 코드를 입력해 활성 프로젝트에 참여합니다.")
+	@Operation(summary = "참여 코드로 프로젝트 참여", description = "8자리 참여 코드를 사용해 활성 프로젝트에 참여합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
 		ErrorCode.INVALID_INPUT,
@@ -133,7 +137,7 @@ public class ProjectController {
 		);
 	}
 
-	@Operation(summary = "프로젝트 대시보드 요약 조회", description = "로그인 사용자가 참여 중인 프로젝트의 대시보드 요약 정보를 조회합니다.")
+	@Operation(summary = "프로젝트 대시보드 조회", description = "프로젝트 요약, 진행률, 부서별 진행 현황을 조회합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
 		ErrorCode.PROJECT_NOT_FOUND,
@@ -147,12 +151,12 @@ public class ProjectController {
 	) {
 		return ApiResponse.success(
 			"PROJECT_DASHBOARD_SUCCESS",
-			"프로젝트 대시보드 요약 조회에 성공했습니다.",
+			"프로젝트 대시보드 조회에 성공했습니다.",
 			projectService.getProjectDashboard(authentication.getName(), projectId)
 		);
 	}
 
-	@Operation(summary = "프로젝트 상세 정보 조회", description = "로그인 사용자가 참여 중인 프로젝트의 상세 정보를 조회합니다.")
+	@Operation(summary = "프로젝트 상세 조회", description = "로그인 사용자가 접근 가능한 프로젝트의 상세 정보를 조회합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
 		ErrorCode.PROJECT_NOT_FOUND,
@@ -166,12 +170,12 @@ public class ProjectController {
 	) {
 		return ApiResponse.success(
 			"PROJECT_DETAIL_SUCCESS",
-			"프로젝트 상세 정보 조회에 성공했습니다.",
+			"프로젝트 상세 조회에 성공했습니다.",
 			projectService.getProjectDetail(authentication.getName(), projectId)
 		);
 	}
 
-	@Operation(summary = "프로젝트 멤버 목록 조회", description = "프로젝트에 참여 중인 ACTIVE 멤버 목록을 조회합니다.")
+	@Operation(summary = "프로젝트 멤버 목록 조회", description = "프로젝트의 ACTIVE 멤버 목록을 조회합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
 		ErrorCode.PROJECT_NOT_FOUND,
@@ -209,6 +213,113 @@ public class ProjectController {
 		);
 	}
 
+	@Operation(summary = "프로젝트 기술 스택 추가", description = "프로젝트에 새로운 기술 스택을 추가합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.TECH_STACK_NAME_REQUIRED,
+		ErrorCode.TECH_STACK_CATEGORY_REQUIRED,
+		ErrorCode.TECH_STACK_ALREADY_EXISTS
+	})
+	@PostMapping("/{projectId}/tech-stacks")
+	@ResponseStatus(HttpStatus.CREATED)
+	public ApiResponse<ProjectTechStackResponse> createProjectTechStack(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@io.swagger.v3.oas.annotations.parameters.RequestBody(
+			required = true,
+			description = "프로젝트 기술 스택 추가 요청",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(
+					name = "프로젝트 기술 스택 추가 예시",
+					value = """
+						{
+						  "name": "Spring Boot",
+						  "version": "3.2.5",
+						  "category": "BACKEND",
+						  "isRequired": true
+						}
+						"""
+				)
+			)
+		)
+		@Valid @RequestBody ProjectTechStackCreateRequest request
+	) {
+		return ApiResponse.success(
+			"PROJECT_TECH_STACK_CREATE_SUCCESS",
+			"프로젝트 기술 스택 추가에 성공했습니다.",
+			projectService.createProjectTechStack(authentication.getName(), projectId, request)
+		);
+	}
+
+	@Operation(summary = "프로젝트 기술 스택 수정", description = "프로젝트에 등록된 기술 스택 정보를 부분 수정합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.TECH_STACK_NOT_FOUND,
+		ErrorCode.TECH_STACK_NAME_REQUIRED,
+		ErrorCode.TECH_STACK_ALREADY_EXISTS
+	})
+	@PatchMapping("/{projectId}/tech-stacks/{techStackId}")
+	public ApiResponse<ProjectTechStackResponse> updateProjectTechStack(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long techStackId,
+		@io.swagger.v3.oas.annotations.parameters.RequestBody(
+			required = true,
+			description = "프로젝트 기술 스택 수정 요청",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(
+					name = "프로젝트 기술 스택 수정 예시",
+					value = """
+						{
+						  "name": "Spring Boot",
+						  "version": "3.3.0",
+						  "category": "BACKEND",
+						  "isRequired": true
+						}
+						"""
+				)
+			)
+		)
+		@Valid @RequestBody ProjectTechStackUpdateRequest request
+	) {
+		return ApiResponse.success(
+			"PROJECT_TECH_STACK_UPDATE_SUCCESS",
+			"프로젝트 기술 스택 수정에 성공했습니다.",
+			projectService.updateProjectTechStack(authentication.getName(), projectId, techStackId, request)
+		);
+	}
+
+	@Operation(summary = "프로젝트 기술 스택 삭제", description = "프로젝트에 등록된 기술 스택을 삭제합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.TECH_STACK_NOT_FOUND
+	})
+	@DeleteMapping("/{projectId}/tech-stacks/{techStackId}")
+	public ApiResponse<ProjectTechStackDeleteResponse> deleteProjectTechStack(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long techStackId
+	) {
+		return ApiResponse.success(
+			"PROJECT_TECH_STACK_DELETE_SUCCESS",
+			"프로젝트 기술 스택 삭제에 성공했습니다.",
+			projectService.deleteProjectTechStack(authentication.getName(), projectId, techStackId)
+		);
+	}
+
 	@Operation(summary = "프로젝트 일정 목록 조회", description = "프로젝트 일정 목록을 필터 조건과 함께 조회합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
@@ -233,7 +344,31 @@ public class ProjectController {
 		);
 	}
 
-	@Operation(summary = "프로젝트 일정 생성", description = "프로젝트에 새 일정을 생성합니다.")
+	@Operation(summary = "프로젝트 일정 필터 조회", description = "프로젝트 일정을 부서, 상태, 기간 조건으로 필터링하여 조회합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED
+	})
+	@GetMapping("/{projectId}/schedules/filter")
+	public ApiResponse<ProjectScheduleListResponse> getFilteredProjectSchedules(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@RequestParam(required = false) ProjectDepartment department,
+		@RequestParam(required = false) ProjectScheduleStatus status,
+		@RequestParam(required = false) LocalDate startDate,
+		@RequestParam(required = false) LocalDate endDate
+	) {
+		return ApiResponse.success(
+			"PROJECT_SCHEDULE_FILTER_SUCCESS",
+			"프로젝트 일정 필터 조회에 성공했습니다.",
+			projectService.getProjectSchedules(authentication.getName(), projectId, department, status, startDate, endDate)
+		);
+	}
+
+	@Operation(summary = "프로젝트 일정 생성", description = "프로젝트에 새로운 일정을 생성합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
 		ErrorCode.INVALID_INPUT,
@@ -352,7 +487,7 @@ public class ProjectController {
 		);
 	}
 
-	@Operation(summary = "프로젝트 일정 상태 변경", description = "프로젝트에 속한 일정의 상태만 변경합니다.")
+	@Operation(summary = "프로젝트 일정 상태 변경", description = "프로젝트 일정의 상태만 변경합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
 		ErrorCode.PROJECT_NOT_FOUND,

@@ -20,7 +20,9 @@ import com.weai.server.domain.project.request.ProjectJoinRequest;
 import com.weai.server.domain.project.request.ProjectScheduleCreateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleStatusUpdateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleUpdateRequest;
+import com.weai.server.domain.project.request.ProjectTechStackCreateRequest;
 import com.weai.server.domain.project.request.ProjectTechStackRequest;
+import com.weai.server.domain.project.request.ProjectTechStackUpdateRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
@@ -31,7 +33,9 @@ import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
 import com.weai.server.domain.project.response.ProjectScheduleListResponse;
+import com.weai.server.domain.project.response.ProjectTechStackDeleteResponse;
 import com.weai.server.domain.project.response.ProjectTechStackListResponse;
+import com.weai.server.domain.project.response.ProjectTechStackResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.domain.user.service.UserService;
@@ -199,6 +203,60 @@ public class ProjectService {
 		getAccessibleProject(projectId, user.getId());
 		List<ProjectTechStack> techStacks = projectTechStackRepository.findByProject_IdOrderByCategoryAscIdAsc(projectId);
 		return ProjectTechStackListResponse.from(projectId, techStacks);
+	}
+
+	@Transactional
+	public ProjectTechStackResponse createProjectTechStack(
+		String userEmail,
+		Long projectId,
+		ProjectTechStackCreateRequest request
+	) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		Project project = validateProjectAccess(projectId, user.getId());
+
+		String name = validateTechStackName(request.name());
+		ProjectTechStackCategory category = parseRequiredTechStackCategory(request.category());
+		validateTechStackDuplicate(projectId, name, category, null);
+
+		ProjectTechStack techStack = ProjectTechStack.create(
+			project,
+			name,
+			trimToNull(request.version()),
+			category,
+			request.requiredOrDefaultFalse()
+		);
+		return ProjectTechStackResponse.from(projectTechStackRepository.save(techStack));
+	}
+
+	@Transactional
+	public ProjectTechStackResponse updateProjectTechStack(
+		String userEmail,
+		Long projectId,
+		Long techStackId,
+		ProjectTechStackUpdateRequest request
+	) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectAccess(projectId, user.getId());
+		ProjectTechStack techStack = getProjectTechStack(projectId, techStackId);
+
+		String name = resolveUpdatedTechStackName(request.name(), techStack.getName());
+		String version = request.version() == null ? techStack.getVersion() : trimToNull(request.version());
+		ProjectTechStackCategory category = resolveTechStackCategory(request.category(), techStack.getCategory());
+		boolean isRequired = request.isRequired() == null ? techStack.isRequired() : request.isRequired();
+
+		validateTechStackDuplicate(projectId, name, category, techStackId);
+
+		techStack.update(name, version, category, isRequired);
+		return ProjectTechStackResponse.from(projectTechStackRepository.saveAndFlush(techStack));
+	}
+
+	@Transactional
+	public ProjectTechStackDeleteResponse deleteProjectTechStack(String userEmail, Long projectId, Long techStackId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectAccess(projectId, user.getId());
+		ProjectTechStack techStack = getProjectTechStack(projectId, techStackId);
+		projectTechStackRepository.delete(techStack);
+		return ProjectTechStackDeleteResponse.from(techStack.getId());
 	}
 
 	public ProjectScheduleListResponse getProjectSchedules(
@@ -407,7 +465,7 @@ public class ProjectService {
 		return validateProjectAccess(projectId, userId);
 	}
 
-	private Project validateProjectAccess(Long projectId, Long userId) {
+	public Project validateProjectAccess(Long projectId, Long userId) {
 		Project project = projectRepository.findById(projectId)
 			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_NOT_FOUND));
 
@@ -442,6 +500,11 @@ public class ProjectService {
 			.orElseThrow(() -> new ApiException(ErrorCode.SCHEDULE_NOT_FOUND));
 	}
 
+	private ProjectTechStack getProjectTechStack(Long projectId, Long techStackId) {
+		return projectTechStackRepository.findByProject_IdAndId(projectId, techStackId)
+			.orElseThrow(() -> new ApiException(ErrorCode.TECH_STACK_NOT_FOUND));
+	}
+
 	private String resolveUpdatedTitle(String rawTitle, String currentTitle) {
 		if (rawTitle == null) {
 			return currentTitle;
@@ -456,6 +519,21 @@ public class ProjectService {
 			throw new ApiException(ErrorCode.SCHEDULE_TITLE_REQUIRED);
 		}
 		return title;
+	}
+
+	private String resolveUpdatedTechStackName(String rawName, String currentName) {
+		if (rawName == null) {
+			return currentName;
+		}
+		return validateTechStackName(rawName);
+	}
+
+	private String validateTechStackName(String rawName) {
+		String name = trimToNull(rawName);
+		if (name == null) {
+			throw new ApiException(ErrorCode.TECH_STACK_NAME_REQUIRED);
+		}
+		return name;
 	}
 
 	private void validateScheduleDateRange(LocalDate startDate, LocalDate endDate) {
@@ -528,6 +606,49 @@ public class ProjectService {
 		}
 	}
 
+	private ProjectTechStackCategory parseRequiredTechStackCategory(String rawCategory) {
+		String normalizedCategory = trimToNull(rawCategory);
+		if (normalizedCategory == null) {
+			throw new ApiException(ErrorCode.TECH_STACK_CATEGORY_REQUIRED);
+		}
+
+		try {
+			return ProjectTechStackCategory.valueOf(normalizedCategory.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "tech stack category is invalid.");
+		}
+	}
+
+	private ProjectTechStackCategory resolveTechStackCategory(
+		String rawCategory,
+		ProjectTechStackCategory currentCategory
+	) {
+		if (rawCategory == null) {
+			return currentCategory;
+		}
+		return parseRequiredTechStackCategory(rawCategory);
+	}
+
+	private void validateTechStackDuplicate(
+		Long projectId,
+		String name,
+		ProjectTechStackCategory category,
+		Long currentTechStackId
+	) {
+		boolean exists = currentTechStackId == null
+			? projectTechStackRepository.existsByProject_IdAndNameIgnoreCaseAndCategory(projectId, name, category)
+			: projectTechStackRepository.existsByProject_IdAndNameIgnoreCaseAndCategoryAndIdNot(
+				projectId,
+				name,
+				category,
+				currentTechStackId
+			);
+
+		if (exists) {
+			throw new ApiException(ErrorCode.TECH_STACK_ALREADY_EXISTS);
+		}
+	}
+
 	private int calculateProgressRate(long completedCount, long totalCount) {
 		if (totalCount == 0) {
 			return 0;
@@ -589,6 +710,7 @@ public class ProjectService {
 			case DEVOPS -> ProjectDepartment.DEVOPS;
 			case AI -> ProjectDepartment.AI;
 			case DATABASE -> ProjectDepartment.DATABASE;
+			case LANGUAGE, ETC -> ProjectDepartment.BACKEND;
 		};
 	}
 

@@ -62,4 +62,16 @@ public class ProjectTechStack extends BaseEntity {
 			.isRequired(isRequired)
 			.build();
 	}
+
+	public void update(
+		String name,
+		String version,
+		ProjectTechStackCategory category,
+		boolean isRequired
+	) {
+		this.name = name;
+		this.version = version;
+		this.category = category;
+		this.isRequired = isRequired;
+	}
 }

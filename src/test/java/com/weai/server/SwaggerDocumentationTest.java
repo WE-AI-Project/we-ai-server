@@ -52,7 +52,9 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/dashboard\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/members\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/tech-stacks\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/tech-stacks/{techStackId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules/filter\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules/{scheduleId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules/{scheduleId}/status\"");
 		assertThat(response.body()).contains("\"/api/v1/users/me\"");
@@ -62,6 +64,7 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"COMMON_409\"");
 		assertThat(response.body()).contains("\"COMMON_500\"");
 		assertThat(response.body()).contains("\"PROJECT_404_1\"");
+		assertThat(response.body()).contains("\"PROJECT_404_4\"");
 		assertThat(response.body()).contains("\"Invalid request input.\"");
 	}
 }

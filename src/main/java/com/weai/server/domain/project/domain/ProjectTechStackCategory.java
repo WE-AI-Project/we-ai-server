@@ -6,5 +6,7 @@ public enum ProjectTechStackCategory {
 	DEVOPS,
 	AI,
 	DATABASE,
-	BUILD_TOOL
+	BUILD_TOOL,
+	LANGUAGE,
+	ETC
 }
