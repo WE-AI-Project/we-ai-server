@@ -16,6 +16,7 @@
       <env name="GOOGLE_REDIRECT_URI" value="http://localhost:8080/api/v1/auth/google/callback" />
     </envs>
     <module name="we-ai-server.main" />
+    <option name="SHORTEN_COMMAND_LINE" value="ARGS_FILE" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="com.weai.server.WeAiServerApplication" />
     <method v="2">
       <option name="Make" enabled="true" />

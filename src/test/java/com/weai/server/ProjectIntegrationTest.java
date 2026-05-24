@@ -23,6 +23,7 @@ class ProjectIntegrationTest {
 	private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"accessToken\":\"([^\"]+)\"");
 	private static final Pattern PROJECT_CODE_PATTERN = Pattern.compile("\"projectCode\":\"([A-Z0-9]{8})\"");
 	private static final Pattern PROJECT_ID_PATTERN = Pattern.compile("\"projectId\":(\\d+)");
+	private static final Pattern SCHEDULE_ID_PATTERN = Pattern.compile("\"scheduleId\":(\\d+)");
 	private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\":(\\d+)");
 
 	private final HttpClient httpClient = HttpClient.newHttpClient();
@@ -371,6 +372,119 @@ class ProjectIntegrationTest {
 		assertThat(response.body()).contains("\"code\":\"PROJECT_400_7\"");
 	}
 
+	@Test
+	void projectMemberCanViewUpdateChangeStatusAndDeleteSchedule() throws Exception {
+		UserSession leader = signUpAndLogin("schedule-ops-leader");
+		UserSession member = signUpAndLogin("schedule-ops-member");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Schedule Operations Project",
+			  "localPath": "D:\\\\WE_AI\\\\schedule-operations-project"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+
+		HttpResponse<String> joinResponse = joinProject(member.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "BACKEND"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> scheduleCreateResponse = createProjectSchedule(leader.accessToken(), projectId, """
+			{
+			  "title": "프로젝트 일정 상세 API 구현",
+			  "description": "일정 상세 조회 API 개발",
+			  "assigneeId": %d,
+			  "department": "BACKEND",
+			  "startDate": "%s",
+			  "endDate": "%s",
+			  "priority": "HIGH",
+			  "status": "TODO"
+			}
+			""".formatted(member.userId(), LocalDate.now().plusDays(1), LocalDate.now().plusDays(1)));
+		assertThat(scheduleCreateResponse.statusCode()).isEqualTo(201);
+
+		long scheduleId = extractLongValue(scheduleCreateResponse.body(), SCHEDULE_ID_PATTERN);
+
+		HttpResponse<String> detailResponse = getProjectScheduleDetail(member.accessToken(), projectId, scheduleId);
+		assertThat(detailResponse.statusCode()).isEqualTo(200);
+		assertThat(detailResponse.body()).contains("\"code\":\"PROJECT_SCHEDULE_DETAIL_SUCCESS\"");
+		assertThat(detailResponse.body()).contains("\"scheduleId\":" + scheduleId);
+		assertThat(detailResponse.body()).contains("\"projectId\":" + projectId);
+		assertThat(detailResponse.body()).contains("\"title\":\"프로젝트 일정 상세 API 구현\"");
+
+		HttpResponse<String> updateResponse = updateProjectSchedule(leader.accessToken(), projectId, scheduleId, """
+			{
+			  "title": "프로젝트 일정 수정 API 구현",
+			  "description": "일정 수정 기능 개발",
+			  "assigneeId": %d,
+			  "department": "BACKEND",
+			  "startDate": "%s",
+			  "endDate": "%s",
+			  "priority": "HIGH",
+			  "status": "IN_PROGRESS"
+			}
+			""".formatted(member.userId(), LocalDate.now().plusDays(1), LocalDate.now().plusDays(2)));
+		assertThat(updateResponse.statusCode()).isEqualTo(200);
+		assertThat(updateResponse.body()).contains("\"code\":\"PROJECT_SCHEDULE_UPDATE_SUCCESS\"");
+		assertThat(updateResponse.body()).contains("\"title\":\"프로젝트 일정 수정 API 구현\"");
+		assertThat(updateResponse.body()).contains("\"status\":\"IN_PROGRESS\"");
+		assertThat(updateResponse.body()).contains("\"updatedAt\":");
+
+		HttpResponse<String> statusUpdateResponse = updateProjectScheduleStatus(member.accessToken(), projectId, scheduleId, """
+			{
+			  "status": "DONE"
+			}
+			""");
+		assertThat(statusUpdateResponse.statusCode()).isEqualTo(200);
+		assertThat(statusUpdateResponse.body()).contains("\"code\":\"PROJECT_SCHEDULE_STATUS_UPDATE_SUCCESS\"");
+		assertThat(statusUpdateResponse.body()).contains("\"status\":\"DONE\"");
+
+		HttpResponse<String> deleteResponse = deleteProjectSchedule(leader.accessToken(), projectId, scheduleId);
+		assertThat(deleteResponse.statusCode()).isEqualTo(200);
+		assertThat(deleteResponse.body()).contains("\"code\":\"PROJECT_SCHEDULE_DELETE_SUCCESS\"");
+		assertThat(deleteResponse.body()).contains("\"scheduleId\":" + scheduleId);
+
+		HttpResponse<String> detailAfterDeleteResponse = getProjectScheduleDetail(leader.accessToken(), projectId, scheduleId);
+		assertThat(detailAfterDeleteResponse.statusCode()).isEqualTo(404);
+		assertThat(detailAfterDeleteResponse.body()).contains("\"code\":\"PROJECT_404_3\"");
+	}
+
+	@Test
+	void scheduleStatusUpdateRejectsMissingStatus() throws Exception {
+		UserSession leader = signUpAndLogin("schedule-status-missing");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Schedule Status Validation",
+			  "localPath": "D:\\\\WE_AI\\\\schedule-status-validation"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		HttpResponse<String> scheduleCreateResponse = createProjectSchedule(leader.accessToken(), projectId, """
+			{
+			  "title": "상태 변경 검증 일정",
+			  "department": "BACKEND",
+			  "startDate": "%s",
+			  "endDate": "%s"
+			}
+			""".formatted(LocalDate.now().plusDays(1), LocalDate.now().plusDays(1)));
+		long scheduleId = extractLongValue(scheduleCreateResponse.body(), SCHEDULE_ID_PATTERN);
+
+		HttpResponse<String> response = updateProjectScheduleStatus(leader.accessToken(), projectId, scheduleId, """
+			{
+			  "status": "   "
+			}
+			""");
+
+		assertThat(response.statusCode()).isEqualTo(400);
+		assertThat(response.body()).contains("\"code\":\"PROJECT_400_10\"");
+	}
+
 	private UserSession signUpAndLogin(String prefix) throws Exception {
 		String username = prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
 		String email = username + "@example.com";
@@ -506,6 +620,58 @@ class ProjectIntegrationTest {
 				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/dashboard".formatted(port, projectId)))
 				.header("Authorization", "Bearer " + accessToken)
 				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> getProjectScheduleDetail(String accessToken, long projectId, long scheduleId) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/schedules/%d".formatted(port, projectId, scheduleId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> updateProjectSchedule(String accessToken, long projectId, long scheduleId, String requestBody)
+		throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/schedules/%d".formatted(port, projectId, scheduleId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.header("Content-Type", "application/json")
+				.method("PATCH", HttpRequest.BodyPublishers.ofString(requestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> updateProjectScheduleStatus(
+		String accessToken,
+		long projectId,
+		long scheduleId,
+		String requestBody
+	) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/schedules/%d/status".formatted(port, projectId, scheduleId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.header("Content-Type", "application/json")
+				.method("PATCH", HttpRequest.BodyPublishers.ofString(requestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> deleteProjectSchedule(String accessToken, long projectId, long scheduleId) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/schedules/%d".formatted(port, projectId, scheduleId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.DELETE()
 				.build(),
 			HttpResponse.BodyHandlers.ofString()
 		);

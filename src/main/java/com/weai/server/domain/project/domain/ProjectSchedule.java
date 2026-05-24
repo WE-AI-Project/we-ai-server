@@ -94,4 +94,28 @@ public class ProjectSchedule extends BaseEntity {
 			.status(status)
 			.build();
 	}
+
+	public void update(
+		User assignee,
+		String title,
+		String description,
+		ProjectDepartment department,
+		LocalDate startDate,
+		LocalDate endDate,
+		ProjectSchedulePriority priority,
+		ProjectScheduleStatus status
+	) {
+		this.assignee = assignee;
+		this.title = title;
+		this.description = description;
+		this.department = department;
+		this.startDate = startDate;
+		this.endDate = endDate;
+		this.priority = priority;
+		this.status = status;
+	}
+
+	public void changeStatus(ProjectScheduleStatus status) {
+		this.status = status;
+	}
 }

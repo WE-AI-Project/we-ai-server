@@ -1,10 +1,12 @@
 package com.weai.server.domain.project.controller;
 
+import com.weai.server.domain.project.domain.ProjectDepartment;
+import com.weai.server.domain.project.domain.ProjectScheduleStatus;
 import com.weai.server.domain.project.request.ProjectCreateRequest;
 import com.weai.server.domain.project.request.ProjectJoinRequest;
 import com.weai.server.domain.project.request.ProjectScheduleCreateRequest;
-import com.weai.server.domain.project.domain.ProjectDepartment;
-import com.weai.server.domain.project.domain.ProjectScheduleStatus;
+import com.weai.server.domain.project.request.ProjectScheduleStatusUpdateRequest;
+import com.weai.server.domain.project.request.ProjectScheduleUpdateRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
@@ -12,12 +14,16 @@ import com.weai.server.domain.project.response.ProjectDetailResponse;
 import com.weai.server.domain.project.response.ProjectJoinResponse;
 import com.weai.server.domain.project.response.ProjectMemberListResponse;
 import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
+import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
+import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
 import com.weai.server.domain.project.response.ProjectScheduleListResponse;
 import com.weai.server.domain.project.response.ProjectTechStackListResponse;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,7 +33,9 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -63,6 +71,25 @@ public class ProjectController {
 	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<ProjectCreateResponse> createProject(
 		Authentication authentication,
+		@io.swagger.v3.oas.annotations.parameters.RequestBody(
+			required = true,
+			description = "프로젝트 생성 요청",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(
+					name = "프로젝트 생성 예시",
+					value = """
+						{
+						  "projectName": "Schedule API Test Project",
+						  "description": "Swagger test project",
+						  "localPath": "C:\\WE_AI\\schedule-api-test",
+						  "department": "BACKEND",
+						  "deadlineDate": "2026-06-30"
+						}
+						"""
+				)
+			)
+		)
 		@Valid @RequestBody ProjectCreateRequest request
 	) {
 		return ApiResponse.success(
@@ -224,12 +251,149 @@ public class ProjectController {
 	public ApiResponse<ProjectScheduleCreateResponse> createProjectSchedule(
 		Authentication authentication,
 		@PathVariable Long projectId,
+		@io.swagger.v3.oas.annotations.parameters.RequestBody(
+			required = true,
+			description = "프로젝트 일정 생성 요청",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(
+					name = "프로젝트 일정 생성 예시",
+					value = """
+						{
+						  "title": "프로젝트 일정 상세 API 구현",
+						  "description": "일정 상세 조회 API 개발",
+						  "department": "BACKEND",
+						  "startDate": "2026-05-24",
+						  "endDate": "2026-05-24",
+						  "priority": "HIGH",
+						  "status": "TODO"
+						}
+						"""
+				)
+			)
+		)
 		@Valid @RequestBody ProjectScheduleCreateRequest request
 	) {
 		return ApiResponse.success(
 			"PROJECT_SCHEDULE_CREATE_SUCCESS",
 			"프로젝트 일정이 생성되었습니다.",
 			projectService.createProjectSchedule(authentication.getName(), projectId, request)
+		);
+	}
+
+	@Operation(summary = "프로젝트 일정 상세 조회", description = "프로젝트에 속한 일정의 상세 정보를 조회합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.SCHEDULE_NOT_FOUND
+	})
+	@GetMapping("/{projectId}/schedules/{scheduleId}")
+	public ApiResponse<ProjectScheduleDetailResponse> getProjectScheduleDetail(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long scheduleId
+	) {
+		return ApiResponse.success(
+			"PROJECT_SCHEDULE_DETAIL_SUCCESS",
+			"프로젝트 일정 상세 조회에 성공했습니다.",
+			projectService.getProjectScheduleDetail(authentication.getName(), projectId, scheduleId)
+		);
+	}
+
+	@Operation(summary = "프로젝트 일정 수정", description = "프로젝트에 속한 일정 정보를 부분 수정합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.SCHEDULE_NOT_FOUND,
+		ErrorCode.SCHEDULE_TITLE_REQUIRED,
+		ErrorCode.INVALID_SCHEDULE_DATE,
+		ErrorCode.INVALID_SCHEDULE_STATUS,
+		ErrorCode.ASSIGNEE_NOT_FOUND,
+		ErrorCode.ASSIGNEE_NOT_PROJECT_MEMBER
+	})
+	@PatchMapping("/{projectId}/schedules/{scheduleId}")
+	public ApiResponse<ProjectScheduleDetailResponse> updateProjectSchedule(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long scheduleId,
+		@io.swagger.v3.oas.annotations.parameters.RequestBody(
+			required = true,
+			description = "프로젝트 일정 수정 요청",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(
+					name = "프로젝트 일정 수정 예시",
+					value = """
+						{
+						  "title": "프로젝트 일정 수정 API 구현",
+						  "description": "일정 수정 기능 개발",
+						  "assigneeId": 7,
+						  "department": "BACKEND",
+						  "startDate": "2026-05-24",
+						  "endDate": "2026-05-25",
+						  "priority": "HIGH",
+						  "status": "IN_PROGRESS"
+						}
+						"""
+				)
+			)
+		)
+		@Valid @RequestBody ProjectScheduleUpdateRequest request
+	) {
+		return ApiResponse.success(
+			"PROJECT_SCHEDULE_UPDATE_SUCCESS",
+			"프로젝트 일정 수정에 성공했습니다.",
+			projectService.updateProjectSchedule(authentication.getName(), projectId, scheduleId, request)
+		);
+	}
+
+	@Operation(summary = "프로젝트 일정 상태 변경", description = "프로젝트에 속한 일정의 상태만 변경합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.SCHEDULE_NOT_FOUND,
+		ErrorCode.SCHEDULE_STATUS_REQUIRED,
+		ErrorCode.INVALID_SCHEDULE_STATUS
+	})
+	@PatchMapping("/{projectId}/schedules/{scheduleId}/status")
+	public ApiResponse<ProjectScheduleDetailResponse> updateProjectScheduleStatus(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long scheduleId,
+		@RequestBody ProjectScheduleStatusUpdateRequest request
+	) {
+		return ApiResponse.success(
+			"PROJECT_SCHEDULE_STATUS_UPDATE_SUCCESS",
+			"프로젝트 일정 상태 변경에 성공했습니다.",
+			projectService.updateProjectScheduleStatus(authentication.getName(), projectId, scheduleId, request)
+		);
+	}
+
+	@Operation(summary = "프로젝트 일정 삭제", description = "프로젝트에 속한 일정을 삭제합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.SCHEDULE_NOT_FOUND
+	})
+	@DeleteMapping("/{projectId}/schedules/{scheduleId}")
+	public ApiResponse<ProjectScheduleDeleteResponse> deleteProjectSchedule(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long scheduleId
+	) {
+		return ApiResponse.success(
+			"PROJECT_SCHEDULE_DELETE_SUCCESS",
+			"프로젝트 일정 삭제에 성공했습니다.",
+			projectService.deleteProjectSchedule(authentication.getName(), projectId, scheduleId)
 		);
 	}
 }

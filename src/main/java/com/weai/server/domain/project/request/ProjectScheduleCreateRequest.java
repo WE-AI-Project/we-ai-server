@@ -9,11 +9,11 @@ import java.time.LocalDate;
 
 @Schema(description = "Project schedule create request")
 public record ProjectScheduleCreateRequest(
-	@Schema(description = "Schedule title", example = "Implement dashboard API", requiredMode = Schema.RequiredMode.REQUIRED)
+	@Schema(description = "Schedule title", example = "프로젝트 일정 상세 API 구현", requiredMode = Schema.RequiredMode.REQUIRED)
 	@Size(max = 100, message = "title must be 100 characters or fewer.")
 	String title,
 
-	@Schema(description = "Schedule description", example = "Build dashboard summary endpoint and DTOs.")
+	@Schema(description = "Schedule description", example = "일정 상세 조회 API 개발")
 	@Size(max = 1000, message = "description must be 1000 characters or fewer.")
 	String description,
 
@@ -23,10 +23,10 @@ public record ProjectScheduleCreateRequest(
 	@Schema(description = "Owning department", example = "BACKEND", requiredMode = Schema.RequiredMode.REQUIRED)
 	ProjectDepartment department,
 
-	@Schema(description = "Start date", example = "2026-05-04", requiredMode = Schema.RequiredMode.REQUIRED)
+	@Schema(description = "Start date", example = "2026-05-24", requiredMode = Schema.RequiredMode.REQUIRED)
 	LocalDate startDate,
 
-	@Schema(description = "End date", example = "2026-05-05", requiredMode = Schema.RequiredMode.REQUIRED)
+	@Schema(description = "End date", example = "2026-05-24", requiredMode = Schema.RequiredMode.REQUIRED)
 	LocalDate endDate,
 
 	@Schema(description = "Priority. Defaults to MEDIUM when omitted.", example = "HIGH")

@@ -5,6 +5,7 @@ import com.weai.server.domain.project.domain.ProjectDepartment;
 import com.weai.server.domain.project.domain.ProjectMember;
 import com.weai.server.domain.project.domain.ProjectMemberStatus;
 import com.weai.server.domain.project.domain.ProjectSchedule;
+import com.weai.server.domain.project.domain.ProjectSchedulePriority;
 import com.weai.server.domain.project.domain.ProjectScheduleStatus;
 import com.weai.server.domain.project.domain.ProjectStatus;
 import com.weai.server.domain.project.domain.ProjectTechStack;
@@ -17,6 +18,8 @@ import com.weai.server.domain.project.repository.ProjectTechStackRepository;
 import com.weai.server.domain.project.request.ProjectCreateRequest;
 import com.weai.server.domain.project.request.ProjectJoinRequest;
 import com.weai.server.domain.project.request.ProjectScheduleCreateRequest;
+import com.weai.server.domain.project.request.ProjectScheduleStatusUpdateRequest;
+import com.weai.server.domain.project.request.ProjectScheduleUpdateRequest;
 import com.weai.server.domain.project.request.ProjectTechStackRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
@@ -25,6 +28,8 @@ import com.weai.server.domain.project.response.ProjectDetailResponse;
 import com.weai.server.domain.project.response.ProjectJoinResponse;
 import com.weai.server.domain.project.response.ProjectMemberListResponse;
 import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
+import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
+import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
 import com.weai.server.domain.project.response.ProjectScheduleListResponse;
 import com.weai.server.domain.project.response.ProjectTechStackListResponse;
 import com.weai.server.domain.user.domain.User;
@@ -38,6 +43,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -204,7 +210,7 @@ public class ProjectService {
 		LocalDate endDate
 	) {
 		User user = userService.getUserEntityByEmail(userEmail);
-		getAccessibleProject(projectId, user.getId());
+		validateProjectAccess(projectId, user.getId());
 		List<ProjectSchedule> schedules = projectScheduleRepository.findByProjectIdWithFilters(
 			projectId,
 			department,
@@ -223,7 +229,7 @@ public class ProjectService {
 	) {
 		String normalizedTitle = validateScheduleRequest(request);
 		User currentUser = userService.getUserEntityByEmail(userEmail);
-		Project project = getAccessibleProject(projectId, currentUser.getId());
+		Project project = validateProjectAccess(projectId, currentUser.getId());
 		User assignee = resolveAssignee(projectId, currentUser, request.assigneeId());
 
 		try {
@@ -242,6 +248,66 @@ public class ProjectService {
 		} catch (DataIntegrityViolationException exception) {
 			throw new ApiException(ErrorCode.SCHEDULE_CREATE_FAILED, "Failed to persist the project schedule.");
 		}
+	}
+
+	public ProjectScheduleDetailResponse getProjectScheduleDetail(String userEmail, Long projectId, Long scheduleId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectAccess(projectId, user.getId());
+		ProjectSchedule schedule = getProjectSchedule(projectId, scheduleId);
+		return ProjectScheduleDetailResponse.from(schedule);
+	}
+
+	@Transactional
+	public ProjectScheduleDetailResponse updateProjectSchedule(
+		String userEmail,
+		Long projectId,
+		Long scheduleId,
+		ProjectScheduleUpdateRequest request
+	) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectAccess(projectId, user.getId());
+		ProjectSchedule schedule = getProjectSchedule(projectId, scheduleId);
+
+		String title = resolveUpdatedTitle(request.title(), schedule.getTitle());
+		String description = request.description() == null ? schedule.getDescription() : trimToNull(request.description());
+		User assignee = resolveAssignee(projectId, schedule.getAssignee(), request.assigneeId());
+		ProjectDepartment department = resolveDepartment(request.department(), schedule.getDepartment());
+		LocalDate startDate = request.startDate() == null ? schedule.getStartDate() : request.startDate();
+		LocalDate endDate = request.endDate() == null ? schedule.getEndDate() : request.endDate();
+		ProjectSchedulePriority priority = resolvePriority(request.priority(), schedule.getPriority());
+		ProjectScheduleStatus status = resolveScheduleStatus(request.status(), schedule.getStatus());
+
+		validateScheduleDateRange(startDate, endDate);
+
+		schedule.update(assignee, title, description, department, startDate, endDate, priority, status);
+		ProjectSchedule savedSchedule = projectScheduleRepository.saveAndFlush(schedule);
+		return ProjectScheduleDetailResponse.from(savedSchedule);
+	}
+
+	@Transactional
+	public ProjectScheduleDetailResponse updateProjectScheduleStatus(
+		String userEmail,
+		Long projectId,
+		Long scheduleId,
+		ProjectScheduleStatusUpdateRequest request
+	) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectAccess(projectId, user.getId());
+		ProjectSchedule schedule = getProjectSchedule(projectId, scheduleId);
+		ProjectScheduleStatus status = parseRequiredScheduleStatus(request.status());
+
+		schedule.changeStatus(status);
+		ProjectSchedule savedSchedule = projectScheduleRepository.saveAndFlush(schedule);
+		return ProjectScheduleDetailResponse.from(savedSchedule);
+	}
+
+	@Transactional
+	public ProjectScheduleDeleteResponse deleteProjectSchedule(String userEmail, Long projectId, Long scheduleId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectAccess(projectId, user.getId());
+		ProjectSchedule schedule = getProjectSchedule(projectId, scheduleId);
+		projectScheduleRepository.delete(schedule);
+		return ProjectScheduleDeleteResponse.from(schedule.getId());
 	}
 
 	public ProjectDashboardResponse getProjectDashboard(String userEmail, Long projectId) {
@@ -317,10 +383,7 @@ public class ProjectService {
 	}
 
 	private String validateScheduleRequest(ProjectScheduleCreateRequest request) {
-		String title = trimToNull(request.title());
-		if (title == null) {
-			throw new ApiException(ErrorCode.SCHEDULE_TITLE_REQUIRED);
-		}
+		String title = validateScheduleTitle(request.title());
 		if (request.department() == null) {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "department is required.");
 		}
@@ -330,9 +393,7 @@ public class ProjectService {
 		if (request.endDate() == null) {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "endDate is required.");
 		}
-		if (request.endDate().isBefore(request.startDate())) {
-			throw new ApiException(ErrorCode.INVALID_SCHEDULE_DATE);
-		}
+		validateScheduleDateRange(request.startDate(), request.endDate());
 		return title;
 	}
 
@@ -343,6 +404,10 @@ public class ProjectService {
 	}
 
 	private Project getAccessibleProject(Long projectId, Long userId) {
+		return validateProjectAccess(projectId, userId);
+	}
+
+	private Project validateProjectAccess(Long projectId, Long userId) {
 		Project project = projectRepository.findById(projectId)
 			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_NOT_FOUND));
 
@@ -370,6 +435,97 @@ public class ProjectService {
 		}
 
 		return assignee;
+	}
+
+	private ProjectSchedule getProjectSchedule(Long projectId, Long scheduleId) {
+		return projectScheduleRepository.findByProjectIdAndScheduleId(projectId, scheduleId)
+			.orElseThrow(() -> new ApiException(ErrorCode.SCHEDULE_NOT_FOUND));
+	}
+
+	private String resolveUpdatedTitle(String rawTitle, String currentTitle) {
+		if (rawTitle == null) {
+			return currentTitle;
+		}
+
+		return validateScheduleTitle(rawTitle);
+	}
+
+	private String validateScheduleTitle(String rawTitle) {
+		String title = trimToNull(rawTitle);
+		if (title == null) {
+			throw new ApiException(ErrorCode.SCHEDULE_TITLE_REQUIRED);
+		}
+		return title;
+	}
+
+	private void validateScheduleDateRange(LocalDate startDate, LocalDate endDate) {
+		if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+			throw new ApiException(ErrorCode.INVALID_SCHEDULE_DATE);
+		}
+	}
+
+	private ProjectDepartment resolveDepartment(String rawDepartment, ProjectDepartment currentDepartment) {
+		if (rawDepartment == null) {
+			return currentDepartment;
+		}
+
+		String normalizedDepartment = trimToNull(rawDepartment);
+		if (normalizedDepartment == null) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "department is invalid.");
+		}
+
+		try {
+			return ProjectDepartment.valueOf(normalizedDepartment.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "department is invalid.");
+		}
+	}
+
+	private ProjectSchedulePriority resolvePriority(String rawPriority, ProjectSchedulePriority currentPriority) {
+		if (rawPriority == null) {
+			return currentPriority;
+		}
+
+		String normalizedPriority = trimToNull(rawPriority);
+		if (normalizedPriority == null) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "priority is invalid.");
+		}
+
+		try {
+			return ProjectSchedulePriority.valueOf(normalizedPriority.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "priority is invalid.");
+		}
+	}
+
+	private ProjectScheduleStatus resolveScheduleStatus(String rawStatus, ProjectScheduleStatus currentStatus) {
+		if (rawStatus == null) {
+			return currentStatus;
+		}
+
+		String normalizedStatus = trimToNull(rawStatus);
+		if (normalizedStatus == null) {
+			throw new ApiException(ErrorCode.INVALID_SCHEDULE_STATUS);
+		}
+
+		try {
+			return ProjectScheduleStatus.valueOf(normalizedStatus.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_SCHEDULE_STATUS);
+		}
+	}
+
+	private ProjectScheduleStatus parseRequiredScheduleStatus(String rawStatus) {
+		String normalizedStatus = trimToNull(rawStatus);
+		if (normalizedStatus == null) {
+			throw new ApiException(ErrorCode.SCHEDULE_STATUS_REQUIRED);
+		}
+
+		try {
+			return ProjectScheduleStatus.valueOf(normalizedStatus.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_SCHEDULE_STATUS);
+		}
 	}
 
 	private int calculateProgressRate(long completedCount, long totalCount) {

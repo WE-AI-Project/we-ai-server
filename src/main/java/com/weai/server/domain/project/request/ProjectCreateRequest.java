@@ -11,10 +11,10 @@ import java.util.List;
 
 @Schema(description = "Project create request")
 public record ProjectCreateRequest(
-	@Schema(description = "Project name", example = "WE&AI Enterprise", requiredMode = Schema.RequiredMode.REQUIRED)
+	@Schema(description = "Project name", example = "Schedule API Test Project", requiredMode = Schema.RequiredMode.REQUIRED)
 	String projectName,
 
-	@Schema(description = "Project description", example = "AI-based developer collaboration platform")
+	@Schema(description = "Project description", example = "Swagger test project")
 	@Size(max = 500, message = "description must be 500 characters or fewer.")
 	String description,
 
@@ -24,7 +24,7 @@ public record ProjectCreateRequest(
 
 	@Schema(
 		description = "Local working path for the project.",
-		example = "D:\\WE_AI\\enterprise",
+		example = "C:\\WE_AI\\schedule-api-test",
 		requiredMode = Schema.RequiredMode.REQUIRED
 	)
 	@Size(max = 500, message = "localPath must be 500 characters or fewer.")
@@ -34,7 +34,7 @@ public record ProjectCreateRequest(
 	ProjectDepartment department,
 
 	@JsonAlias("targetDate")
-	@Schema(description = "프로젝트 마감일 선택", example = "2026-05-15")
+	@Schema(description = "프로젝트 마감일 선택", example = "2026-06-30")
 	LocalDate deadlineDate,
 
 	@ArraySchema(

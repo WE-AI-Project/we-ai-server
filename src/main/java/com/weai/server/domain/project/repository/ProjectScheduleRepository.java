@@ -30,5 +30,18 @@ public interface ProjectScheduleRepository extends JpaRepository<ProjectSchedule
 		@Param("endDate") LocalDate endDate
 	);
 
+	@Query("""
+		select ps
+		from ProjectSchedule ps
+		join fetch ps.project p
+		join fetch ps.assignee a
+		where ps.project.id = :projectId
+		  and ps.id = :scheduleId
+		""")
+	java.util.Optional<ProjectSchedule> findByProjectIdAndScheduleId(
+		@Param("projectId") Long projectId,
+		@Param("scheduleId") Long scheduleId
+	);
+
 	List<ProjectSchedule> findByProject_IdOrderByStartDateAscIdAsc(Long projectId);
 }
