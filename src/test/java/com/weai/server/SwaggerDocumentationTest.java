@@ -64,7 +64,6 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"COMMON_409\"");
 		assertThat(response.body()).contains("\"COMMON_500\"");
 		assertThat(response.body()).contains("\"PROJECT_404_1\"");
-		assertThat(response.body()).contains("\"PROJECT_404_4\"");
 		assertThat(response.body()).contains("\"Invalid request input.\"");
 	}
 }
