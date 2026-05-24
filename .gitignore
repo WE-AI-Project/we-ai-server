@@ -7,7 +7,5 @@ tools/node_modules/
 *.iml
 .env
 .env.*
-!.env.example
-!.env.stag.example
-!.env.prod.example
-!.env.railway.example
+cloudrun.env
+cloudrun.env.*
