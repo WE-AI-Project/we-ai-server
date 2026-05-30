@@ -296,6 +296,220 @@ class ProjectIntegrationTest {
 	}
 
 	@Test
+	void projectLeaderCanUpdateProjectInformation() throws Exception {
+		UserSession leader = signUpAndLogin("project-settings-update-leader");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Initial Settings Project",
+			  "description": "Initial description",
+			  "repositoryUrl": "https://github.com/example/initial-settings",
+			  "localPath": "D:\\\\WE_AI\\\\initial-settings"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		HttpResponse<String> updateResponse = updateProject(leader.accessToken(), projectId, """
+			{
+			  "projectName": "Synaipse Project",
+			  "description": "AI 기반 개발 협업 플랫폼",
+			  "repositoryUrl": "https://github.com/example/synaipse",
+			  "localPath": "D:\\\\Synaipse",
+			  "startDate": "2026-05-01",
+			  "targetDate": "2026-06-30",
+			  "status": "ACTIVE"
+			}
+			""");
+
+		assertThat(updateResponse.statusCode()).isEqualTo(200);
+		assertThat(updateResponse.body()).contains("\"code\":\"PROJECT_UPDATE_SUCCESS\"");
+		assertThat(updateResponse.body()).contains("\"projectId\":" + projectId);
+		assertThat(updateResponse.body()).contains("\"projectName\":\"Synaipse Project\"");
+		assertThat(updateResponse.body()).contains("\"description\":\"AI 기반 개발 협업 플랫폼\"");
+		assertThat(updateResponse.body()).contains("\"repositoryUrl\":\"https://github.com/example/synaipse\"");
+		assertThat(updateResponse.body()).contains("\"localPath\":\"D:\\\\Synaipse\"");
+		assertThat(updateResponse.body()).contains("\"status\":\"ACTIVE\"");
+		assertThat(updateResponse.body()).contains("\"startDate\":\"2026-05-01\"");
+		assertThat(updateResponse.body()).contains("\"targetDate\":\"2026-06-30\"");
+		assertThat(updateResponse.body()).contains("\"updatedAt\":");
+	}
+
+	@Test
+	void projectUpdateFailsWhenUserIsNotLeader() throws Exception {
+		UserSession leader = signUpAndLogin("project-settings-non-leader");
+		UserSession member = signUpAndLogin("project-settings-member");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Leader Only Project",
+			  "localPath": "D:\\\\WE_AI\\\\leader-only-project"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+		HttpResponse<String> joinResponse = joinProject(member.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "BACKEND"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> updateResponse = updateProject(member.accessToken(), projectId, """
+			{
+			  "projectName": "Should Fail Update"
+			}
+			""");
+
+		assertThat(updateResponse.statusCode()).isEqualTo(403);
+		assertThat(updateResponse.body()).contains("\"code\":\"PROJECT_403_3\"");
+	}
+
+	@Test
+	void projectMemberCanViewProjectMemberDetail() throws Exception {
+		UserSession leader = signUpAndLogin("member-detail-leader");
+		UserSession member = signUpAndLogin("member-detail-member");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Member Detail Project",
+			  "localPath": "D:\\\\WE_AI\\\\member-detail-project"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+		HttpResponse<String> joinResponse = joinProject(member.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "FRONTEND"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> membersResponse = getProjectMembers(leader.accessToken(), projectId);
+		long memberProjectMemberId = extractProjectMemberIdForUser(membersResponse.body(), member.userId());
+
+		HttpResponse<String> detailResponse = getProjectMemberDetail(member.accessToken(), projectId, memberProjectMemberId);
+
+		assertThat(detailResponse.statusCode()).isEqualTo(200);
+		assertThat(detailResponse.body()).contains("\"code\":\"PROJECT_MEMBER_DETAIL_SUCCESS\"");
+		assertThat(detailResponse.body()).contains("\"projectMemberId\":" + memberProjectMemberId);
+		assertThat(detailResponse.body()).contains("\"userId\":" + member.userId());
+		assertThat(detailResponse.body()).contains("\"name\":\"Project User\"");
+		assertThat(detailResponse.body()).contains("\"email\":\"" + member.email() + "\"");
+		assertThat(detailResponse.body()).contains("\"role\":\"MEMBER\"");
+		assertThat(detailResponse.body()).contains("\"department\":\"FRONTEND\"");
+		assertThat(detailResponse.body()).contains("\"status\":\"ACTIVE\"");
+		assertThat(detailResponse.body()).contains("\"joinedAt\":");
+	}
+
+	@Test
+	void projectLeaderCanUpdateProjectMemberRole() throws Exception {
+		UserSession leader = signUpAndLogin("member-role-leader");
+		UserSession member = signUpAndLogin("member-role-member");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Member Role Project",
+			  "localPath": "D:\\\\WE_AI\\\\member-role-project"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+		HttpResponse<String> joinResponse = joinProject(member.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "BACKEND"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> membersResponse = getProjectMembers(leader.accessToken(), projectId);
+		long memberProjectMemberId = extractProjectMemberIdForUser(membersResponse.body(), member.userId());
+
+		HttpResponse<String> updateRoleResponse = updateProjectMemberRole(leader.accessToken(), projectId, memberProjectMemberId, """
+			{
+			  "role": "GUEST"
+			}
+			""");
+
+		assertThat(updateRoleResponse.statusCode()).isEqualTo(200);
+		assertThat(updateRoleResponse.body()).contains("\"code\":\"PROJECT_MEMBER_ROLE_UPDATE_SUCCESS\"");
+		assertThat(updateRoleResponse.body()).contains("\"projectMemberId\":" + memberProjectMemberId);
+		assertThat(updateRoleResponse.body()).contains("\"userId\":" + member.userId());
+		assertThat(updateRoleResponse.body()).contains("\"role\":\"GUEST\"");
+		assertThat(updateRoleResponse.body()).contains("\"department\":\"BACKEND\"");
+		assertThat(updateRoleResponse.body()).contains("\"status\":\"ACTIVE\"");
+	}
+
+	@Test
+	void projectMemberRoleUpdatePreventsDemotingOnlyLeader() throws Exception {
+		UserSession leader = signUpAndLogin("only-leader-role");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Only Leader Project",
+			  "localPath": "D:\\\\WE_AI\\\\only-leader-project"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		HttpResponse<String> membersResponse = getProjectMembers(leader.accessToken(), projectId);
+		long leaderProjectMemberId = extractProjectMemberIdForUser(membersResponse.body(), leader.userId());
+
+		HttpResponse<String> updateRoleResponse = updateProjectMemberRole(leader.accessToken(), projectId, leaderProjectMemberId, """
+			{
+			  "role": "MEMBER"
+			}
+			""");
+
+		assertThat(updateRoleResponse.statusCode()).isEqualTo(400);
+		assertThat(updateRoleResponse.body()).contains("\"code\":\"PROJECT_400_19\"");
+	}
+
+	@Test
+	void projectLeaderCanUpdateProjectMemberDepartment() throws Exception {
+		UserSession leader = signUpAndLogin("member-department-leader");
+		UserSession member = signUpAndLogin("member-department-member");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Member Department Project",
+			  "localPath": "D:\\\\WE_AI\\\\member-department-project"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+		HttpResponse<String> joinResponse = joinProject(member.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "BACKEND"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> membersResponse = getProjectMembers(leader.accessToken(), projectId);
+		long memberProjectMemberId = extractProjectMemberIdForUser(membersResponse.body(), member.userId());
+
+		HttpResponse<String> updateDepartmentResponse = updateProjectMemberDepartment(
+			leader.accessToken(),
+			projectId,
+			memberProjectMemberId,
+			"""
+				{
+				  "department": "FRONTEND"
+				}
+				"""
+		);
+
+		assertThat(updateDepartmentResponse.statusCode()).isEqualTo(200);
+		assertThat(updateDepartmentResponse.body()).contains("\"code\":\"PROJECT_MEMBER_DEPARTMENT_UPDATE_SUCCESS\"");
+		assertThat(updateDepartmentResponse.body()).contains("\"projectMemberId\":" + memberProjectMemberId);
+		assertThat(updateDepartmentResponse.body()).contains("\"userId\":" + member.userId());
+		assertThat(updateDepartmentResponse.body()).contains("\"role\":\"MEMBER\"");
+		assertThat(updateDepartmentResponse.body()).contains("\"department\":\"FRONTEND\"");
+		assertThat(updateDepartmentResponse.body()).contains("\"status\":\"ACTIVE\"");
+	}
+
+	@Test
 	void projectApisRejectNonMemberAccess() throws Exception {
 		UserSession leader = signUpAndLogin("non-member-leader");
 		UserSession outsider = signUpAndLogin("outsider");
@@ -700,6 +914,18 @@ class ProjectIntegrationTest {
 		);
 	}
 
+	private HttpResponse<String> updateProject(String accessToken, long projectId, String requestBody) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d".formatted(port, projectId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.header("Content-Type", "application/json")
+				.method("PATCH", HttpRequest.BodyPublishers.ofString(requestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
 	private long getCurrentUserId(String accessToken) throws Exception {
 		HttpResponse<String> response = httpClient.send(
 			HttpRequest.newBuilder()
@@ -720,6 +946,53 @@ class ProjectIntegrationTest {
 				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/members".formatted(port, projectId)))
 				.header("Authorization", "Bearer " + accessToken)
 				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> getProjectMemberDetail(String accessToken, long projectId, long projectMemberId) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/members/%d".formatted(port, projectId, projectMemberId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> updateProjectMemberRole(
+		String accessToken,
+		long projectId,
+		long projectMemberId,
+		String requestBody
+	) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/members/%d/role".formatted(port, projectId, projectMemberId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.header("Content-Type", "application/json")
+				.method("PATCH", HttpRequest.BodyPublishers.ofString(requestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> updateProjectMemberDepartment(
+		String accessToken,
+		long projectId,
+		long projectMemberId,
+		String requestBody
+	) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create(
+					"http://localhost:%d/api/v1/projects/%d/members/%d/department".formatted(port, projectId, projectMemberId)
+				))
+				.header("Authorization", "Bearer " + accessToken)
+				.header("Content-Type", "application/json")
+				.method("PATCH", HttpRequest.BodyPublishers.ofString(requestBody))
 				.build(),
 			HttpResponse.BodyHandlers.ofString()
 		);
@@ -902,6 +1175,11 @@ class ProjectIntegrationTest {
 
 	private long extractLongValue(String responseBody, Pattern pattern) {
 		return Long.parseLong(extractValue(responseBody, pattern));
+	}
+
+	private long extractProjectMemberIdForUser(String responseBody, long userId) {
+		Pattern pattern = Pattern.compile("\"projectMemberId\":(\\d+),\"userId\":" + userId);
+		return extractLongValue(responseBody, pattern);
 	}
 
 	private record UserSession(String username, String email, String accessToken, long userId) {

@@ -101,4 +101,22 @@ public class Project extends BaseEntity {
 	) {
 		return create(projectName, description, projectCode, null, localPath, startDate, targetDate, createdBy);
 	}
+
+	public void update(
+		String projectName,
+		String description,
+		String repositoryUrl,
+		String localPath,
+		ProjectStatus status,
+		LocalDate startDate,
+		LocalDate targetDate
+	) {
+		this.projectName = projectName;
+		this.description = description;
+		this.repositoryUrl = repositoryUrl;
+		this.localPath = localPath;
+		this.status = status;
+		this.startDate = startDate;
+		this.targetDate = targetDate;
+	}
 }

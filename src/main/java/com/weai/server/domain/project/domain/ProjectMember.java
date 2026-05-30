@@ -89,8 +89,20 @@ public class ProjectMember extends BaseEntity {
 		return status == ProjectMemberStatus.ACTIVE;
 	}
 
+	public boolean isLeader() {
+		return role == ProjectMemberRole.LEADER;
+	}
+
 	public boolean isKicked() {
 		return status == ProjectMemberStatus.KICKED;
+	}
+
+	public void changeRole(ProjectMemberRole role) {
+		this.role = role;
+	}
+
+	public void changeDepartment(ProjectDepartment department) {
+		this.department = department;
 	}
 
 	public void reactivate(ProjectDepartment department) {

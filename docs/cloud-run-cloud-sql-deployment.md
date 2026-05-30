@@ -22,6 +22,25 @@ Key production rules:
   - `AUTH_VERIFICATION_EXPOSE_CODE_IN_RESPONSE=false`
   - valid `MAIL_*` values
 
+## Current live snapshot
+
+Checked on `2026-05-30` against the current production URLs:
+
+- Backend health:
+  - `GET https://we-ai-server-167535321001.asia-northeast3.run.app/actuator/health`
+  - returned `{"status":"UP", ...}`
+- Swagger:
+  - `https://we-ai-server-167535321001.asia-northeast3.run.app/swagger-ui.html`
+  - reachable
+- Frontend:
+  - `https://we-ai-client.vercel.app`
+  - reachable
+
+Important:
+
+- The currently deployed Cloud Run OpenAPI document does not yet expose the new Project Settings member-detail / role / department endpoints added in this local backend worktree.
+- That means the code is implemented locally, but a new Cloud Run revision still needs to be deployed before the frontend can call those new endpoints in production.
+
 ## How to view current Cloud Run env vars
 
 ### Console
@@ -151,6 +170,46 @@ Open:
    - response body
    - any 500 errors
 
+## Cloud Run reflection checklist for this Project Settings work
+
+After deploying a new backend revision, confirm these in order:
+
+1. Cloud Run revision
+   - Cloud Run console shows a new latest revision for `we-ai-server`
+   - traffic is routed to that revision
+2. Health
+   - `GET /actuator/health`
+   - `status` is `UP`
+3. Swagger UI
+   - `/swagger-ui.html` opens without error
+4. OpenAPI path exposure
+   - `/v3/api-docs` contains:
+     - `/api/v1/projects/{projectId}`
+     - `/api/v1/projects/{projectId}/members/{memberId}`
+     - `/api/v1/projects/{projectId}/members/{memberId}/role`
+     - `/api/v1/projects/{projectId}/members/{memberId}/department`
+5. Authenticated smoke test
+   - login in Swagger
+   - call one existing project endpoint
+   - call the 4 new Project Settings endpoints with a real token
+6. Error handling
+   - verify `PROJECT_NOT_FOUND`
+   - verify `PROJECT_ACCESS_DENIED`
+   - verify `PROJECT_LEADER_ONLY`
+   - verify `PROJECT_MEMBER_NOT_FOUND`
+7. Frontend smoke test
+   - open `https://we-ai-client.vercel.app`
+   - navigate to Project Settings
+   - confirm the project info edit and team member actions hit the new Cloud Run endpoints
+
+Recommended `curl` checks after deploy:
+
+```bash
+curl -s https://we-ai-server-167535321001.asia-northeast3.run.app/actuator/health
+curl -I -L https://we-ai-server-167535321001.asia-northeast3.run.app/swagger-ui.html
+curl -s https://we-ai-server-167535321001.asia-northeast3.run.app/v3/api-docs | grep '/api/v1/projects/{projectId}/members/{memberId}'
+```
+
 ## How to verify Vercel frontend
 
 1. Open the deployed Vercel site in Chrome
@@ -191,6 +250,107 @@ What to confirm:
 
 If the browser is calling `localhost:5173/api/...`, Vite proxy is handling the forwarding.
 
+## Frontend environment variable wiring
+
+The current frontend behavior is determined by these two files:
+
+- [api.ts](/C:/Users/0122k/we-ai-client/src/app/lib/api.ts)
+- [vite.config.ts](/C:/Users/0122k/we-ai-client/vite.config.ts)
+
+Actual behavior:
+
+- local dev browser requests always use relative `/api/...`
+- Vite proxy forwards `/api` to:
+  - `VITE_API_BASE_URL` if it is set
+  - otherwise `http://localhost:8080`
+- production build uses:
+  - `VITE_API_BASE_URL + /api/...` when `VITE_API_BASE_URL` is set
+  - relative `/api/...` only when `VITE_API_BASE_URL` is empty
+
+In other words:
+
+- local frontend does not call Cloud Run directly from the browser when running with Vite
+- local frontend calls Vite first, and Vite forwards to either local backend or Cloud Run
+- deployed Vercel frontend calls Cloud Run directly from the browser when `VITE_API_BASE_URL` is set
+
+### Recommended frontend env values
+
+#### Vercel Production
+
+```env
+VITE_API_BASE_URL=https://we-ai-server-167535321001.asia-northeast3.run.app
+```
+
+#### Vercel Preview
+
+```env
+VITE_API_BASE_URL=https://we-ai-server-167535321001.asia-northeast3.run.app
+```
+
+#### Local frontend that should hit Cloud Run
+
+File: `C:\Users\0122k\we-ai-client\.env`
+
+```env
+VITE_API_BASE_URL=https://we-ai-server-167535321001.asia-northeast3.run.app
+```
+
+#### Local frontend that should hit local backend
+
+Either unset `VITE_API_BASE_URL`, or use:
+
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+## Local / production target matrix
+
+This is the easiest way to control where data is written:
+
+| Frontend runtime | `VITE_API_BASE_URL` | Actual backend target | DB that receives writes |
+| --- | --- | --- | --- |
+| Vercel production | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Cloud Run | Cloud SQL MySQL |
+| Vercel preview | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Cloud Run | Cloud SQL MySQL |
+| Local Vite dev | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Cloud Run via Vite proxy | Cloud SQL MySQL |
+| Local Vite dev | unset or `http://localhost:8080` | Local Spring Boot via Vite proxy | Local Docker MySQL |
+
+Use this rule:
+
+- if the backend target is Cloud Run, data accumulates in Cloud SQL
+- if the backend target is local Spring Boot, data accumulates in local Docker MySQL
+
+That means your local frontend can be made to behave almost exactly like production by keeping:
+
+- frontend on local Vite
+- `VITE_API_BASE_URL` pointing to Cloud Run
+- browser requests going to `/api/...`
+- Vite proxy forwarding to Cloud Run
+
+## Backend CORS values that matter to the frontend
+
+Current production backend configuration allows these browser origins by default:
+
+- `APP_FRONTEND_BASE_URL`
+- `APP_VITE_FRONTEND_BASE_URL`
+- `APP_ADDITIONAL_LOCAL_FRONTEND_BASE_URL`
+
+In the current production YAML, that means the intended allowed origins are:
+
+- `https://we-ai-client.vercel.app`
+- `http://localhost:5173`
+- `http://127.0.0.1:5173`
+
+This is enough for:
+
+- the production Vercel domain
+- local Vite development
+
+But it may not be enough for:
+
+- Vercel preview deployment URLs
+
+If preview calls fail with a browser CORS error, check whether the preview origin is explicitly allowed by the backend.
+
 ## Vercel environment variable check
 
 ### Dashboard
@@ -202,6 +362,17 @@ If the browser is calling `localhost:5173/api/...`, Vite proxy is handling the f
 5. Verify `VITE_API_BASE_URL` exists for:
    - `Production`
    - `Preview`
+
+Also verify that the value is exactly:
+
+```env
+https://we-ai-server-167535321001.asia-northeast3.run.app
+```
+
+If `VITE_API_BASE_URL` is missing:
+
+- local dev may still work through the default `http://localhost:8080` proxy target
+- Vercel production will try to call relative `/api/...` on the frontend origin and will not reach Cloud Run
 
 ### CLI
 

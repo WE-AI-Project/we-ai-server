@@ -24,6 +24,9 @@ public record ProjectMemberListResponse(
 
 	@Schema(description = "Project member item")
 	public record MemberResponse(
+		@Schema(description = "Project member id", example = "10")
+		Long projectMemberId,
+
 		@Schema(description = "User id", example = "1")
 		Long userId,
 
@@ -51,6 +54,7 @@ public record ProjectMemberListResponse(
 
 		private static MemberResponse from(ProjectMember member) {
 			return new MemberResponse(
+				member.getId(),
 				member.getUser().getId(),
 				member.getUser().getName(),
 				member.getUser().getEmail(),

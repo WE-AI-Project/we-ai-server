@@ -51,6 +51,9 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/dashboard\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/members\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/members/{memberId}\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/members/{memberId}/role\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/members/{memberId}/department\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/tech-stacks\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/tech-stacks/{techStackId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules\"");
@@ -64,6 +67,8 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"COMMON_409\"");
 		assertThat(response.body()).contains("\"COMMON_500\"");
 		assertThat(response.body()).contains("\"PROJECT_404_1\"");
+		assertThat(response.body()).contains("\"PROJECT_403_3\"");
+		assertThat(response.body()).contains("\"PROJECT_404_5\"");
 		assertThat(response.body()).contains("\"Invalid request input.\"");
 	}
 }

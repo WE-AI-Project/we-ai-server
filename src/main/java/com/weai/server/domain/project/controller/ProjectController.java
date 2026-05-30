@@ -4,17 +4,22 @@ import com.weai.server.domain.project.domain.ProjectDepartment;
 import com.weai.server.domain.project.domain.ProjectScheduleStatus;
 import com.weai.server.domain.project.request.ProjectCreateRequest;
 import com.weai.server.domain.project.request.ProjectJoinRequest;
+import com.weai.server.domain.project.request.ProjectMemberDepartmentUpdateRequest;
+import com.weai.server.domain.project.request.ProjectMemberRoleUpdateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleCreateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleStatusUpdateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleUpdateRequest;
 import com.weai.server.domain.project.request.ProjectTechStackCreateRequest;
 import com.weai.server.domain.project.request.ProjectTechStackUpdateRequest;
+import com.weai.server.domain.project.request.ProjectUpdateRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
 import com.weai.server.domain.project.response.ProjectDetailResponse;
 import com.weai.server.domain.project.response.ProjectJoinResponse;
+import com.weai.server.domain.project.response.ProjectMemberDetailResponse;
 import com.weai.server.domain.project.response.ProjectMemberListResponse;
+import com.weai.server.domain.project.response.ProjectMemberUpdateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
@@ -22,6 +27,7 @@ import com.weai.server.domain.project.response.ProjectScheduleListResponse;
 import com.weai.server.domain.project.response.ProjectTechStackDeleteResponse;
 import com.weai.server.domain.project.response.ProjectTechStackListResponse;
 import com.weai.server.domain.project.response.ProjectTechStackResponse;
+import com.weai.server.domain.project.response.ProjectUpdateResponse;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
@@ -175,6 +181,53 @@ public class ProjectController {
 		);
 	}
 
+	@Operation(summary = "프로젝트 정보 수정", description = "프로젝트 기본 정보를 부분 수정합니다. 프로젝트 리더만 수정할 수 있습니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.PROJECT_NAME_REQUIRED,
+		ErrorCode.PROJECT_NAME_TOO_LONG,
+		ErrorCode.INVALID_PROJECT_DATE,
+		ErrorCode.INVALID_PROJECT_STATUS,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY
+	})
+	@PatchMapping("/{projectId}")
+	public ApiResponse<ProjectUpdateResponse> updateProject(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@io.swagger.v3.oas.annotations.parameters.RequestBody(
+			required = true,
+			description = "프로젝트 정보 수정 요청",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(
+					name = "프로젝트 정보 수정 예시",
+					value = """
+						{
+						  "projectName": "Synaipse Project",
+						  "description": "AI 기반 개발 협업 플랫폼",
+						  "repositoryUrl": "https://github.com/example/synaipse",
+						  "localPath": "D:\\Synaipse",
+						  "startDate": "2026-05-01",
+						  "targetDate": "2026-06-30",
+						  "status": "ACTIVE"
+						}
+						"""
+				)
+			)
+		)
+		@Valid @RequestBody ProjectUpdateRequest request
+	) {
+		return ApiResponse.success(
+			"PROJECT_UPDATE_SUCCESS",
+			"프로젝트 정보가 수정되었습니다.",
+			projectService.updateProject(authentication.getName(), projectId, request)
+		);
+	}
+
 	@Operation(summary = "프로젝트 멤버 목록 조회", description = "프로젝트의 ACTIVE 멤버 목록을 조회합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
@@ -191,6 +244,111 @@ public class ProjectController {
 			"PROJECT_MEMBER_LIST_SUCCESS",
 			"프로젝트 멤버 목록 조회에 성공했습니다.",
 			projectService.getProjectMembers(authentication.getName(), projectId)
+		);
+	}
+
+	@Operation(summary = "프로젝트 멤버 상세 조회", description = "프로젝트의 특정 멤버 상세 정보를 조회합니다. 프로젝트의 ACTIVE 멤버라면 누구나 조회할 수 있습니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_MEMBER_NOT_FOUND
+	})
+	@GetMapping("/{projectId}/members/{memberId}")
+	public ApiResponse<ProjectMemberDetailResponse> getProjectMemberDetail(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long memberId
+	) {
+		return ApiResponse.success(
+			"PROJECT_MEMBER_DETAIL_SUCCESS",
+			"프로젝트 멤버 상세 조회에 성공했습니다.",
+			projectService.getProjectMemberDetail(authentication.getName(), projectId, memberId)
+		);
+	}
+
+	@Operation(summary = "프로젝트 멤버 역할 변경", description = "프로젝트 멤버의 역할을 변경합니다. 프로젝트 리더만 변경할 수 있습니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY,
+		ErrorCode.PROJECT_MEMBER_NOT_FOUND,
+		ErrorCode.PROJECT_MEMBER_ROLE_REQUIRED,
+		ErrorCode.INVALID_PROJECT_MEMBER_ROLE,
+		ErrorCode.PROJECT_MEMBER_NOT_ACTIVE,
+		ErrorCode.CANNOT_CHANGE_OWN_LEADER_ROLE,
+		ErrorCode.PROJECT_LEADER_REQUIRED
+	})
+	@PatchMapping("/{projectId}/members/{memberId}/role")
+	public ApiResponse<ProjectMemberUpdateResponse> updateProjectMemberRole(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long memberId,
+		@io.swagger.v3.oas.annotations.parameters.RequestBody(
+			required = true,
+			description = "프로젝트 멤버 역할 변경 요청",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(
+					name = "프로젝트 멤버 역할 변경 예시",
+					value = """
+						{
+						  "role": "MEMBER"
+						}
+						"""
+				)
+			)
+		)
+		@Valid @RequestBody ProjectMemberRoleUpdateRequest request
+	) {
+		return ApiResponse.success(
+			"PROJECT_MEMBER_ROLE_UPDATE_SUCCESS",
+			"프로젝트 멤버 역할이 변경되었습니다.",
+			projectService.updateProjectMemberRole(authentication.getName(), projectId, memberId, request)
+		);
+	}
+
+	@Operation(summary = "프로젝트 멤버 부서 변경", description = "프로젝트 멤버의 부서를 변경합니다. 프로젝트 리더만 변경할 수 있습니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY,
+		ErrorCode.PROJECT_MEMBER_NOT_FOUND,
+		ErrorCode.PROJECT_MEMBER_DEPARTMENT_REQUIRED,
+		ErrorCode.INVALID_PROJECT_MEMBER_DEPARTMENT,
+		ErrorCode.PROJECT_MEMBER_NOT_ACTIVE
+	})
+	@PatchMapping("/{projectId}/members/{memberId}/department")
+	public ApiResponse<ProjectMemberUpdateResponse> updateProjectMemberDepartment(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long memberId,
+		@io.swagger.v3.oas.annotations.parameters.RequestBody(
+			required = true,
+			description = "프로젝트 멤버 부서 변경 요청",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(
+					name = "프로젝트 멤버 부서 변경 예시",
+					value = """
+						{
+						  "department": "FRONTEND"
+						}
+						"""
+				)
+			)
+		)
+		@Valid @RequestBody ProjectMemberDepartmentUpdateRequest request
+	) {
+		return ApiResponse.success(
+			"PROJECT_MEMBER_DEPARTMENT_UPDATE_SUCCESS",
+			"프로젝트 멤버 부서가 변경되었습니다.",
+			projectService.updateProjectMemberDepartment(authentication.getName(), projectId, memberId, request)
 		);
 	}
 

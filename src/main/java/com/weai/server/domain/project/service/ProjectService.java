@@ -3,6 +3,7 @@ package com.weai.server.domain.project.service;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectDepartment;
 import com.weai.server.domain.project.domain.ProjectMember;
+import com.weai.server.domain.project.domain.ProjectMemberRole;
 import com.weai.server.domain.project.domain.ProjectMemberStatus;
 import com.weai.server.domain.project.domain.ProjectSchedule;
 import com.weai.server.domain.project.domain.ProjectSchedulePriority;
@@ -17,18 +18,23 @@ import com.weai.server.domain.project.repository.ProjectScheduleRepository;
 import com.weai.server.domain.project.repository.ProjectTechStackRepository;
 import com.weai.server.domain.project.request.ProjectCreateRequest;
 import com.weai.server.domain.project.request.ProjectJoinRequest;
+import com.weai.server.domain.project.request.ProjectMemberDepartmentUpdateRequest;
+import com.weai.server.domain.project.request.ProjectMemberRoleUpdateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleCreateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleStatusUpdateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleUpdateRequest;
 import com.weai.server.domain.project.request.ProjectTechStackCreateRequest;
 import com.weai.server.domain.project.request.ProjectTechStackRequest;
 import com.weai.server.domain.project.request.ProjectTechStackUpdateRequest;
+import com.weai.server.domain.project.request.ProjectUpdateRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
 import com.weai.server.domain.project.response.ProjectDetailResponse;
 import com.weai.server.domain.project.response.ProjectJoinResponse;
+import com.weai.server.domain.project.response.ProjectMemberDetailResponse;
 import com.weai.server.domain.project.response.ProjectMemberListResponse;
+import com.weai.server.domain.project.response.ProjectMemberUpdateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
@@ -36,11 +42,13 @@ import com.weai.server.domain.project.response.ProjectScheduleListResponse;
 import com.weai.server.domain.project.response.ProjectTechStackDeleteResponse;
 import com.weai.server.domain.project.response.ProjectTechStackListResponse;
 import com.weai.server.domain.project.response.ProjectTechStackResponse;
+import com.weai.server.domain.project.response.ProjectUpdateResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import java.net.URI;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -191,11 +199,85 @@ public class ProjectService {
 		return ProjectDetailResponse.from(project);
 	}
 
+	@Transactional
+	public ProjectUpdateResponse updateProject(String userEmail, Long projectId, ProjectUpdateRequest request) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		Project project = validateProjectLeaderAccess(projectId, user.getId());
+
+		String projectName = request.projectName() == null
+			? project.getProjectName()
+			: validateProjectName(request.projectName());
+		String description = request.description() == null
+			? project.getDescription()
+			: validateProjectDescription(request.description());
+		String repositoryUrl = request.repositoryUrl() == null
+			? project.getRepositoryUrl()
+			: validateProjectRepositoryUrl(request.repositoryUrl());
+		String localPath = request.localPath() == null
+			? project.getLocalPath()
+			: validateProjectLocalPath(request.localPath());
+		ProjectStatus status = request.status() == null
+			? project.getStatus()
+			: parseProjectStatus(request.status());
+		LocalDate startDate = request.startDate() == null ? project.getStartDate() : request.startDate();
+		LocalDate targetDate = request.targetDate() == null ? project.getTargetDate() : request.targetDate();
+
+		validateProjectDateRange(startDate, targetDate);
+
+		project.update(projectName, description, repositoryUrl, localPath, status, startDate, targetDate);
+		return ProjectUpdateResponse.from(projectRepository.saveAndFlush(project));
+	}
+
 	public ProjectMemberListResponse getProjectMembers(String userEmail, Long projectId) {
 		User user = userService.getUserEntityByEmail(userEmail);
 		getAccessibleProject(projectId, user.getId());
 		List<ProjectMember> members = projectMemberRepository.findByProjectIdAndStatusWithUser(projectId, ProjectMemberStatus.ACTIVE);
 		return ProjectMemberListResponse.from(projectId, members);
+	}
+
+	public ProjectMemberDetailResponse getProjectMemberDetail(String userEmail, Long projectId, Long projectMemberId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectAccess(projectId, user.getId());
+		return ProjectMemberDetailResponse.from(getProjectMember(projectId, projectMemberId));
+	}
+
+	@Transactional
+	public ProjectMemberUpdateResponse updateProjectMemberRole(
+		String userEmail,
+		Long projectId,
+		Long projectMemberId,
+		ProjectMemberRoleUpdateRequest request
+	) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectLeaderAccess(projectId, user.getId());
+
+		ProjectMember targetMember = getProjectMember(projectId, projectMemberId);
+		validateEditableProjectMember(targetMember);
+
+		ProjectMemberRole role = parseRequiredProjectMemberRole(request.role());
+		validateLeaderRoleChange(projectId, user.getId(), targetMember, role);
+
+		targetMember.changeRole(role);
+		return ProjectMemberUpdateResponse.from(projectMemberRepository.saveAndFlush(targetMember));
+	}
+
+	@Transactional
+	public ProjectMemberUpdateResponse updateProjectMemberDepartment(
+		String userEmail,
+		Long projectId,
+		Long projectMemberId,
+		ProjectMemberDepartmentUpdateRequest request
+	) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectLeaderAccess(projectId, user.getId());
+
+		ProjectMember targetMember = getProjectMember(projectId, projectMemberId);
+		validateEditableProjectMember(targetMember);
+
+		ProjectDepartment department = parseRequiredProjectMemberDepartment(request.department());
+		targetMember.changeDepartment(department);
+
+		return ProjectMemberUpdateResponse.from(projectMemberRepository.saveAndFlush(targetMember));
 	}
 
 	public ProjectTechStackListResponse getProjectTechStacks(String userEmail, Long projectId) {
@@ -411,21 +493,8 @@ public class ProjectService {
 	}
 
 	private void validateCreateRequest(ProjectCreateRequest request, LocalDate today) {
-		String projectName = trimToNull(request.projectName());
-		if (projectName == null) {
-			throw new ApiException(ErrorCode.PROJECT_NAME_REQUIRED);
-		}
-		if (projectName.length() < 2) {
-			throw new ApiException(ErrorCode.INVALID_INPUT, "projectName must be at least 2 characters.");
-		}
-		if (projectName.length() > 50) {
-			throw new ApiException(ErrorCode.PROJECT_NAME_TOO_LONG);
-		}
-
-		String localPath = trimToNull(request.localPath());
-		if (localPath == null) {
-			throw new ApiException(ErrorCode.PROJECT_PATH_REQUIRED);
-		}
+		validateProjectName(request.projectName());
+		validateRequiredProjectLocalPath(request.localPath());
 
 		validateProjectDeadline(request.deadlineDate(), today);
 	}
@@ -480,6 +549,20 @@ public class ProjectService {
 		return project;
 	}
 
+	private Project validateProjectLeaderAccess(Long projectId, Long userId) {
+		Project project = validateProjectAccess(projectId, userId);
+		ProjectMember projectMember = getActiveProjectMember(projectId, userId);
+		if (!projectMember.isLeader()) {
+			throw new ApiException(ErrorCode.PROJECT_LEADER_ONLY);
+		}
+		return project;
+	}
+
+	private ProjectMember getActiveProjectMember(Long projectId, Long userId) {
+		return projectMemberRepository.findByProject_IdAndUser_IdAndStatus(projectId, userId, ProjectMemberStatus.ACTIVE)
+			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_ACCESS_DENIED));
+	}
+
 	private User resolveAssignee(Long projectId, User currentUser, Long assigneeId) {
 		if (assigneeId == null || assigneeId.equals(currentUser.getId())) {
 			return currentUser;
@@ -503,6 +586,11 @@ public class ProjectService {
 	private ProjectTechStack getProjectTechStack(Long projectId, Long techStackId) {
 		return projectTechStackRepository.findByProject_IdAndId(projectId, techStackId)
 			.orElseThrow(() -> new ApiException(ErrorCode.TECH_STACK_NOT_FOUND));
+	}
+
+	private ProjectMember getProjectMember(Long projectId, Long projectMemberId) {
+		return projectMemberRepository.findByProjectIdAndIdWithUser(projectId, projectMemberId)
+			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
 	}
 
 	private String resolveUpdatedTitle(String rawTitle, String currentTitle) {
@@ -536,9 +624,73 @@ public class ProjectService {
 		return name;
 	}
 
+	private String validateProjectName(String rawProjectName) {
+		String projectName = trimToNull(rawProjectName);
+		if (projectName == null) {
+			throw new ApiException(ErrorCode.PROJECT_NAME_REQUIRED);
+		}
+		if (projectName.length() < 2) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "projectName must be at least 2 characters.");
+		}
+		if (projectName.length() > 50) {
+			throw new ApiException(ErrorCode.PROJECT_NAME_TOO_LONG);
+		}
+		return projectName;
+	}
+
+	private String validateProjectDescription(String rawDescription) {
+		String description = trimToNull(rawDescription);
+		if (description != null && description.length() > 500) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "description must be 500 characters or fewer.");
+		}
+		return description;
+	}
+
+	private String validateProjectRepositoryUrl(String rawRepositoryUrl) {
+		String repositoryUrl = trimToNull(rawRepositoryUrl);
+		if (repositoryUrl == null) {
+			return null;
+		}
+		if (repositoryUrl.length() > 500) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "repositoryUrl must be 500 characters or fewer.");
+		}
+
+		try {
+			URI uri = URI.create(repositoryUrl);
+			if (uri.getScheme() == null || uri.getHost() == null) {
+				throw new IllegalArgumentException("repositoryUrl is invalid.");
+			}
+			return repositoryUrl;
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "repositoryUrl is invalid.");
+		}
+	}
+
+	private String validateRequiredProjectLocalPath(String rawLocalPath) {
+		String localPath = validateProjectLocalPath(rawLocalPath);
+		if (localPath == null) {
+			throw new ApiException(ErrorCode.PROJECT_PATH_REQUIRED);
+		}
+		return localPath;
+	}
+
+	private String validateProjectLocalPath(String rawLocalPath) {
+		String localPath = trimToNull(rawLocalPath);
+		if (localPath != null && localPath.length() > 500) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "localPath must be 500 characters or fewer.");
+		}
+		return localPath;
+	}
+
 	private void validateScheduleDateRange(LocalDate startDate, LocalDate endDate) {
 		if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
 			throw new ApiException(ErrorCode.INVALID_SCHEDULE_DATE);
+		}
+	}
+
+	private void validateProjectDateRange(LocalDate startDate, LocalDate targetDate) {
+		if (startDate != null && targetDate != null && targetDate.isBefore(startDate)) {
+			throw new ApiException(ErrorCode.INVALID_PROJECT_DATE);
 		}
 	}
 
@@ -646,6 +798,75 @@ public class ProjectService {
 
 		if (exists) {
 			throw new ApiException(ErrorCode.TECH_STACK_ALREADY_EXISTS);
+		}
+	}
+
+	private ProjectStatus parseProjectStatus(String rawStatus) {
+		String normalizedStatus = trimToNull(rawStatus);
+		if (normalizedStatus == null) {
+			throw new ApiException(ErrorCode.INVALID_PROJECT_STATUS);
+		}
+
+		try {
+			return ProjectStatus.valueOf(normalizedStatus.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_PROJECT_STATUS);
+		}
+	}
+
+	private ProjectMemberRole parseRequiredProjectMemberRole(String rawRole) {
+		String normalizedRole = trimToNull(rawRole);
+		if (normalizedRole == null) {
+			throw new ApiException(ErrorCode.PROJECT_MEMBER_ROLE_REQUIRED);
+		}
+
+		try {
+			return ProjectMemberRole.valueOf(normalizedRole.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_PROJECT_MEMBER_ROLE);
+		}
+	}
+
+	private ProjectDepartment parseRequiredProjectMemberDepartment(String rawDepartment) {
+		String normalizedDepartment = trimToNull(rawDepartment);
+		if (normalizedDepartment == null) {
+			throw new ApiException(ErrorCode.PROJECT_MEMBER_DEPARTMENT_REQUIRED);
+		}
+
+		try {
+			return ProjectDepartment.valueOf(normalizedDepartment.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_PROJECT_MEMBER_DEPARTMENT);
+		}
+	}
+
+	private void validateEditableProjectMember(ProjectMember projectMember) {
+		if (!projectMember.isActive()) {
+			throw new ApiException(ErrorCode.PROJECT_MEMBER_NOT_ACTIVE);
+		}
+	}
+
+	private void validateLeaderRoleChange(
+		Long projectId,
+		Long currentUserId,
+		ProjectMember targetMember,
+		ProjectMemberRole nextRole
+	) {
+		if (!targetMember.isLeader() || nextRole == ProjectMemberRole.LEADER) {
+			return;
+		}
+
+		if (targetMember.getUser().getId().equals(currentUserId)) {
+			throw new ApiException(ErrorCode.CANNOT_CHANGE_OWN_LEADER_ROLE);
+		}
+
+		long leaderCount = projectMemberRepository.countByProject_IdAndRoleAndStatus(
+			projectId,
+			ProjectMemberRole.LEADER,
+			ProjectMemberStatus.ACTIVE
+		);
+		if (leaderCount <= 1) {
+			throw new ApiException(ErrorCode.PROJECT_LEADER_REQUIRED);
 		}
 	}
 

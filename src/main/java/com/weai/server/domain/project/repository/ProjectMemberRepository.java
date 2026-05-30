@@ -1,6 +1,7 @@
 package com.weai.server.domain.project.repository;
 
 import com.weai.server.domain.project.domain.ProjectMember;
+import com.weai.server.domain.project.domain.ProjectMemberRole;
 import com.weai.server.domain.project.domain.ProjectMemberStatus;
 import com.weai.server.domain.project.domain.ProjectStatus;
 import java.util.Collection;
@@ -29,9 +30,13 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 
 	Optional<ProjectMember> findByProject_IdAndUser_Id(Long projectId, Long userId);
 
+	Optional<ProjectMember> findByProject_IdAndUser_IdAndStatus(Long projectId, Long userId, ProjectMemberStatus status);
+
 	boolean existsByProject_IdAndUser_IdAndStatus(Long projectId, Long userId, ProjectMemberStatus status);
 
 	long countByProject_IdAndStatus(Long projectId, ProjectMemberStatus status);
+
+	long countByProject_IdAndRoleAndStatus(Long projectId, ProjectMemberRole role, ProjectMemberStatus status);
 
 	@Query("""
 		select pm
@@ -44,6 +49,18 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 	List<ProjectMember> findByProjectIdAndStatusWithUser(
 		@Param("projectId") Long projectId,
 		@Param("memberStatus") ProjectMemberStatus memberStatus
+	);
+
+	@Query("""
+		select pm
+		from ProjectMember pm
+		join fetch pm.user u
+		where pm.project.id = :projectId
+		  and pm.id = :projectMemberId
+		""")
+	Optional<ProjectMember> findByProjectIdAndIdWithUser(
+		@Param("projectId") Long projectId,
+		@Param("projectMemberId") Long projectMemberId
 	);
 
 	@Query("""
