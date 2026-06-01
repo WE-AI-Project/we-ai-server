@@ -136,6 +136,9 @@ app:
         - ${APP_FRONTEND_BASE_URL:http://localhost:3000}
         - ${APP_ADDITIONAL_LOCAL_FRONTEND_BASE_URL:http://127.0.0.1:3000}
         - ${APP_VITE_FRONTEND_BASE_URL:http://localhost:5173}
+      allowed-origin-patterns:
+        - ${APP_LOCALHOST_FRONTEND_PATTERN:http://localhost:*}
+        - ${APP_LOCALHOST_LOOPBACK_PATTERN:http://127.0.0.1:*}
       allowed-methods:
         - GET
         - POST

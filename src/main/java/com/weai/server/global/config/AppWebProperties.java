@@ -43,6 +43,11 @@ public class AppWebProperties {
 			"http://127.0.0.1:3000"
 		));
 
+		private List<@NotBlank String> allowedOriginPatterns = new ArrayList<>(List.of(
+			"http://localhost:*",
+			"http://127.0.0.1:*"
+		));
+
 		@NotEmpty
 		private List<@NotBlank String> allowedMethods = new ArrayList<>(List.of(
 			"GET",
