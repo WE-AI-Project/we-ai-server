@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.responses.ApiResponses;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -63,7 +64,7 @@ public class SwaggerErrorResponseCustomizer implements OperationCustomizer {
 			SwaggerErrorResponses.class
 		);
 		if (classAnnotation != null) {
-			errorCodes.addAll(Set.of(classAnnotation.value()));
+			Collections.addAll(errorCodes, classAnnotation.value());
 		}
 
 		SwaggerErrorResponses methodAnnotation = AnnotatedElementUtils.findMergedAnnotation(
@@ -71,7 +72,7 @@ public class SwaggerErrorResponseCustomizer implements OperationCustomizer {
 			SwaggerErrorResponses.class
 		);
 		if (methodAnnotation != null) {
-			errorCodes.addAll(Set.of(methodAnnotation.value()));
+			Collections.addAll(errorCodes, methodAnnotation.value());
 		}
 
 		return errorCodes;
