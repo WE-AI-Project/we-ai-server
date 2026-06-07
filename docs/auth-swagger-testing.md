@@ -1,26 +1,26 @@
-# Auth Swagger Testing Guide
+# Auth Swagger 테스트 가이드
 
-This document explains how to test the new social login APIs and the six-digit email login flow in Swagger UI.
+이 문서는 Swagger UI에서 새 소셜 로그인 API와 6자리 이메일 로그인 흐름을 테스트하는 방법을 설명합니다.
 
-## 1. Required configuration
+## 1. 필요한 설정
 
-### Local mock mode for quick Swagger testing
+### 빠른 Swagger 테스트용 로컬 모의 모드
 
-Use this when you want to test the API flow without actually sending email or Kakao Talk messages.
+실제로 이메일이나 카카오톡 메시지를 보내지 않고 API 흐름만 테스트하고 싶을 때 사용합니다.
 
 ```env
 AUTH_VERIFICATION_MOCK_ENABLED=true
 AUTH_VERIFICATION_EXPOSE_CODE_IN_RESPONSE=true
 ```
 
-In this mode:
+이 모드에서는:
 
-- `POST /api/v1/auth/email-login/code` returns `debugCode`
-- No real email or Kakao Talk message is sent
+- `POST /api/v1/auth/email-login/code` 응답에 `debugCode` 가 포함됩니다
+- 실제 이메일이나 카카오톡 메시지는 전송되지 않습니다
 
-### Real email delivery
+### 실제 이메일 발송
 
-To send the verification code to any real email inbox such as Gmail or Naver Mail, configure SMTP.
+Gmail, 네이버 메일 같은 실제 메일함으로 인증 코드를 보내려면 SMTP를 설정해야 합니다.
 
 ```env
 MAIL_HOST=smtp.gmail.com
@@ -34,39 +34,39 @@ AUTH_VERIFICATION_MOCK_ENABLED=false
 AUTH_VERIFICATION_EXPOSE_CODE_IN_RESPONSE=false
 ```
 
-Notes:
+참고:
 
-- The sender can be a Gmail account, company mail, or any SMTP account your server can use.
-- The receiver can be any valid mailbox, including `@gmail.com` and `@naver.com`.
+- 발신자는 Gmail 계정, 회사 메일, 또는 서버에서 사용할 수 있는 아무 SMTP 계정이어도 됩니다.
+- 수신자는 `@gmail.com`, `@naver.com` 을 포함한 유효한 메일함이면 됩니다.
 
-### Real Kakao Talk delivery
+### 실제 카카오톡 발송
 
-To send the verification code to Kakao Talk:
+카카오톡으로 인증 코드를 보내려면:
 
-- Enable Kakao Login in the Kakao Developers console.
-- Register the redirect URI that matches `KAKAO_REDIRECT_URI`.
-- Enable the `talk_message` consent item.
-- Register the frontend URL used in Kakao message links if Kakao requires your web domain to be registered.
+- Kakao Developers 콘솔에서 Kakao Login을 활성화합니다.
+- `KAKAO_REDIRECT_URI` 와 일치하는 redirect URI를 등록합니다.
+- `talk_message` 동의 항목을 활성화합니다.
+- 카카오 메시지 링크에 사용하는 프론트엔드 URL을, 필요하다면 웹 도메인으로 등록합니다.
 
-Official references:
+공식 문서:
 
 - [Kakao Login overview](https://developers.kakao.com/docs/latest/en/kakaologin/common)
 - [Kakao Talk Message REST API](https://developers.kakao.com/docs/latest/en/kakaotalk-message/rest-api)
 
-## 2. Swagger entry
+## 2. Swagger 접속 주소
 
-Open:
+아래 주소를 엽니다:
 
 - `http://localhost:8080/swagger-ui.html`
 
-## 3. Email-code login test
+## 3. 이메일 코드 로그인 테스트
 
-### Mock mode
+### 모의 모드
 
-1. Call `POST /api/v1/auth/signup` and create a test user.
-2. Call `POST /api/v1/auth/email-login/code`.
+1. `POST /api/v1/auth/signup` 을 호출해 테스트 사용자를 만듭니다.
+2. `POST /api/v1/auth/email-login/code` 를 호출합니다.
 
-Example request:
+예시 요청:
 
 ```json
 {
@@ -75,10 +75,10 @@ Example request:
 }
 ```
 
-3. Copy `data.debugCode` from the response.
-4. Call `POST /api/v1/auth/email-login`.
+3. 응답에서 `data.debugCode` 를 복사합니다.
+4. `POST /api/v1/auth/email-login` 을 호출합니다.
 
-Example request:
+예시 요청:
 
 ```json
 {
@@ -87,23 +87,23 @@ Example request:
 }
 ```
 
-5. Confirm that `accessToken` and `refreshToken` are returned.
+5. `accessToken` 과 `refreshToken` 이 반환되는지 확인합니다.
 
-### Real email delivery
+### 실제 이메일 발송
 
-1. Configure SMTP and disable mock mode.
-2. Call `POST /api/v1/auth/email-login/code` with `deliveryChannel` set to `EMAIL`.
-3. Check the recipient inbox in Gmail or Naver Mail.
-4. Call `POST /api/v1/auth/email-login` with the received six-digit code.
+1. SMTP를 설정하고 mock 모드를 비활성화합니다.
+2. `deliveryChannel` 을 `EMAIL` 로 두고 `POST /api/v1/auth/email-login/code` 를 호출합니다.
+3. Gmail 또는 네이버 메일 수신함을 확인합니다.
+4. 수신한 6자리 코드로 `POST /api/v1/auth/email-login` 을 호출합니다.
 
-## 4. Kakao Talk delivery test
+## 4. 카카오톡 발송 테스트
 
-1. Call `GET /api/v1/auth/kakao/message-url`.
-2. Open `data.authorizationUrl` in a browser.
-3. Complete Kakao consent and copy the `code` query parameter from the redirect URL.
-4. Call `POST /api/v1/auth/email-login/code`.
+1. `GET /api/v1/auth/kakao/message-url` 을 호출합니다.
+2. 브라우저에서 `data.authorizationUrl` 을 엽니다.
+3. 카카오 동의를 완료한 뒤 redirect URL의 `code` 쿼리 파라미터를 복사합니다.
+4. `POST /api/v1/auth/email-login/code` 를 호출합니다.
 
-Example request:
+예시 요청:
 
 ```json
 {
@@ -113,10 +113,10 @@ Example request:
 }
 ```
 
-5. Check your Kakao Talk message.
-6. Call `POST /api/v1/auth/email-login` with the six-digit code you received.
+5. 카카오톡 메시지를 확인합니다.
+6. 받은 6자리 코드로 `POST /api/v1/auth/email-login` 을 호출합니다.
 
-If your frontend already has a Kakao user access token with `talk_message` consent, you can send that token directly instead of `kakaoAuthorizationCode`.
+프론트엔드에 이미 `talk_message` 동의가 포함된 카카오 사용자 access token이 있다면 `kakaoAuthorizationCode` 대신 그 토큰을 직접 보낼 수 있습니다.
 
 ```json
 {
@@ -126,14 +126,14 @@ If your frontend already has a Kakao user access token with `talk_message` conse
 }
 ```
 
-## 5. Social login test
+## 5. 소셜 로그인 테스트
 
 ### Kakao
 
-1. Call `GET /api/v1/auth/kakao/url`.
-2. Open `data.authorizationUrl` in a browser.
-3. Copy the `code` query parameter from the redirect URL.
-4. Call `POST /api/v1/auth/kakao/login`.
+1. `GET /api/v1/auth/kakao/url` 을 호출합니다.
+2. 브라우저에서 `data.authorizationUrl` 을 엽니다.
+3. redirect URL의 `code` 쿼리 파라미터를 복사합니다.
+4. `POST /api/v1/auth/kakao/login` 을 호출합니다.
 
 ```json
 {
@@ -143,10 +143,10 @@ If your frontend already has a Kakao user access token with `talk_message` conse
 
 ### Naver
 
-1. Call `GET /api/v1/auth/naver/url`.
-2. Open `data.authorizationUrl` in a browser.
-3. Copy both `code` and `state` from the redirect URL.
-4. Call `POST /api/v1/auth/naver/login`.
+1. `GET /api/v1/auth/naver/url` 을 호출합니다.
+2. 브라우저에서 `data.authorizationUrl` 을 엽니다.
+3. redirect URL에서 `code` 와 `state` 를 모두 복사합니다.
+4. `POST /api/v1/auth/naver/login` 을 호출합니다.
 
 ```json
 {
@@ -157,10 +157,10 @@ If your frontend already has a Kakao user access token with `talk_message` conse
 
 ### Google
 
-1. Call `GET /api/v1/auth/google/url`.
-2. Open `data.authorizationUrl` in a browser.
-3. Copy the `code` query parameter from the redirect URL.
-4. Call `POST /api/v1/auth/google/login`.
+1. `GET /api/v1/auth/google/url` 을 호출합니다.
+2. 브라우저에서 `data.authorizationUrl` 을 엽니다.
+3. redirect URL의 `code` 쿼리 파라미터를 복사합니다.
+4. `POST /api/v1/auth/google/login` 을 호출합니다.
 
 ```json
 {
@@ -168,7 +168,7 @@ If your frontend already has a Kakao user access token with `talk_message` conse
 }
 ```
 
-## 6. Recommended test order
+## 6. 권장 테스트 순서
 
 1. `POST /api/v1/auth/signup`
 2. `POST /api/v1/auth/email-login/code`

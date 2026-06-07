@@ -1,55 +1,55 @@
-# Cloud Run + Cloud SQL deployment guide
+# Cloud Run + Cloud SQL 배포 가이드
 
-## Target architecture
+## 대상 아키텍처
 
-- Frontend: Vercel
-- Backend: Cloud Run
-- Database: Cloud SQL MySQL
+- 프론트엔드: Vercel
+- 백엔드: Cloud Run
+- 데이터베이스: Cloud SQL MySQL
 
-## Runtime environment variables
+## 런타임 환경 변수
 
-Use [cloudrun.env.example](/C:/Users/0122k/IdeaProjects/we-ai-server/cloudrun.env.example) as the base template.
+[cloudrun.env.example](/C:/Users/0122k/IdeaProjects/we-ai-server/cloudrun.env.example) 파일을 기본 템플릿으로 사용합니다.
 
-Key production rules:
+운영 환경 핵심 규칙:
 
-- Do not use `DB_HOST=localhost` on Cloud Run.
-- Prefer `DB_URL` with the Cloud SQL JDBC Socket Factory.
-- `APP_BASE_URL` and `APP_LOCAL_BASE_URL` should be the full Cloud Run HTTPS URL.
-- `APP_API_DOMAIN` should be the Cloud Run host only, without `https://`.
-- Social `*_REDIRECT_URI` values must exactly match what is registered in each provider console.
-- Real email verification requires:
+- Cloud Run에서는 `DB_HOST=localhost` 를 사용하지 않습니다.
+- `DB_URL` 은 Cloud SQL JDBC Socket Factory 방식 사용을 우선합니다.
+- `APP_BASE_URL` 과 `APP_LOCAL_BASE_URL` 은 Cloud Run의 전체 HTTPS URL이어야 합니다.
+- `APP_API_DOMAIN` 은 `https://` 없이 Cloud Run 호스트명만 넣어야 합니다.
+- 소셜 로그인 `*_REDIRECT_URI` 값은 각 제공자 콘솔에 등록된 값과 정확히 일치해야 합니다.
+- 실제 이메일 인증을 사용하려면 아래 값이 필요합니다:
   - `AUTH_VERIFICATION_MOCK_ENABLED=false`
   - `AUTH_VERIFICATION_EXPOSE_CODE_IN_RESPONSE=false`
-  - valid `MAIL_*` values
+  - 유효한 `MAIL_*` 값
 
-## Current live snapshot
+## 현재 운영 스냅샷
 
-Checked on `2026-05-30` against the current production URLs:
+`2026-05-30` 기준으로 현재 운영 URL을 확인한 결과입니다:
 
-- Backend health:
+- 백엔드 헬스:
   - `GET https://we-ai-server-167535321001.asia-northeast3.run.app/actuator/health`
-  - returned `{"status":"UP", ...}`
+  - `{"status":"UP", ...}` 반환
 - Swagger:
   - `https://we-ai-server-167535321001.asia-northeast3.run.app/swagger-ui.html`
-  - reachable
-- Frontend:
+  - 접속 가능
+- 프론트엔드:
   - `https://we-ai-client.vercel.app`
-  - reachable
+  - 접속 가능
 
-Important:
+중요:
 
-- The currently deployed Cloud Run OpenAPI document does not yet expose the new Project Settings member-detail / role / department endpoints added in this local backend worktree.
-- That means the code is implemented locally, but a new Cloud Run revision still needs to be deployed before the frontend can call those new endpoints in production.
+- 현재 배포된 Cloud Run OpenAPI 문서에는 이 로컬 백엔드 워크트리에서 추가한 Project Settings의 새 멤버 상세 / 역할 / 부서 엔드포인트가 아직 노출되지 않습니다.
+- 즉, 코드는 로컬에는 반영되어 있지만 운영 프론트엔드가 새 엔드포인트를 호출하려면 Cloud Run 새 리비전을 추가로 배포해야 합니다.
 
-## How to view current Cloud Run env vars
+## 현재 Cloud Run 환경 변수 확인 방법
 
-### Console
+### 콘솔
 
 1. Google Cloud Console
 2. Cloud Run
 3. `we-ai-server`
 4. `Edit and deploy new revision`
-5. `Container` tab
+5. `Container` 탭
 6. `Variables & Secrets`
 
 ### Cloud Shell
@@ -58,7 +58,7 @@ Important:
 gcloud run services describe we-ai-server --region asia-northeast3 --format export
 ```
 
-Look under:
+아래 위치를 확인합니다:
 
 ```yaml
 spec:
@@ -68,16 +68,16 @@ spec:
         - env:
 ```
 
-## How to update Cloud Run env vars
+## Cloud Run 환경 변수 수정 방법
 
-### Console
+### 콘솔
 
 1. Cloud Run
 2. `we-ai-server`
 3. `Edit and deploy new revision`
-4. `Container` tab
+4. `Container` 탭
 5. `Variables & Secrets`
-6. edit values
+6. 값을 수정합니다
 7. `Deploy`
 
 ### Cloud Shell
@@ -88,15 +88,15 @@ gcloud run services update we-ai-server \
   --env-vars-file cloudrun.env
 ```
 
-## Recommended production values
+## 권장 운영 값
 
-### Backend URL values
+### 백엔드 URL 값
 
-If the backend URL is:
+백엔드 URL이 아래와 같다면:
 
 `https://we-ai-server-167535321001.asia-northeast3.run.app`
 
-then:
+다음처럼 설정합니다:
 
 ```env
 APP_BASE_URL=https://we-ai-server-167535321001.asia-northeast3.run.app
@@ -104,9 +104,9 @@ APP_LOCAL_BASE_URL=https://we-ai-server-167535321001.asia-northeast3.run.app
 APP_API_DOMAIN=we-ai-server-167535321001.asia-northeast3.run.app
 ```
 
-### Frontend values
+### 프론트엔드 값
 
-If the frontend is deployed on Vercel at `https://we-ai-client.vercel.app`:
+프론트엔드가 Vercel의 `https://we-ai-client.vercel.app` 에 배포되어 있다면:
 
 ```env
 APP_FRONTEND_BASE_URL=https://we-ai-client.vercel.app
@@ -115,28 +115,28 @@ APP_FRONTEND_DOMAIN=we-ai-client.vercel.app
 
 ### JWT issuer
 
-Prefer using the real backend origin:
+실제 백엔드 origin 사용을 권장합니다:
 
 ```env
 JWT_ISSUER=https://we-ai-server-167535321001.asia-northeast3.run.app
 ```
 
-## Health check troubleshooting
+## 헬스 체크 문제 해결
 
-`/actuator/health` returning `DOWN` means at least one Spring health contributor is failing.
+`/actuator/health` 가 `DOWN` 을 반환하면 Spring health contributor 중 적어도 하나가 실패 중이라는 뜻입니다.
 
-Most likely candidates in this app:
+이 앱에서 가능성이 높은 원인:
 
-- Cloud SQL connectivity
-- SMTP connectivity
+- Cloud SQL 연결 문제
+- SMTP 연결 문제
 
-Cloud Shell commands:
+Cloud Shell 명령어:
 
 ```bash
 gcloud run services logs read we-ai-server --region asia-northeast3 --limit 200
 ```
 
-Useful log keywords:
+유용한 로그 키워드:
 
 - `Communications link failure`
 - `Access denied for user`
@@ -144,65 +144,65 @@ Useful log keywords:
 - `Could not connect to SMTP host`
 - `UnknownHostException`
 
-Note:
+참고:
 
-- `/favicon.ico` returning `401` does not explain `health=DOWN`.
-- Swagger opening successfully only proves the app started and that security permits Swagger paths.
+- `/favicon.ico` 가 `401` 을 반환하는 것은 `health=DOWN` 의 원인이 아닙니다.
+- Swagger가 정상적으로 열리는 것은 앱이 기동됐고 보안 설정상 Swagger 경로가 허용된다는 뜻일 뿐입니다.
 
-## How to verify backend from browser
+## 브라우저에서 백엔드 검증 방법
 
-### Health
+### 헬스
 
-Open:
+아래 경로를 열어 확인합니다:
 
 - `/actuator/health`
 - `/swagger-ui.html`
 
-### Swagger smoke tests
+### Swagger 스모크 테스트
 
-1. Open Swagger UI
-2. Expand one public auth endpoint such as:
+1. Swagger UI를 엽니다
+2. 아래와 같은 공개 인증 엔드포인트 하나를 펼칩니다:
    - `POST /api/v1/auth/signup`
    - `POST /api/v1/auth/login`
-3. Execute with test payload
-4. Check:
-   - response code
-   - response body
-   - any 500 errors
+3. 테스트 payload로 실행합니다
+4. 아래 항목을 확인합니다:
+   - 응답 코드
+   - 응답 본문
+   - 500 에러 발생 여부
 
-## Cloud Run reflection checklist for this Project Settings work
+## Project Settings 작업용 Cloud Run 반영 체크리스트
 
-After deploying a new backend revision, confirm these in order:
+새 백엔드 리비전을 배포한 뒤 아래 순서대로 확인합니다:
 
-1. Cloud Run revision
-   - Cloud Run console shows a new latest revision for `we-ai-server`
-   - traffic is routed to that revision
-2. Health
+1. Cloud Run 리비전
+   - Cloud Run 콘솔에 `we-ai-server` 의 새 최신 리비전이 보이는지 확인
+   - 트래픽이 해당 리비전으로 라우팅되는지 확인
+2. 헬스
    - `GET /actuator/health`
-   - `status` is `UP`
+   - `status` 가 `UP` 인지 확인
 3. Swagger UI
-   - `/swagger-ui.html` opens without error
-4. OpenAPI path exposure
-   - `/v3/api-docs` contains:
+   - `/swagger-ui.html` 이 오류 없이 열리는지 확인
+4. OpenAPI 경로 노출
+   - `/v3/api-docs` 안에 아래 경로가 포함되어야 합니다:
      - `/api/v1/projects/{projectId}`
      - `/api/v1/projects/{projectId}/members/{memberId}`
      - `/api/v1/projects/{projectId}/members/{memberId}/role`
      - `/api/v1/projects/{projectId}/members/{memberId}/department`
-5. Authenticated smoke test
-   - login in Swagger
-   - call one existing project endpoint
-   - call the 4 new Project Settings endpoints with a real token
-6. Error handling
-   - verify `PROJECT_NOT_FOUND`
-   - verify `PROJECT_ACCESS_DENIED`
-   - verify `PROJECT_LEADER_ONLY`
-   - verify `PROJECT_MEMBER_NOT_FOUND`
-7. Frontend smoke test
-   - open `https://we-ai-client.vercel.app`
-   - navigate to Project Settings
-   - confirm the project info edit and team member actions hit the new Cloud Run endpoints
+5. 인증된 스모크 테스트
+   - Swagger에서 로그인
+   - 기존 프로젝트 엔드포인트 하나 호출
+   - 실제 토큰으로 새 Project Settings 엔드포인트 4개 호출
+6. 에러 처리
+   - `PROJECT_NOT_FOUND` 검증
+   - `PROJECT_ACCESS_DENIED` 검증
+   - `PROJECT_LEADER_ONLY` 검증
+   - `PROJECT_MEMBER_NOT_FOUND` 검증
+7. 프론트엔드 스모크 테스트
+   - `https://we-ai-client.vercel.app` 열기
+   - Project Settings 화면으로 이동
+   - 프로젝트 정보 수정과 팀 멤버 관련 동작이 새 Cloud Run 엔드포인트를 호출하는지 확인
 
-Recommended `curl` checks after deploy:
+배포 후 권장 `curl` 확인 명령:
 
 ```bash
 curl -s https://we-ai-server-167535321001.asia-northeast3.run.app/actuator/health
@@ -210,70 +210,70 @@ curl -I -L https://we-ai-server-167535321001.asia-northeast3.run.app/swagger-ui.
 curl -s https://we-ai-server-167535321001.asia-northeast3.run.app/v3/api-docs | grep '/api/v1/projects/{projectId}/members/{memberId}'
 ```
 
-## How to verify Vercel frontend
+## Vercel 프론트엔드 검증 방법
 
-1. Open the deployed Vercel site in Chrome
-2. Press `F12`
-3. Open the `Network` tab
-4. Click `Fetch/XHR`
-5. Keep `Preserve log` enabled
-6. Refresh once
-7. Perform one real action such as signup/login
-8. Click the request row
+1. 배포된 Vercel 사이트를 Chrome에서 엽니다
+2. `F12` 를 누릅니다
+3. `Network` 탭을 엽니다
+4. `Fetch/XHR` 를 클릭합니다
+5. `Preserve log` 를 켭니다
+6. 한 번 새로고침합니다
+7. 회원가입/로그인 같은 실제 동작을 한 번 수행합니다
+8. 요청 행을 클릭합니다
 
-What to confirm:
+확인할 항목:
 
-- `Request URL` starts with the Cloud Run URL
-- status is `200` or `201`
-- if it is `401`, `403`, or `500`, inspect `Response`
+- `Request URL` 이 Cloud Run URL로 시작하는지
+- status 가 `200` 또는 `201` 인지
+- `401`, `403`, `500` 이면 `Response` 를 확인
 
-## How to verify local frontend with Vite proxy
+## Vite 프록시를 사용하는 로컬 프론트엔드 검증 방법
 
-The frontend code uses relative `/api/...` paths in dev mode. See [api.ts](/C:/Users/0122k/we-ai-client/src/app/lib/api.ts).
+프론트엔드 코드는 개발 모드에서 상대 경로 `/api/...` 를 사용합니다. [api.ts](/C:/Users/0122k/we-ai-client/src/app/lib/api.ts) 를 참고하세요.
 
-1. In the frontend project:
+1. 프론트엔드 프로젝트에서 아래 명령을 실행합니다:
 
 ```bash
 npm run dev
 ```
 
-2. Open the local frontend in the browser
-3. Open DevTools
-4. `Network` tab
-5. Perform signup/login
+2. 브라우저에서 로컬 프론트엔드를 엽니다
+3. DevTools를 엽니다
+4. `Network` 탭을 엽니다
+5. 회원가입/로그인 동작을 수행합니다
 
-What to confirm:
+확인할 항목:
 
-- the browser request URL looks like `http://localhost:5173/api/...`
-- the response code is `200` or `201`
-- if the request fails, inspect the `Response` and `Headers`
+- 브라우저 요청 URL이 `http://localhost:5173/api/...` 형태인지
+- 응답 코드가 `200` 또는 `201` 인지
+- 요청이 실패하면 `Response` 와 `Headers` 를 확인
 
-If the browser is calling `localhost:5173/api/...`, Vite proxy is handling the forwarding.
+브라우저가 `localhost:5173/api/...` 로 호출하고 있다면, Vite 프록시가 포워딩을 처리 중인 것입니다.
 
-## Frontend environment variable wiring
+## 프론트엔드 환경 변수 연결 방식
 
-The current frontend behavior is determined by these two files:
+현재 프론트엔드 동작은 아래 두 파일로 결정됩니다:
 
 - [api.ts](/C:/Users/0122k/we-ai-client/src/app/lib/api.ts)
 - [vite.config.ts](/C:/Users/0122k/we-ai-client/vite.config.ts)
 
-Actual behavior:
+실제 동작:
 
-- local dev browser requests always use relative `/api/...`
-- Vite proxy forwards `/api` to:
-  - `VITE_API_BASE_URL` if it is set
-  - otherwise `http://localhost:8080`
-- production build uses:
-  - `VITE_API_BASE_URL + /api/...` when `VITE_API_BASE_URL` is set
-  - relative `/api/...` only when `VITE_API_BASE_URL` is empty
+- 로컬 개발 브라우저 요청은 항상 상대 경로 `/api/...` 를 사용합니다
+- Vite 프록시는 `/api` 를 아래 대상으로 전달합니다:
+  - `VITE_API_BASE_URL` 이 설정되어 있으면 그 값
+  - 없으면 `http://localhost:8080`
+- 운영 빌드는 아래 규칙을 사용합니다:
+  - `VITE_API_BASE_URL` 이 설정되어 있으면 `VITE_API_BASE_URL + /api/...`
+  - `VITE_API_BASE_URL` 이 비어 있으면 상대 경로 `/api/...` 만 사용
 
-In other words:
+즉:
 
-- local frontend does not call Cloud Run directly from the browser when running with Vite
-- local frontend calls Vite first, and Vite forwards to either local backend or Cloud Run
-- deployed Vercel frontend calls Cloud Run directly from the browser when `VITE_API_BASE_URL` is set
+- 로컬 프론트엔드는 Vite 실행 중에는 브라우저에서 Cloud Run을 직접 호출하지 않습니다
+- 로컬 프론트엔드는 먼저 Vite로 요청하고, Vite가 로컬 백엔드 또는 Cloud Run으로 전달합니다
+- 배포된 Vercel 프론트엔드는 `VITE_API_BASE_URL` 이 설정되어 있으면 브라우저에서 Cloud Run을 직접 호출합니다
 
-### Recommended frontend env values
+### 권장 프론트엔드 환경 변수 값
 
 #### Vercel Production
 
@@ -287,71 +287,71 @@ VITE_API_BASE_URL=https://we-ai-server-167535321001.asia-northeast3.run.app
 VITE_API_BASE_URL=https://we-ai-server-167535321001.asia-northeast3.run.app
 ```
 
-#### Local frontend that should hit Cloud Run
+#### Cloud Run을 바라봐야 하는 로컬 프론트엔드
 
-File: `C:\Users\0122k\we-ai-client\.env`
+파일: `C:\Users\0122k\we-ai-client\.env`
 
 ```env
 VITE_API_BASE_URL=https://we-ai-server-167535321001.asia-northeast3.run.app
 ```
 
-#### Local frontend that should hit local backend
+#### 로컬 백엔드를 바라봐야 하는 로컬 프론트엔드
 
-Either unset `VITE_API_BASE_URL`, or use:
+`VITE_API_BASE_URL` 을 비워 두거나, 아래처럼 설정합니다:
 
 ```env
 VITE_API_BASE_URL=http://localhost:8080
 ```
 
-## Local / production target matrix
+## 로컬 / 운영 대상 매트릭스
 
-This is the easiest way to control where data is written:
+데이터가 어디에 기록되는지 제어하는 가장 쉬운 기준은 아래 표입니다:
 
-| Frontend runtime | `VITE_API_BASE_URL` | Actual backend target | DB that receives writes |
+| 프론트엔드 실행 환경 | `VITE_API_BASE_URL` | 실제 백엔드 대상 | 쓰기가 반영되는 DB |
 | --- | --- | --- | --- |
-| Vercel production | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Cloud Run | Cloud SQL MySQL |
-| Vercel preview | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Cloud Run | Cloud SQL MySQL |
-| Local Vite dev | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Cloud Run via Vite proxy | Cloud SQL MySQL |
-| Local Vite dev | unset or `http://localhost:8080` | Local Spring Boot via Vite proxy | Local Docker MySQL |
+| Vercel 운영 | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Cloud Run | Cloud SQL MySQL |
+| Vercel 프리뷰 | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Cloud Run | Cloud SQL MySQL |
+| 로컬 Vite 개발 | `https://we-ai-server-167535321001.asia-northeast3.run.app` | Vite 프록시를 통한 Cloud Run | Cloud SQL MySQL |
+| 로컬 Vite 개발 | 미설정 또는 `http://localhost:8080` | Vite 프록시를 통한 로컬 Spring Boot | 로컬 Docker MySQL |
 
-Use this rule:
+판단 규칙:
 
-- if the backend target is Cloud Run, data accumulates in Cloud SQL
-- if the backend target is local Spring Boot, data accumulates in local Docker MySQL
+- 백엔드 대상이 Cloud Run이면 데이터는 Cloud SQL에 누적됩니다
+- 백엔드 대상이 로컬 Spring Boot이면 데이터는 로컬 Docker MySQL에 누적됩니다
 
-That means your local frontend can be made to behave almost exactly like production by keeping:
+즉, 아래 조건을 유지하면 로컬 프론트엔드도 운영과 거의 동일하게 동작시킬 수 있습니다:
 
-- frontend on local Vite
-- `VITE_API_BASE_URL` pointing to Cloud Run
-- browser requests going to `/api/...`
-- Vite proxy forwarding to Cloud Run
+- 프론트엔드는 로컬 Vite 사용
+- `VITE_API_BASE_URL` 은 Cloud Run을 가리키도록 설정
+- 브라우저 요청은 `/api/...` 로 전송
+- Vite 프록시가 Cloud Run으로 포워딩
 
-## Backend CORS values that matter to the frontend
+## 프론트엔드에 영향이 있는 백엔드 CORS 값
 
-Current production backend configuration allows these browser origins by default:
+현재 운영 백엔드 설정은 기본적으로 아래 브라우저 origin들을 허용합니다:
 
 - `APP_FRONTEND_BASE_URL`
 - `APP_VITE_FRONTEND_BASE_URL`
 - `APP_ADDITIONAL_LOCAL_FRONTEND_BASE_URL`
 
-In the current production YAML, that means the intended allowed origins are:
+현재 운영 YAML 기준 의도된 허용 origin은 아래와 같습니다:
 
 - `https://we-ai-client.vercel.app`
 - `http://localhost:5173`
 - `http://127.0.0.1:5173`
 
-This is enough for:
+이 설정이면 아래 경우는 충분히 커버됩니다:
 
-- the production Vercel domain
-- local Vite development
+- 운영 Vercel 도메인
+- 로컬 Vite 개발
 
-But it may not be enough for:
+다만 아래 경우에는 부족할 수 있습니다:
 
-- Vercel preview deployment URLs
+- Vercel preview 배포 URL
 
-If preview calls fail with a browser CORS error, check whether the preview origin is explicitly allowed by the backend.
+preview 호출이 브라우저 CORS 에러로 실패하면, 해당 preview origin이 백엔드에 명시적으로 허용되어 있는지 확인해야 합니다.
 
-## Vercel environment variable check
+## Vercel 환경 변수 확인
 
 ### Dashboard
 
@@ -359,20 +359,20 @@ If preview calls fail with a browser CORS error, check whether the preview origi
 2. `we-ai-client`
 3. `Settings`
 4. `Environment Variables`
-5. Verify `VITE_API_BASE_URL` exists for:
+5. 아래 대상에 `VITE_API_BASE_URL` 이 존재하는지 확인합니다:
    - `Production`
    - `Preview`
 
-Also verify that the value is exactly:
+또한 값이 아래와 정확히 일치하는지 확인합니다:
 
 ```env
 https://we-ai-server-167535321001.asia-northeast3.run.app
 ```
 
-If `VITE_API_BASE_URL` is missing:
+`VITE_API_BASE_URL` 이 없다면:
 
-- local dev may still work through the default `http://localhost:8080` proxy target
-- Vercel production will try to call relative `/api/...` on the frontend origin and will not reach Cloud Run
+- 로컬 개발은 기본 프록시 대상인 `http://localhost:8080` 을 통해 여전히 동작할 수 있습니다
+- Vercel 운영은 프론트엔드 origin 기준의 상대 경로 `/api/...` 를 호출하게 되어 Cloud Run에 도달하지 못합니다
 
 ### CLI
 
@@ -382,16 +382,16 @@ vercel env ls production
 vercel env ls preview
 ```
 
-## Cloud Run CPU / memory / scaling check
+## Cloud Run CPU / 메모리 / 스케일링 확인
 
-### Console
+### 콘솔
 
 1. Cloud Run
 2. `we-ai-server`
 3. `Edit and deploy new revision`
-4. `Container` tab
+4. `Container` 탭
 
-Check:
+확인할 항목:
 
 - CPU
 - Memory
@@ -405,7 +405,7 @@ Check:
 gcloud run services describe we-ai-server --region asia-northeast3 --format export
 ```
 
-## Suggested starting values
+## 권장 시작 값
 
 - CPU: `1`
 - Memory: `1Gi`
@@ -413,34 +413,34 @@ gcloud run services describe we-ai-server --region asia-northeast3 --format expo
 - Max instances: `1`
 - Concurrency: `10`
 
-If cold starts are too slow:
+콜드 스타트가 너무 느리다면:
 
-- set `Min instances` to `1`
+- `Min instances` 를 `1` 로 설정합니다
 
-## OAuth provider registration checklist
+## OAuth 제공자 등록 체크리스트
 
 ### Kakao
 
-- Register the Cloud Run callback URI in Kakao Login Redirect URI
-- Register the frontend web origin in the Web platform settings
+- Kakao Login Redirect URI에 Cloud Run callback URI를 등록합니다
+- Web platform 설정에 프론트엔드 웹 origin을 등록합니다
 
 ### Naver
 
-- Register the service URL
-- Register the callback URL
+- 서비스 URL을 등록합니다
+- callback URL을 등록합니다
 
 ### Google
 
 - Authorized JavaScript origins:
-  - frontend Vercel origin
+  - 프론트엔드 Vercel origin
 - Authorized redirect URIs:
-  - backend Cloud Run callback URL
+  - 백엔드 Cloud Run callback URL
 
-## Security follow-up
+## 보안 후속 조치
 
-Because sensitive values were exposed during setup, rotate these after deployment stabilizes:
+설정 과정에서 민감한 값이 노출되었으므로, 배포가 안정화된 뒤 아래 값을 교체하세요:
 
-- DB password
-- Gmail app password
-- OAuth client secrets
+- DB 비밀번호
+- Gmail 앱 비밀번호
+- OAuth client secret
 - JWT secret

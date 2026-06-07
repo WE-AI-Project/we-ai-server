@@ -9,3 +9,4 @@ tools/node_modules/
 .env.*
 cloudrun.env
 cloudrun.env.*
+docs/internal/
