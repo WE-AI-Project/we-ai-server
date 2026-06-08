@@ -1,4 +1,4 @@
-package com.weai.server.domain.ai;
+/*package com.weai.server.domain.ai;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -15,4 +15,4 @@ public class AiController {
         // 인공지능끼리 대화해서 결론을 가져옴
         return aiAgentService.getBestSolution(request.getQuery());
     }
-}
+}*/

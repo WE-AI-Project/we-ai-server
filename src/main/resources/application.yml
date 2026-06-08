@@ -5,6 +5,13 @@ ollama:
     architect: SYNAIPSE_Architect
     sync: SYNAIPSE_Sync
 
+ai:
+  debate:
+    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.we-ai.com}
+    model-name: ${AI_DEBATE_MODEL_NAME:qwen2.5-coder}
+    timeout: ${AI_DEBATE_TIMEOUT:PT60S}
+    max-memory-messages: ${AI_DEBATE_MAX_MEMORY_MESSAGES:12}
+
 spring:
   application:
     name: we-ai-server
