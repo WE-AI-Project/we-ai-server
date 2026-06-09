@@ -7,13 +7,16 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
@@ -28,6 +31,9 @@ class ProjectIntegrationTest {
 	private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\":(\\d+)");
 
 	private final HttpClient httpClient = HttpClient.newHttpClient();
+
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
 	@LocalServerPort
 	private int port;
@@ -293,6 +299,264 @@ class ProjectIntegrationTest {
 		assertThat(dashboardResponse.body()).contains("\"department\":\"FRONTEND\"");
 		assertThat(dashboardResponse.body()).contains("\"title\":\"Backend dashboard API\"");
 		assertThat(dashboardResponse.body()).contains("\"title\":\"Frontend kickoff\"");
+	}
+
+	@Test
+	void projectDashboardActivitiesCanBeRetrieved() throws Exception {
+		UserSession leader = signUpAndLogin("dashboard-activities-leader");
+		UserSession member = signUpAndLogin("dashboard-activities-member");
+
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Dashboard Activities Project",
+			  "localPath": "D:\\\\WE_AI\\\\dashboard-activities",
+			  "department": "BACKEND",
+			  "techStacks": [
+			    {
+			      "name": "Spring Boot",
+			      "category": "BACKEND",
+			      "isRequired": true
+			    }
+			  ]
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+
+		HttpResponse<String> joinResponse = joinProject(member.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "FRONTEND"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> scheduleResponse = createProjectSchedule(leader.accessToken(), projectId, """
+			{
+			  "title": "Activity schedule",
+			  "description": "Generate dashboard activities",
+			  "assigneeId": %d,
+			  "department": "BACKEND",
+			  "startDate": "%s",
+			  "endDate": "%s"
+			}
+			""".formatted(member.userId(), LocalDate.now().plusDays(1), LocalDate.now().plusDays(2)));
+		long scheduleId = extractLongValue(scheduleResponse.body(), SCHEDULE_ID_PATTERN);
+
+		HttpResponse<String> doneResponse = updateProjectScheduleStatus(
+			leader.accessToken(),
+			projectId,
+			scheduleId,
+			"""
+			{
+			  "status": "DONE"
+			}
+			"""
+		);
+		assertThat(doneResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> activitiesResponse = getProjectDashboardActivities(member.accessToken(), projectId, "?limit=5");
+
+		assertThat(activitiesResponse.statusCode()).isEqualTo(200);
+		assertThat(activitiesResponse.body()).contains("\"code\":\"PROJECT_RECENT_ACTIVITY_LIST_SUCCESS\"");
+		assertThat(activitiesResponse.body()).contains("\"limit\":5");
+		assertThat(activitiesResponse.body()).contains("\"type\":\"PROJECT_CREATED\"");
+		assertThat(activitiesResponse.body()).contains("\"type\":\"MEMBER_JOINED\"");
+		assertThat(activitiesResponse.body()).contains("\"type\":\"SCHEDULE_DONE\"");
+		assertThat(activitiesResponse.body()).contains("\"type\":\"TECH_STACK_ADDED\"");
+	}
+
+	@Test
+	void projectDashboardProgressCanBeRetrieved() throws Exception {
+		UserSession leader = signUpAndLogin("dashboard-progress-leader");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Dashboard Progress Project",
+			  "localPath": "D:\\\\WE_AI\\\\dashboard-progress",
+			  "department": "BACKEND"
+			}
+			""");
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("TODO item", "BACKEND", "TODO", LocalDate.now().plusDays(1)));
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("IN PROGRESS item", "BACKEND", "IN_PROGRESS", LocalDate.now().plusDays(2)));
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("DONE item", "BACKEND", "DONE", LocalDate.now().plusDays(3)));
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("COMPLETED item", "BACKEND", "COMPLETED", LocalDate.now().plusDays(4)));
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("HOLD item", "BACKEND", "HOLD", LocalDate.now().plusDays(5)));
+
+		HttpResponse<String> progressResponse = getProjectDashboardProgress(leader.accessToken(), projectId);
+
+		assertThat(progressResponse.statusCode()).isEqualTo(200);
+		assertThat(progressResponse.body()).contains("\"code\":\"PROJECT_PROGRESS_STAT_SUCCESS\"");
+		assertThat(progressResponse.body()).contains("\"totalScheduleCount\":5");
+		assertThat(progressResponse.body()).contains("\"todoCount\":1");
+		assertThat(progressResponse.body()).contains("\"inProgressCount\":1");
+		assertThat(progressResponse.body()).contains("\"doneCount\":1");
+		assertThat(progressResponse.body()).contains("\"completedCount\":1");
+		assertThat(progressResponse.body()).contains("\"holdCount\":1");
+		assertThat(progressResponse.body()).contains("\"completedWorkCount\":2");
+		assertThat(progressResponse.body()).contains("\"remainingScheduleCount\":3");
+		assertThat(progressResponse.body()).contains("\"progressRate\":40");
+	}
+
+	@Test
+	void projectDashboardProgressReturnsZeroWhenThereAreNoSchedules() throws Exception {
+		UserSession leader = signUpAndLogin("dashboard-progress-zero-leader");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "No Schedule Project",
+			  "localPath": "D:\\\\WE_AI\\\\no-schedule-project",
+			  "department": "BACKEND"
+			}
+			""");
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+
+		HttpResponse<String> progressResponse = getProjectDashboardProgress(leader.accessToken(), projectId);
+
+		assertThat(progressResponse.statusCode()).isEqualTo(200);
+		assertThat(progressResponse.body()).contains("\"totalScheduleCount\":0");
+		assertThat(progressResponse.body()).contains("\"completedWorkCount\":0");
+		assertThat(progressResponse.body()).contains("\"remainingScheduleCount\":0");
+		assertThat(progressResponse.body()).contains("\"progressRate\":0");
+	}
+
+	@Test
+	void projectDashboardMilestonesCanBeRetrieved() throws Exception {
+		UserSession leader = signUpAndLogin("dashboard-milestones-leader");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Dashboard Milestones Project",
+			  "localPath": "D:\\\\WE_AI\\\\dashboard-milestones",
+			  "department": "BACKEND"
+			}
+			""");
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("Milestone API", "BACKEND", "IN_PROGRESS", LocalDate.now().plusDays(1)));
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("Milestone QA", "QA", "TODO", LocalDate.now().plusDays(2)));
+		insertMilestone(
+			projectId,
+			"1차 마일스톤",
+			"핵심 기능 완료",
+			LocalDate.now(),
+			LocalDate.now().plusDays(7),
+			"IN_PROGRESS",
+			55
+		);
+
+		HttpResponse<String> milestonesResponse = getProjectDashboardMilestones(
+			leader.accessToken(),
+			projectId,
+			"?status=IN_PROGRESS"
+		);
+
+		assertThat(milestonesResponse.statusCode()).isEqualTo(200);
+		assertThat(milestonesResponse.body()).contains("\"code\":\"PROJECT_MILESTONE_LIST_SUCCESS\"");
+		assertThat(milestonesResponse.body()).contains("\"title\":\"1차 마일스톤\"");
+		assertThat(milestonesResponse.body()).contains("\"status\":\"IN_PROGRESS\"");
+		assertThat(milestonesResponse.body()).contains("\"progressRate\":55");
+		assertThat(milestonesResponse.body()).contains("\"relatedScheduleCount\":2");
+	}
+
+	@Test
+	void projectDashboardDepartmentsCanBeRetrieved() throws Exception {
+		UserSession leader = signUpAndLogin("dashboard-departments-leader");
+		UserSession frontendMember = signUpAndLogin("dashboard-departments-member");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Dashboard Departments Project",
+			  "localPath": "D:\\\\WE_AI\\\\dashboard-departments",
+			  "department": "BACKEND"
+			}
+			""");
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+
+		HttpResponse<String> joinResponse = joinProject(frontendMember.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "FRONTEND"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("Backend done", "BACKEND", "DONE", LocalDate.now().plusDays(1)));
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("Backend todo", "BACKEND", "TODO", LocalDate.now().plusDays(2)));
+		createProjectSchedule(leader.accessToken(), projectId, scheduleBody("Frontend completed", "FRONTEND", "COMPLETED", LocalDate.now().plusDays(3)));
+
+		HttpResponse<String> departmentsResponse = getProjectDashboardDepartments(leader.accessToken(), projectId);
+
+		assertThat(departmentsResponse.statusCode()).isEqualTo(200);
+		assertThat(departmentsResponse.body()).contains("\"code\":\"PROJECT_DEPARTMENT_STATUS_SUCCESS\"");
+		assertThat(departmentsResponse.body()).contains("\"department\":\"BACKEND\"");
+		assertThat(departmentsResponse.body()).contains("\"memberCount\":1");
+		assertThat(departmentsResponse.body()).contains("\"scheduleCount\":2");
+		assertThat(departmentsResponse.body()).contains("\"todoCount\":1");
+		assertThat(departmentsResponse.body()).contains("\"completedScheduleCount\":1");
+		assertThat(departmentsResponse.body()).contains("\"progressRate\":50");
+		assertThat(departmentsResponse.body()).contains("\"department\":\"FRONTEND\"");
+		assertThat(departmentsResponse.body()).contains("\"scheduleCount\":1");
+	}
+
+	@Test
+	void projectDashboardDepartmentsReturnZeroProgressWhenDepartmentHasNoSchedules() throws Exception {
+		UserSession leader = signUpAndLogin("dashboard-departments-zero-leader");
+		UserSession designMember = signUpAndLogin("dashboard-departments-zero-member");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Department Zero Project",
+			  "localPath": "D:\\\\WE_AI\\\\department-zero",
+			  "department": "BACKEND"
+			}
+			""");
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+
+		HttpResponse<String> joinResponse = joinProject(designMember.accessToken(), """
+			{
+			  "projectCode": "%s",
+			  "department": "DESIGN"
+			}
+			""".formatted(projectCode));
+		assertThat(joinResponse.statusCode()).isEqualTo(200);
+
+		HttpResponse<String> departmentsResponse = getProjectDashboardDepartments(leader.accessToken(), projectId);
+
+		assertThat(departmentsResponse.statusCode()).isEqualTo(200);
+		assertThat(departmentsResponse.body()).contains("\"department\":\"DESIGN\"");
+		assertThat(departmentsResponse.body()).contains("\"scheduleCount\":0");
+		assertThat(departmentsResponse.body()).contains("\"progressRate\":0");
+	}
+
+	@Test
+	void projectDashboardEndpointsReturn404WhenProjectDoesNotExist() throws Exception {
+		UserSession user = signUpAndLogin("dashboard-not-found-user");
+
+		HttpResponse<String> progressResponse = getProjectDashboardProgress(user.accessToken(), 999999L);
+
+		assertThat(progressResponse.statusCode()).isEqualTo(404);
+		assertThat(progressResponse.body()).contains("\"code\":\"PROJECT_404_1\"");
+	}
+
+	@Test
+	void projectDashboardEndpointsReturn403WhenUserIsNotProjectMember() throws Exception {
+		UserSession leader = signUpAndLogin("dashboard-forbidden-leader");
+		UserSession outsider = signUpAndLogin("dashboard-forbidden-outsider");
+
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Forbidden Dashboard Project",
+			  "localPath": "D:\\\\WE_AI\\\\dashboard-forbidden",
+			  "department": "BACKEND"
+			}
+			""");
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+
+		HttpResponse<String> progressResponse = getProjectDashboardProgress(outsider.accessToken(), projectId);
+
+		assertThat(progressResponse.statusCode()).isEqualTo(403);
+		assertThat(progressResponse.body()).contains("\"code\":\"PROJECT_403_2\"");
 	}
 
 	@Test
@@ -1044,6 +1308,52 @@ class ProjectIntegrationTest {
 		);
 	}
 
+	private HttpResponse<String> getProjectDashboardActivities(String accessToken, long projectId, String queryString) throws Exception {
+		String suffix = queryString == null ? "" : queryString;
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/dashboard/activities%s".formatted(port, projectId, suffix)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> getProjectDashboardProgress(String accessToken, long projectId) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/dashboard/progress".formatted(port, projectId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> getProjectDashboardMilestones(String accessToken, long projectId, String queryString) throws Exception {
+		String suffix = queryString == null ? "" : queryString;
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/dashboard/milestones%s".formatted(port, projectId, suffix)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> getProjectDashboardDepartments(String accessToken, long projectId) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/dashboard/departments".formatted(port, projectId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
 	private HttpResponse<String> getProjectScheduleDetail(String accessToken, long projectId, long scheduleId) throws Exception {
 		return httpClient.send(
 			HttpRequest.newBuilder()
@@ -1117,6 +1427,56 @@ class ProjectIntegrationTest {
 				.POST(HttpRequest.BodyPublishers.ofString(requestBody))
 				.build(),
 			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private String scheduleBody(String title, String department, String status, LocalDate startDate) {
+		return """
+			{
+			  "title": "%s",
+			  "description": "%s description",
+			  "department": "%s",
+			  "startDate": "%s",
+			  "endDate": "%s",
+			  "priority": "MEDIUM",
+			  "status": "%s"
+			}
+			""".formatted(title, title, department, startDate, startDate.plusDays(1), status);
+	}
+
+	private void insertMilestone(
+		long projectId,
+		String title,
+		String description,
+		LocalDate startDate,
+		LocalDate endDate,
+		String status,
+		int progressRate
+	) {
+		LocalDateTime now = LocalDateTime.now();
+		jdbcTemplate.update(
+			"""
+			insert into project_milestones (
+			  created_at,
+			  updated_at,
+			  project_id,
+			  title,
+			  description,
+			  start_date,
+			  end_date,
+			  status,
+			  progress_rate
+			) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			""",
+			now,
+			now,
+			projectId,
+			title,
+			description,
+			startDate,
+			endDate,
+			status,
+			progressRate
 		);
 	}
 
