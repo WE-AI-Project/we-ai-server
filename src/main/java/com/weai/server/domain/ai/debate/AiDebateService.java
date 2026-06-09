@@ -11,6 +11,7 @@ import dev.langchain4j.model.ollama.OllamaChatModel;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -40,6 +41,7 @@ public class AiDebateService {
 	private final int maxMemoryMessages;
 
 	public AiDebateService(
+		@Qualifier("debateOllamaChatModel")
 		OllamaChatModel ollamaChatModel,
 		@Value("${ai.debate.max-memory-messages:12}") int maxMemoryMessages
 	) {

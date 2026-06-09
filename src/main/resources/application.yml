@@ -11,6 +11,22 @@ ai:
     model-name: ${AI_DEBATE_MODEL_NAME:qwen2.5-coder}
     timeout: ${AI_DEBATE_TIMEOUT:PT60S}
     max-memory-messages: ${AI_DEBATE_MAX_MEMORY_MESSAGES:12}
+  qa:
+    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.we-ai.com}
+    model-name: ${AI_QA_MODEL_NAME:qwen2.5-coder}
+    timeout: ${AI_QA_TIMEOUT:PT60S}
+  chat:
+    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.we-ai.com}
+    model-name: ${AI_CHAT_MODEL_NAME:llama3.1}
+    embedding-model-name: ${AI_CHAT_EMBEDDING_MODEL_NAME:nomic-embed-text}
+    timeout: ${AI_CHAT_TIMEOUT:PT60S}
+    chroma:
+      base-url: ${CHROMA_BASE_URL:http://localhost:8000}
+      collection-name: ${CHROMA_COLLECTION_NAME:synaipse-docs}
+      timeout: ${CHROMA_TIMEOUT:PT10S}
+    retriever:
+      max-results: ${AI_CHAT_RETRIEVER_MAX_RESULTS:4}
+      min-score: ${AI_CHAT_RETRIEVER_MIN_SCORE:0.65}
 
 spring:
   application:
