@@ -63,7 +63,7 @@ public class AiQaService {
 
 	public AiQaService(
 		ObjectMapper objectMapper,
-		@Value("${ai.qa.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.we-ai.com}}") String baseUrl,
+		@Value("${ai.qa.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.yhy-server.com}}") String baseUrl,
 		@Value("${ai.qa.model-name:${AI_QA_MODEL_NAME:qwen2.5-coder}}") String modelName,
 		@Value("${ai.qa.timeout:${AI_QA_TIMEOUT:PT60S}}") Duration timeout
 	) {
