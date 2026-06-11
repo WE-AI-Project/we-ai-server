@@ -11,6 +11,7 @@ import com.weai.server.global.exception.ApiException;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -31,7 +32,7 @@ public class AiDebateService {
 		BackendAi backendAi,
 		FrontendAi frontendAi,
 		InspectorAi inspectorAi,
-		ProjectRagRetriever projectRagRetriever,
+		@Lazy ProjectRagRetriever projectRagRetriever,
 		@Value("${ai.debate.max-rounds:10}") int maxRounds
 	) {
 		this.oracleAi = oracleAi;

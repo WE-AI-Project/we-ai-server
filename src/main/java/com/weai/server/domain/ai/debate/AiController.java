@@ -10,7 +10,7 @@ import com.weai.server.global.swagger.SwaggerErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,13 +21,18 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "AI Debate", description = "Dynamic four-agent debate API powered by Ollama qwen2.5-coder and llama3.1.")
 @CrossOrigin
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/v1/ai")
 public class AiController {
 
 	private final AiDebateService aiDebateService;
 	private final UserService userService;
 	private final ProjectService projectService;
+
+	public AiController(@Lazy AiDebateService aiDebateService, UserService userService, ProjectService projectService) {
+		this.aiDebateService = aiDebateService;
+		this.userService = userService;
+		this.projectService = projectService;
+	}
 
 	@Operation(
 		summary = "Run dynamic turn-based four-agent debate",
