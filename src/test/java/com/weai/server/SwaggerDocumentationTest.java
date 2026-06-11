@@ -50,6 +50,10 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"/api/v1/projects/join\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/dashboard\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/dashboard/activities\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/dashboard/progress\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/dashboard/milestones\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/dashboard/departments\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/members\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/members/{memberId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/members/{memberId}/role\"");

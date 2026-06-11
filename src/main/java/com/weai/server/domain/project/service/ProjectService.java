@@ -1,10 +1,13 @@
 package com.weai.server.domain.project.service;
 
 import com.weai.server.domain.project.domain.Project;
+import com.weai.server.domain.project.domain.ProjectDashboardActivityType;
 import com.weai.server.domain.project.domain.ProjectDepartment;
 import com.weai.server.domain.project.domain.ProjectMember;
 import com.weai.server.domain.project.domain.ProjectMemberRole;
 import com.weai.server.domain.project.domain.ProjectMemberStatus;
+import com.weai.server.domain.project.domain.ProjectMilestone;
+import com.weai.server.domain.project.domain.ProjectMilestoneStatus;
 import com.weai.server.domain.project.domain.ProjectSchedule;
 import com.weai.server.domain.project.domain.ProjectSchedulePriority;
 import com.weai.server.domain.project.domain.ProjectScheduleStatus;
@@ -13,6 +16,7 @@ import com.weai.server.domain.project.domain.ProjectTechStack;
 import com.weai.server.domain.project.domain.ProjectTechStackCategory;
 import com.weai.server.domain.project.repository.ProjectMemberCountProjection;
 import com.weai.server.domain.project.repository.ProjectMemberRepository;
+import com.weai.server.domain.project.repository.ProjectMilestoneRepository;
 import com.weai.server.domain.project.repository.ProjectRepository;
 import com.weai.server.domain.project.repository.ProjectScheduleRepository;
 import com.weai.server.domain.project.repository.ProjectTechStackRepository;
@@ -30,11 +34,15 @@ import com.weai.server.domain.project.request.ProjectUpdateRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
+import com.weai.server.domain.project.response.ProjectDepartmentStatusResponse;
 import com.weai.server.domain.project.response.ProjectDetailResponse;
 import com.weai.server.domain.project.response.ProjectJoinResponse;
+import com.weai.server.domain.project.response.ProjectMilestoneListResponse;
 import com.weai.server.domain.project.response.ProjectMemberDetailResponse;
 import com.weai.server.domain.project.response.ProjectMemberListResponse;
 import com.weai.server.domain.project.response.ProjectMemberUpdateResponse;
+import com.weai.server.domain.project.response.ProjectProgressStatResponse;
+import com.weai.server.domain.project.response.ProjectRecentActivityListResponse;
 import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
@@ -51,6 +59,8 @@ import com.weai.server.global.exception.ApiException;
 import java.net.URI;
 import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -82,6 +92,7 @@ public class ProjectService {
 
 	private final ProjectRepository projectRepository;
 	private final ProjectMemberRepository projectMemberRepository;
+	private final ProjectMilestoneRepository projectMilestoneRepository;
 	private final ProjectTechStackRepository projectTechStackRepository;
 	private final ProjectScheduleRepository projectScheduleRepository;
 	private final UserRepository userRepository;
@@ -455,41 +466,121 @@ public class ProjectService {
 		Project project = getAccessibleProject(projectId, user.getId());
 		long memberCount = projectMemberRepository.countByProject_IdAndStatus(projectId, ProjectMemberStatus.ACTIVE);
 		List<ProjectSchedule> schedules = projectScheduleRepository.findByProject_IdOrderByStartDateAscIdAsc(projectId);
-		long scheduleCount = schedules.size();
-		long completedScheduleCount = schedules.stream().filter(this::isCompleted).count();
-		int progressRate = calculateProgressRate(completedScheduleCount, scheduleCount);
+		ProjectProgressSummary progressSummary = buildProgressSummary(schedules);
 
-		Map<ProjectDepartment, List<ProjectSchedule>> schedulesByDepartment = schedules.stream()
-			.collect(Collectors.groupingBy(ProjectSchedule::getDepartment));
-
-		List<ProjectDashboardResponse.DepartmentProgressResponse> departmentProgress = schedulesByDepartment.entrySet().stream()
-			.sorted(Comparator.comparingInt(entry -> entry.getKey().ordinal()))
-			.map(entry -> {
-				long completedCount = entry.getValue().stream().filter(this::isCompleted).count();
-				return ProjectDashboardResponse.DepartmentProgressResponse.of(
-					entry.getKey(),
-					entry.getValue().size(),
-					completedCount
-				);
-			})
+		List<ProjectDashboardResponse.DepartmentProgressResponse> departmentProgress = buildDepartmentSummary(
+			projectMemberRepository.findByProjectIdAndStatusWithUser(projectId, ProjectMemberStatus.ACTIVE),
+			schedules
+		).stream()
+			.filter(summary -> summary.scheduleCount() > 0)
+			.map(summary -> ProjectDashboardResponse.DepartmentProgressResponse.of(
+				summary.department(),
+				summary.scheduleCount(),
+				summary.completedScheduleCount()
+			))
 			.toList();
 
-		List<ProjectDashboardResponse.RecentScheduleResponse> recentSchedules = schedules.stream()
-			.sorted(Comparator.comparing(ProjectSchedule::getCreatedAt).reversed()
-				.thenComparing(ProjectSchedule::getId, Comparator.reverseOrder()))
-			.limit(5)
-			.map(ProjectDashboardResponse.RecentScheduleResponse::from)
-			.toList();
+		List<ProjectDashboardResponse.RecentScheduleResponse> recentSchedules = buildRecentSchedules(schedules);
 
 		return ProjectDashboardResponse.of(
 			project,
 			memberCount,
-			scheduleCount,
-			completedScheduleCount,
-			progressRate,
+			progressSummary.totalScheduleCount(),
+			progressSummary.completedWorkCount(),
+			progressSummary.progressRate(),
 			departmentProgress,
 			recentSchedules
 		);
+	}
+
+	public ProjectRecentActivityListResponse getProjectDashboardActivities(String userEmail, Long projectId, Integer limit) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		Project project = getAccessibleProject(projectId, user.getId());
+		int normalizedLimit = normalizeActivityLimit(limit);
+		List<ProjectMember> activeMembers = projectMemberRepository.findByProjectIdAndStatusWithUser(projectId, ProjectMemberStatus.ACTIVE);
+		List<ProjectSchedule> schedules = projectScheduleRepository.findByProjectIdOrderByStartDateAscIdAscWithAssignee(projectId);
+		List<ProjectTechStack> techStacks = projectTechStackRepository.findByProject_IdOrderByCategoryAscIdAsc(projectId);
+
+		List<ProjectRecentActivityListResponse.ActivityResponse> activities = buildRecentActivities(project, activeMembers, schedules, techStacks)
+			.stream()
+			.limit(normalizedLimit)
+			.map(activity -> new ProjectRecentActivityListResponse.ActivityResponse(
+				activity.activityId(),
+				activity.type(),
+				activity.title(),
+				activity.description(),
+				activity.actorName(),
+				activity.targetName(),
+				activity.createdAt()
+			))
+			.toList();
+
+		return new ProjectRecentActivityListResponse(projectId, normalizedLimit, activities);
+	}
+
+	public ProjectProgressStatResponse getProjectDashboardProgress(String userEmail, Long projectId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		getAccessibleProject(projectId, user.getId());
+		ProjectProgressSummary summary = buildProgressSummary(projectScheduleRepository.findByProject_IdOrderByStartDateAscIdAsc(projectId));
+		return new ProjectProgressStatResponse(
+			projectId,
+			summary.totalScheduleCount(),
+			summary.todoCount(),
+			summary.inProgressCount(),
+			summary.doneCount(),
+			summary.completedCount(),
+			summary.holdCount(),
+			summary.completedWorkCount(),
+			summary.remainingScheduleCount(),
+			summary.progressRate()
+		);
+	}
+
+	public ProjectMilestoneListResponse getProjectDashboardMilestones(String userEmail, Long projectId, String status) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		getAccessibleProject(projectId, user.getId());
+		ProjectMilestoneStatus milestoneStatus = parseOptionalMilestoneStatus(status);
+		List<ProjectMilestone> milestones = milestoneStatus == null
+			? projectMilestoneRepository.findByProject_IdOrderByStartDateAscIdAsc(projectId)
+			: projectMilestoneRepository.findByProject_IdAndStatusOrderByStartDateAscIdAsc(projectId, milestoneStatus);
+		List<ProjectSchedule> schedules = projectScheduleRepository.findByProject_IdOrderByStartDateAscIdAsc(projectId);
+
+		List<ProjectMilestoneListResponse.MilestoneResponse> milestoneResponses = milestones.stream()
+			.map(milestone -> new ProjectMilestoneListResponse.MilestoneResponse(
+				milestone.getId(),
+				milestone.getTitle(),
+				milestone.getDescription(),
+				milestone.getStartDate(),
+				milestone.getEndDate(),
+				milestone.getStatus(),
+				milestone.getProgressRate(),
+				countRelatedSchedules(milestone, schedules)
+			))
+			.toList();
+
+		return new ProjectMilestoneListResponse(projectId, milestoneResponses);
+	}
+
+	public ProjectDepartmentStatusResponse getProjectDashboardDepartments(String userEmail, Long projectId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		getAccessibleProject(projectId, user.getId());
+		List<ProjectMember> activeMembers = projectMemberRepository.findByProjectIdAndStatusWithUser(projectId, ProjectMemberStatus.ACTIVE);
+		List<ProjectSchedule> schedules = projectScheduleRepository.findByProject_IdOrderByStartDateAscIdAsc(projectId);
+
+		List<ProjectDepartmentStatusResponse.DepartmentStatusItem> departmentResponses = buildDepartmentSummary(activeMembers, schedules).stream()
+			.map(summary -> new ProjectDepartmentStatusResponse.DepartmentStatusItem(
+				summary.department(),
+				summary.memberCount(),
+				summary.scheduleCount(),
+				summary.todoCount(),
+				summary.inProgressCount(),
+				summary.completedScheduleCount(),
+				summary.holdCount(),
+				summary.progressRate()
+			))
+			.toList();
+
+		return new ProjectDepartmentStatusResponse(projectId, departmentResponses);
 	}
 
 	private void validateCreateRequest(ProjectCreateRequest request, LocalDate today) {
@@ -528,6 +619,168 @@ public class ProjectService {
 		if (deadlineDate != null && deadlineDate.isBefore(today)) {
 			throw new ApiException(ErrorCode.INVALID_PROJECT_DATE);
 		}
+	}
+
+	private List<ProjectDashboardResponse.RecentScheduleResponse> buildRecentSchedules(List<ProjectSchedule> schedules) {
+		return schedules.stream()
+			.sorted(Comparator.comparing(ProjectSchedule::getCreatedAt).reversed()
+				.thenComparing(ProjectSchedule::getId, Comparator.reverseOrder()))
+			.limit(5)
+			.map(ProjectDashboardResponse.RecentScheduleResponse::from)
+			.toList();
+	}
+
+	private List<ProjectDepartmentSummary> buildDepartmentSummary(List<ProjectMember> activeMembers, List<ProjectSchedule> schedules) {
+		Map<ProjectDepartment, Long> memberCountByDepartment = activeMembers.stream()
+			.collect(Collectors.groupingBy(ProjectMember::getDepartment, LinkedHashMap::new, Collectors.counting()));
+		Map<ProjectDepartment, List<ProjectSchedule>> schedulesByDepartment = schedules.stream()
+			.collect(Collectors.groupingBy(ProjectSchedule::getDepartment, LinkedHashMap::new, Collectors.toList()));
+
+		return java.util.Arrays.stream(ProjectDepartment.values())
+			.map(department -> {
+				List<ProjectSchedule> departmentSchedules = schedulesByDepartment.getOrDefault(department, List.of());
+				ProjectProgressSummary summary = buildProgressSummary(departmentSchedules);
+				return new ProjectDepartmentSummary(
+					department,
+					memberCountByDepartment.getOrDefault(department, 0L),
+					summary.totalScheduleCount(),
+					summary.todoCount(),
+					summary.inProgressCount(),
+					summary.completedWorkCount(),
+					summary.holdCount(),
+					summary.progressRate()
+				);
+			})
+			.toList();
+	}
+
+	private List<DashboardActivitySummary> buildRecentActivities(
+		Project project,
+		List<ProjectMember> activeMembers,
+		List<ProjectSchedule> schedules,
+		List<ProjectTechStack> techStacks
+	) {
+		List<DashboardActivitySummary> activities = new ArrayList<>();
+		String projectCreatorName = project.getCreatedBy().getName();
+
+		activities.add(new DashboardActivitySummary(
+			"project-%d-created".formatted(project.getId()),
+			ProjectDashboardActivityType.PROJECT_CREATED,
+			"프로젝트가 생성되었습니다.",
+			"%s 프로젝트가 생성되었습니다.".formatted(project.getProjectName()),
+			projectCreatorName,
+			project.getProjectName(),
+			project.getCreatedAt()
+		));
+
+		activeMembers.forEach(member -> activities.add(new DashboardActivitySummary(
+			"member-%d-joined".formatted(member.getId()),
+			ProjectDashboardActivityType.MEMBER_JOINED,
+			"새 멤버가 프로젝트에 참여했습니다.",
+			"%s 님이 프로젝트에 참여했습니다.".formatted(member.getUser().getName()),
+			member.getUser().getName(),
+			member.getUser().getName(),
+			member.getJoinedAt()
+		)));
+
+		schedules.forEach(schedule -> activities.add(toScheduleActivity(schedule)));
+
+		techStacks.forEach(techStack -> activities.add(toTechStackActivity(projectCreatorName, techStack)));
+
+		return activities.stream()
+			.sorted(Comparator.comparing(DashboardActivitySummary::createdAt).reversed()
+				.thenComparing(DashboardActivitySummary::activityId, Comparator.reverseOrder()))
+			.toList();
+	}
+
+	private DashboardActivitySummary toScheduleActivity(ProjectSchedule schedule) {
+		if (isCompleted(schedule) && schedule.getUpdatedAt().isAfter(schedule.getCreatedAt())) {
+			return new DashboardActivitySummary(
+				"schedule-%d-done".formatted(schedule.getId()),
+				ProjectDashboardActivityType.SCHEDULE_DONE,
+				"일정이 완료 처리되었습니다.",
+				"%s 일정이 완료 처리되었습니다.".formatted(schedule.getTitle()),
+				schedule.getAssignee().getName(),
+				schedule.getTitle(),
+				schedule.getUpdatedAt()
+			);
+		}
+
+		if (schedule.getUpdatedAt().isAfter(schedule.getCreatedAt())) {
+			return new DashboardActivitySummary(
+				"schedule-%d-updated".formatted(schedule.getId()),
+				ProjectDashboardActivityType.SCHEDULE_UPDATED,
+				"일정이 수정되었습니다.",
+				"%s 일정이 수정되었습니다.".formatted(schedule.getTitle()),
+				schedule.getAssignee().getName(),
+				schedule.getTitle(),
+				schedule.getUpdatedAt()
+			);
+		}
+
+		return new DashboardActivitySummary(
+			"schedule-%d-created".formatted(schedule.getId()),
+			ProjectDashboardActivityType.SCHEDULE_CREATED,
+			"일정이 생성되었습니다.",
+			"%s 일정이 생성되었습니다.".formatted(schedule.getTitle()),
+			schedule.getAssignee().getName(),
+			schedule.getTitle(),
+			schedule.getCreatedAt()
+		);
+	}
+
+	private DashboardActivitySummary toTechStackActivity(String actorName, ProjectTechStack techStack) {
+		if (techStack.getUpdatedAt().isAfter(techStack.getCreatedAt())) {
+			return new DashboardActivitySummary(
+				"tech-stack-%d-updated".formatted(techStack.getId()),
+				ProjectDashboardActivityType.TECH_STACK_UPDATED,
+				"기술 스택 정보가 수정되었습니다.",
+				"%s 기술 스택 정보가 수정되었습니다.".formatted(techStack.getName()),
+				actorName,
+				techStack.getName(),
+				techStack.getUpdatedAt()
+			);
+		}
+
+		return new DashboardActivitySummary(
+			"tech-stack-%d-added".formatted(techStack.getId()),
+			ProjectDashboardActivityType.TECH_STACK_ADDED,
+			"기술 스택이 추가되었습니다.",
+			"%s 기술 스택이 추가되었습니다.".formatted(techStack.getName()),
+			actorName,
+			techStack.getName(),
+			techStack.getCreatedAt()
+		);
+	}
+
+	private long countRelatedSchedules(ProjectMilestone milestone, List<ProjectSchedule> schedules) {
+		return schedules.stream()
+			.filter(schedule -> !schedule.getStartDate().isAfter(milestone.getEndDate()))
+			.filter(schedule -> !schedule.getEndDate().isBefore(milestone.getStartDate()))
+			.count();
+	}
+
+	private ProjectMilestoneStatus parseOptionalMilestoneStatus(String rawStatus) {
+		String normalizedStatus = trimToNull(rawStatus);
+		if (normalizedStatus == null) {
+			return null;
+		}
+
+		try {
+			return ProjectMilestoneStatus.valueOf(normalizedStatus.toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "milestone status is invalid.");
+		}
+	}
+
+	private int normalizeActivityLimit(Integer limit) {
+		if (limit == null) {
+			return 10;
+		}
+		if (limit <= 0) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "limit must be greater than 0.");
+		}
+		return Math.min(limit, 100);
 	}
 
 	private Project getAccessibleProject(Long projectId, Long userId) {
@@ -877,6 +1130,40 @@ public class ProjectService {
 		return (int) ((completedCount * 100) / totalCount);
 	}
 
+	private ProjectProgressSummary buildProgressSummary(List<ProjectSchedule> schedules) {
+		long todoCount = 0;
+		long inProgressCount = 0;
+		long doneCount = 0;
+		long completedCount = 0;
+		long holdCount = 0;
+
+		for (ProjectSchedule schedule : schedules) {
+			switch (schedule.getStatus()) {
+				case TODO -> todoCount++;
+				case IN_PROGRESS -> inProgressCount++;
+				case DONE -> doneCount++;
+				case COMPLETED -> completedCount++;
+				case HOLD -> holdCount++;
+			}
+		}
+
+		long totalScheduleCount = schedules.size();
+		long completedWorkCount = doneCount + completedCount;
+		long remainingScheduleCount = totalScheduleCount - completedWorkCount;
+
+		return new ProjectProgressSummary(
+			totalScheduleCount,
+			todoCount,
+			inProgressCount,
+			doneCount,
+			completedCount,
+			holdCount,
+			completedWorkCount,
+			remainingScheduleCount,
+			calculateProgressRate(completedWorkCount, totalScheduleCount)
+		);
+	}
+
 	private boolean isCompleted(ProjectSchedule schedule) {
 		return COMPLETED_SCHEDULE_STATUSES.contains(schedule.getStatus());
 	}
@@ -962,5 +1249,41 @@ public class ProjectService {
 
 		String trimmed = value.trim();
 		return trimmed.isEmpty() ? null : trimmed;
+	}
+
+	private record ProjectProgressSummary(
+		long totalScheduleCount,
+		long todoCount,
+		long inProgressCount,
+		long doneCount,
+		long completedCount,
+		long holdCount,
+		long completedWorkCount,
+		long remainingScheduleCount,
+		int progressRate
+	) {
+	}
+
+	private record ProjectDepartmentSummary(
+		ProjectDepartment department,
+		long memberCount,
+		long scheduleCount,
+		long todoCount,
+		long inProgressCount,
+		long completedScheduleCount,
+		long holdCount,
+		int progressRate
+	) {
+	}
+
+	private record DashboardActivitySummary(
+		String activityId,
+		ProjectDashboardActivityType type,
+		String title,
+		String description,
+		String actorName,
+		String targetName,
+		LocalDateTime createdAt
+	) {
 	}
 }
