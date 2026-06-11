@@ -92,7 +92,7 @@ public class ProjectController {
 						{
 						  "projectName": "Schedule API Test Project",
 						  "description": "Swagger test project",
-						  "localPath": "C:\\WE_AI\\schedule-api-test",
+						  "localPath": "C:\\\\WE_AI\\\\schedule-api-test",
 						  "department": "BACKEND",
 						  "deadlineDate": "2026-06-30"
 						}

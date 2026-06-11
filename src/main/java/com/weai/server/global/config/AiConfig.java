@@ -10,6 +10,7 @@ import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import dev.langchain4j.data.segment.TextSegment;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -31,6 +32,7 @@ public class AiConfig {
 	}
 
 	@Bean("oracleRagChatModel")
+	@Lazy
 	public OllamaChatModel oracleRagChatModel(
 		@Value("${ai.chat.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.we-ai.com}}") String baseUrl,
 		@Value("${ai.chat.model-name:${AI_CHAT_MODEL_NAME:llama3.1}}") String modelName,
@@ -45,6 +47,7 @@ public class AiConfig {
 	}
 
 	@Bean("oracleEmbeddingModel")
+	@Lazy
 	public EmbeddingModel oracleEmbeddingModel(
 		@Value("${ai.chat.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.we-ai.com}}") String baseUrl,
 		@Value("${ai.chat.embedding-model-name:${AI_CHAT_EMBEDDING_MODEL_NAME:nomic-embed-text}}") String modelName,
@@ -58,6 +61,7 @@ public class AiConfig {
 	}
 
 	@Bean("oracleChromaEmbeddingStore")
+	@Lazy
 	public EmbeddingStore<TextSegment> oracleChromaEmbeddingStore(
 		@Value("${ai.chat.chroma.base-url:${CHROMA_BASE_URL:http://localhost:8000}}") String baseUrl,
 		@Value("${ai.chat.chroma.collection-name:${CHROMA_COLLECTION_NAME:synaipse-docs}}") String collectionName,
@@ -71,6 +75,7 @@ public class AiConfig {
 	}
 
 	@Bean("oracleContentRetriever")
+	@Lazy
 	public ContentRetriever oracleContentRetriever(
 		@org.springframework.beans.factory.annotation.Qualifier("oracleChromaEmbeddingStore")
 		EmbeddingStore<TextSegment> embeddingStore,

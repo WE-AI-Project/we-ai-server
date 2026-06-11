@@ -1,0 +1,120 @@
+> Task :compileJava UP-TO-DATE
+> Task :processResources
+> Task :classes
+> Task :resolveMainClassName
+
+> Task :bootRun
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-06-11 16:12:20.386 INFO  [] [restartedMain] c.weai.server.WeAiServerApplication : Starting WeAiServerApplication using Java 17.0.12 with PID 33204 (C:\Users\0122k\IdeaProjects\we-ai-server\build\classes\java\main started by 0122k in C:\Users\0122k\IdeaProjects\we-ai-server)
+2026-06-11 16:12:20.399 INFO  [] [restartedMain] c.weai.server.WeAiServerApplication : No active profile set, falling back to 1 default profile: "default"
+2026-06-11 16:12:20.775 INFO  [] [restartedMain] o.s.b.d.e.DevToolsPropertyDefaultsPostProcessor : Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2026-06-11 16:12:20.775 INFO  [] [restartedMain] o.s.b.d.e.DevToolsPropertyDefaultsPostProcessor : For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2026-06-11 16:12:30.227 INFO  [] [restartedMain] o.s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-11 16:12:31.545 INFO  [] [restartedMain] o.s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 1281 ms. Found 8 JPA repository interfaces.
+2026-06-11 16:12:39.376 INFO  [] [restartedMain] o.s.boot.tomcat.TomcatWebServer : Tomcat initialized with port 8081 (http)
+2026-06-11 16:12:39.449 INFO  [] [restartedMain] o.a.catalina.core.StandardService : Starting service [Tomcat]
+2026-06-11 16:12:39.449 INFO  [] [restartedMain] o.a.catalina.core.StandardEngine : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-06-11 16:12:39.588 INFO  [] [restartedMain] o.s.b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 18601 ms
+2026-06-11 16:12:43.881 INFO  [] [restartedMain] com.zaxxer.hikari.HikariDataSource : HikariPool-1 - Starting...
+2026-06-11 16:12:45.956 INFO  [] [restartedMain] com.zaxxer.hikari.pool.HikariPool : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@71572b45
+2026-06-11 16:12:45.964 INFO  [] [restartedMain] com.zaxxer.hikari.HikariDataSource : HikariPool-1 - Start completed.
+2026-06-11 16:12:46.151 INFO  [] [restartedMain] org.flywaydb.core.FlywayExecutor : Database: jdbc:mysql://localhost:3307/we_ai?serverTimezone=Asia/Seoul&characterEncoding=UTF-8 (MySQL 8.4)
+2026-06-11 16:12:46.728 WARN  [] [restartedMain] o.f.c.i.database.base.Database : Using MySQL 8.4 which is newer than the version Flyway has been verified with. The latest verified version of MySQL is 8.1.
+2026-06-11 16:12:47.416 INFO  [] [restartedMain] o.f.core.internal.command.DbValidate : Successfully validated 5 migrations (execution time 00:00.602s)
+2026-06-11 16:12:48.019 INFO  [] [restartedMain] o.f.core.internal.command.DbMigrate : Current version of schema `we_ai`: 5
+2026-06-11 16:12:48.106 INFO  [] [restartedMain] o.f.core.internal.command.DbMigrate : Schema `we_ai` is up to date. No migration necessary.
+2026-06-11 16:12:49.343 INFO  [] [restartedMain] org.hibernate.orm.jpa : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-06-11 16:12:49.867 INFO  [] [restartedMain] org.hibernate.orm.core : HHH000001: Hibernate ORM core version 7.2.7.Final
+2026-06-11 16:12:54.870 INFO  [] [restartedMain] o.s.o.j.p.SpringPersistenceUnitInfo : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-06-11 16:12:55.495 INFO  [] [restartedMain] o.hibernate.orm.connections.pooling : HHH10001005: Database info:
+	Database JDBC URL [jdbc:mysql://localhost:3307/we_ai?serverTimezone=Asia/Seoul&characterEncoding=UTF-8]
+	Database driver: MySQL Connector/J
+	Database dialect: MySQLDialect
+	Database version: 8.4.9
+	Default catalog/schema: we_ai/undefined
+	Autocommit mode: undefined/unknown
+	Isolation level: REPEATABLE_READ [default REPEATABLE_READ]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-06-11 16:13:02.272 INFO  [] [restartedMain] org.hibernate.orm.core : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-06-11 16:13:02.576 INFO  [] [restartedMain] o.s.o.j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-11 16:13:03.921 INFO  [] [restartedMain] o.s.d.j.r.q.QueryEnhancerFactories : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-06-11 16:13:12.680 INFO  [] [restartedMain] o.s.s.c.a.a.c.InitializeAuthenticationProviderBeanManagerConfigurer$InitializeAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-06-11 16:13:12.680 WARN  [] [restartedMain] o.s.s.c.a.a.c.InitializeUserDetailsBeanManagerConfigurer$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-06-11 16:13:15.553 INFO  [] [restartedMain] o.s.b.a.e.web.EndpointLinksResolver : Exposing 2 endpoints beneath base path '/actuator'
+2026-06-11 16:13:16.027 INFO  [] [restartedMain] o.s.boot.tomcat.TomcatWebServer : Tomcat started on port 8081 (http) with context path '/'
+2026-06-11 16:13:16.085 INFO  [] [restartedMain] c.weai.server.WeAiServerApplication : Started WeAiServerApplication in 60.903 seconds (process running for 64.294)
+2026-06-11 16:13:16.458 WARN  [] [restartedMain] o.s.c.events.SpringDocAppInitializer : SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production, set the property 'springdoc.api-docs.enabled=false'
+2026-06-11 16:13:16.458 WARN  [] [restartedMain] o.s.c.events.SpringDocAppInitializer : SpringDoc /swagger-ui.html endpoint is enabled by default. To disable it in production, set the property 'springdoc.swagger-ui.enabled=false'
+2026-06-11 16:13:17.883 INFO  [] [http-nio-8081-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/] : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-11 16:13:17.884 INFO  [] [http-nio-8081-exec-1] o.s.web.servlet.DispatcherServlet : Initializing Servlet 'dispatcherServlet'
+2026-06-11 16:13:17.889 INFO  [] [http-nio-8081-exec-1] o.s.web.servlet.DispatcherServlet : Completed initialization in 5 ms
+2026-06-11 16:13:26.471 INFO  [] [http-nio-8081-exec-1] o.s.api.AbstractOpenApiResource : Init duration for springdoc-openapi is: 8088 ms
+2026-06-11 16:22:40.548 INFO  [] [File Watcher] o.s.b.d.a.LocalDevToolsAutoConfiguration$RestartingClassPathChangeChangedEventListener : Restarting due to 10 class path changes (0 additions, 0 deletions, 10 modifications)
+2026-06-11 16:22:40.777 INFO  [] [Thread-1] o.s.boot.tomcat.GracefulShutdown : Commencing graceful shutdown. Waiting for active requests to complete
+2026-06-11 16:22:43.133 INFO  [] [tomcat-shutdown] o.s.boot.tomcat.GracefulShutdown : Graceful shutdown complete
+2026-06-11 16:22:43.153 INFO  [] [Thread-1] o.s.o.j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-06-11 16:22:43.179 INFO  [] [Thread-1] com.zaxxer.hikari.HikariDataSource : HikariPool-1 - Shutdown initiated...
+2026-06-11 16:22:43.348 INFO  [] [Thread-1] com.zaxxer.hikari.HikariDataSource : HikariPool-1 - Shutdown completed.
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-06-11 16:22:43.906 INFO  [] [restartedMain] c.weai.server.WeAiServerApplication : Starting WeAiServerApplication using Java 17.0.12 with PID 33204 (C:\Users\0122k\IdeaProjects\we-ai-server\build\classes\java\main started by 0122k in C:\Users\0122k\IdeaProjects\we-ai-server)
+2026-06-11 16:22:43.906 INFO  [] [restartedMain] c.weai.server.WeAiServerApplication : No active profile set, falling back to 1 default profile: "default"
+2026-06-11 16:22:47.056 INFO  [] [restartedMain] o.s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-11 16:22:47.322 INFO  [] [restartedMain] o.s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 260 ms. Found 8 JPA repository interfaces.
+2026-06-11 16:22:48.721 INFO  [] [restartedMain] o.s.boot.tomcat.TomcatWebServer : Tomcat initialized with port 8081 (http)
+2026-06-11 16:22:48.724 INFO  [] [restartedMain] o.a.catalina.core.StandardService : Starting service [Tomcat]
+2026-06-11 16:22:48.725 INFO  [] [restartedMain] o.a.catalina.core.StandardEngine : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-06-11 16:22:48.837 INFO  [] [restartedMain] o.s.b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 4896 ms
+2026-06-11 16:22:49.602 INFO  [] [restartedMain] com.zaxxer.hikari.HikariDataSource : HikariPool-2 - Starting...
+2026-06-11 16:22:52.128 INFO  [] [restartedMain] com.zaxxer.hikari.pool.HikariPool : HikariPool-2 - Added connection com.mysql.cj.jdbc.ConnectionImpl@170ccb5b
+2026-06-11 16:22:52.128 INFO  [] [restartedMain] com.zaxxer.hikari.HikariDataSource : HikariPool-2 - Start completed.
+2026-06-11 16:22:52.474 INFO  [] [restartedMain] org.flywaydb.core.FlywayExecutor : Database: jdbc:mysql://localhost:3307/we_ai?serverTimezone=Asia/Seoul&characterEncoding=UTF-8 (MySQL 8.4)
+2026-06-11 16:22:52.958 WARN  [] [restartedMain] o.f.c.i.database.base.Database : Using MySQL 8.4 which is newer than the version Flyway has been verified with. The latest verified version of MySQL is 8.1.
+2026-06-11 16:22:53.254 INFO  [] [restartedMain] o.f.core.internal.command.DbValidate : Successfully validated 5 migrations (execution time 00:00.260s)
+2026-06-11 16:22:53.717 INFO  [] [restartedMain] o.f.core.internal.command.DbMigrate : Current version of schema `we_ai`: 5
+2026-06-11 16:22:53.740 INFO  [] [restartedMain] o.f.core.internal.command.DbMigrate : Schema `we_ai` is up to date. No migration necessary.
+2026-06-11 16:22:54.078 INFO  [] [restartedMain] org.hibernate.orm.jpa : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-06-11 16:22:54.471 INFO  [] [restartedMain] o.s.o.j.p.SpringPersistenceUnitInfo : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-06-11 16:22:54.615 INFO  [] [restartedMain] o.hibernate.orm.connections.pooling : HHH10001005: Database info:
+	Database JDBC URL [jdbc:mysql://localhost:3307/we_ai?serverTimezone=Asia/Seoul&characterEncoding=UTF-8]
+	Database driver: MySQL Connector/J
+	Database dialect: MySQLDialect
+	Database version: 8.4.9
+	Default catalog/schema: we_ai/undefined
+	Autocommit mode: undefined/unknown
+	Isolation level: REPEATABLE_READ [default REPEATABLE_READ]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-06-11 16:22:56.422 INFO  [] [restartedMain] org.hibernate.orm.core : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-06-11 16:22:57.148 INFO  [] [restartedMain] o.s.o.j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-11 16:23:01.652 INFO  [] [restartedMain] o.s.s.c.a.a.c.InitializeAuthenticationProviderBeanManagerConfigurer$InitializeAuthenticationProviderManagerConfigurer : Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-06-11 16:23:01.653 WARN  [] [restartedMain] o.s.s.c.a.a.c.InitializeUserDetailsBeanManagerConfigurer$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-06-11 16:23:02.970 INFO  [] [restartedMain] o.s.b.a.e.web.EndpointLinksResolver : Exposing 2 endpoints beneath base path '/actuator'
+2026-06-11 16:23:03.067 INFO  [] [restartedMain] o.s.boot.tomcat.TomcatWebServer : Tomcat started on port 8081 (http) with context path '/'
+2026-06-11 16:23:03.093 INFO  [] [restartedMain] c.weai.server.WeAiServerApplication : Started WeAiServerApplication in 19.367 seconds (process running for 651.302)
+2026-06-11 16:23:03.100 WARN  [] [restartedMain] o.s.c.events.SpringDocAppInitializer : SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production, set the property 'springdoc.api-docs.enabled=false'
+2026-06-11 16:23:03.101 WARN  [] [restartedMain] o.s.c.events.SpringDocAppInitializer : SpringDoc /swagger-ui.html endpoint is enabled by default. To disable it in production, set the property 'springdoc.swagger-ui.enabled=false'
+2026-06-11 16:23:03.106 INFO  [] [restartedMain] o.s.b.d.a.ConditionEvaluationDeltaLoggingListener : Condition evaluation unchanged
+2026-06-11 17:14:12.051 WARN  [] [HikariPool-2:housekeeper] com.zaxxer.hikari.pool.HikariPool : HikariPool-2 - Thread starvation or clock leap detected (housekeeper delta=1m18s959ms296?s).
