@@ -1,4 +1,4 @@
-package com.weai.server.domain.ai.chat;
+package com.weai.server.domain.ai.debate;
 
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.domain.user.domain.User;
@@ -12,38 +12,40 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "AI Chat", description = "RAG-based project knowledge assistant API.")
+@Tag(name = "AI Debate", description = "Dynamic four-agent debate API powered by Ollama qwen2.5-coder and llama3.1.")
+@CrossOrigin
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/ai")
-public class AiChatController {
+public class AiController {
 
-	private final AiChatService aiChatService;
+	private final AiDebateService aiDebateService;
 	private final UserService userService;
 	private final ProjectService projectService;
 
 	@Operation(
-		summary = "Ask the Oracle knowledge assistant",
-		description = "Retrieves relevant project documents from ChromaDB and answers using Ollama Llama3.1."
+		summary = "Run dynamic turn-based four-agent debate",
+		description = "Oracle, Backend, Frontend, and Inspector debate over project-isolated RAG context using qwen2.5-coder and llama3.1. Inspector can end the loop with [토론 종료]."
 	)
 	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED, ErrorCode.INTERNAL_SERVER_ERROR})
-	@PostMapping("/chat")
-	public ApiResponse<ChatResponse> chat(
+	@PostMapping("/debate")
+	public ApiResponse<DebateResponse> debate(
 		Authentication authentication,
-		@Valid @RequestBody ChatRequest request
+		@Valid @RequestBody EditorContextDto request
 	) {
 		User user = authenticatedUser(authentication);
 		projectService.validateProjectAccess(request.projectId(), user.getId());
 
 		return ApiResponse.success(
-			"AI_CHAT_SUCCESS",
-			"AI chat completed successfully.",
-			aiChatService.chat(request.projectId(), request.question())
+			"AI_DEBATE_SUCCESS",
+			"AI debate completed successfully.",
+			aiDebateService.debate(user, request.projectId(), request)
 		);
 	}
 

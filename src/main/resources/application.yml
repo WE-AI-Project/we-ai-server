@@ -1,22 +1,22 @@
 ollama:
   base-url: https://ollama.yhy-server.com/
   models:
-    oracle: SYNAIPSE_Oracle
-    architect: SYNAIPSE_Architect
-    sync: SYNAIPSE_Sync
+    qwen: qwen2.5-coder
+    llama: llama3.1
 
 ai:
   debate:
-    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.we-ai.com}
-    model-name: ${AI_DEBATE_MODEL_NAME:qwen2.5-coder}
+    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
+    qwen-model-name: ${AI_DEBATE_QWEN_MODEL_NAME:qwen2.5-coder}
+    llama-model-name: ${AI_DEBATE_LLAMA_MODEL_NAME:llama3.1}
     timeout: ${AI_DEBATE_TIMEOUT:PT60S}
-    max-memory-messages: ${AI_DEBATE_MAX_MEMORY_MESSAGES:12}
+    max-rounds: ${AI_DEBATE_MAX_ROUNDS:10}
   qa:
-    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.we-ai.com}
+    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
     model-name: ${AI_QA_MODEL_NAME:qwen2.5-coder}
     timeout: ${AI_QA_TIMEOUT:PT60S}
   chat:
-    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.we-ai.com}
+    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
     model-name: ${AI_CHAT_MODEL_NAME:llama3.1}
     embedding-model-name: ${AI_CHAT_EMBEDDING_MODEL_NAME:nomic-embed-text}
     timeout: ${AI_CHAT_TIMEOUT:PT60S}
@@ -27,6 +27,12 @@ ai:
     retriever:
       max-results: ${AI_CHAT_RETRIEVER_MAX_RESULTS:4}
       min-score: ${AI_CHAT_RETRIEVER_MIN_SCORE:0.65}
+
+smart-commit:
+  idle-threshold: ${SMART_COMMIT_IDLE_THRESHOLD:PT10M}
+  commit-cooldown: ${SMART_COMMIT_COOLDOWN:PT5M}
+  scheduler:
+    fixed-delay-ms: ${SMART_COMMIT_SCHEDULER_FIXED_DELAY_MS:60000}
 
 spring:
   application:
