@@ -10,7 +10,7 @@ import com.weai.server.global.swagger.SwaggerErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,13 +19,18 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "AI Chat", description = "RAG-based project knowledge assistant API.")
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/v1/ai")
 public class AiChatController {
 
 	private final AiChatService aiChatService;
 	private final UserService userService;
 	private final ProjectService projectService;
+
+	public AiChatController(@Lazy AiChatService aiChatService, UserService userService, ProjectService projectService) {
+		this.aiChatService = aiChatService;
+		this.userService = userService;
+		this.projectService = projectService;
+	}
 
 	@Operation(
 		summary = "Ask the Oracle knowledge assistant",

@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -33,7 +34,7 @@ public class AiDebateService {
 		BackendAi backendAi,
 		FrontendAi frontendAi,
 		InspectorAi inspectorAi,
-		ProjectRagRetriever projectRagRetriever,
+		@Lazy ProjectRagRetriever projectRagRetriever,
 		@Value("${ai.debate.max-rounds:10}") int maxRounds
 	) {
 		this.oracleAi = oracleAi;

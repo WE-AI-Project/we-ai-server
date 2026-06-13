@@ -11,11 +11,13 @@ import dev.langchain4j.store.embedding.filter.Filter;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
 
+@Lazy
 @Component
 public class ProjectRagRetriever {
 

@@ -1,5 +1,10 @@
 package com.weai.server.global.config;
 
+import com.weai.server.domain.ai.debate.agent.BackendAi;
+import com.weai.server.domain.ai.debate.agent.FrontendAi;
+import com.weai.server.domain.ai.debate.agent.InspectorAi;
+import com.weai.server.domain.ai.debate.agent.OracleAi;
+import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
@@ -9,11 +14,6 @@ import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingSearchResult;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
-import dev.langchain4j.data.segment.TextSegment;
-import com.weai.server.domain.ai.debate.agent.BackendAi;
-import com.weai.server.domain.ai.debate.agent.FrontendAi;
-import com.weai.server.domain.ai.debate.agent.InspectorAi;
-import com.weai.server.domain.ai.debate.agent.OracleAi;
 import java.util.ArrayList;
 import java.util.List;
 import java.time.Duration;
@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 @Configuration
 public class AiConfig {
@@ -75,6 +76,7 @@ public class AiConfig {
 	}
 
 	@Bean("oracleRagChatModel")
+	@Lazy
 	public OllamaChatModel oracleRagChatModel(
 		@Value("${ai.chat.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.yhy-server.com}}") String baseUrl,
 		@Value("${ai.chat.model-name:${AI_CHAT_MODEL_NAME:llama3.1}}") String modelName,
@@ -104,6 +106,7 @@ public class AiConfig {
 	}
 
 	@Bean("oracleEmbeddingModel")
+	@Lazy
 	public EmbeddingModel oracleEmbeddingModel(
 		@Value("${ai.chat.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.yhy-server.com}}") String baseUrl,
 		@Value("${ai.chat.embedding-model-name:${AI_CHAT_EMBEDDING_MODEL_NAME:nomic-embed-text}}") String modelName,
@@ -118,6 +121,7 @@ public class AiConfig {
 
 	@Bean("oracleChromaEmbeddingStore")
 	@ConditionalOnProperty(name = "ai.chat.chroma.enabled", havingValue = "true", matchIfMissing = true)
+	@Lazy
 	public EmbeddingStore<TextSegment> oracleChromaEmbeddingStore(
 		@Value("${ai.chat.chroma.base-url:${CHROMA_BASE_URL:http://localhost:8000}}") String baseUrl,
 		@Value("${ai.chat.chroma.collection-name:${CHROMA_COLLECTION_NAME:synaipse-docs}}") String collectionName,

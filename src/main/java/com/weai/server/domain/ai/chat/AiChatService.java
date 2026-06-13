@@ -10,6 +10,7 @@ import dev.langchain4j.model.ollama.OllamaChatModel;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -32,7 +33,7 @@ public class AiChatService {
 
 	public AiChatService(
 		@Qualifier("oracleRagChatModel") OllamaChatModel oracleRagChatModel,
-		ProjectRagRetriever projectRagRetriever
+		@Lazy ProjectRagRetriever projectRagRetriever
 	) {
 		this.oracleRagChatModel = oracleRagChatModel;
 		this.projectRagRetriever = projectRagRetriever;
