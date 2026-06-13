@@ -25,6 +25,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -169,6 +170,161 @@ public class AuthController {
 	@PostMapping("/google/login")
 	public ApiResponse<TokenResponse> googleLogin(@Valid @RequestBody SocialCodeLoginRequest request) {
 		return ApiResponse.success(authService.googleLogin(request.code()));
+	}
+
+	@Hidden
+	@GetMapping(value = "/vscode/login", produces = MediaType.TEXT_HTML_VALUE)
+	public String vscodeLoginPage(@RequestParam("callbackUri") String callbackUri) {
+		return """
+			<!doctype html>
+			<html lang="ko">
+			<head>
+			  <meta charset="utf-8">
+			  <meta name="viewport" content="width=device-width, initial-scale=1">
+			  <title>SYNAIPSE VS Code Login</title>
+			  <style>
+			    :root { color-scheme: dark; }
+			    * { box-sizing: border-box; }
+			    body {
+			      min-height: 100vh;
+			      margin: 0;
+			      display: grid;
+			      place-items: center;
+			      background: #111827;
+			      color: #f9fafb;
+			      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			    }
+			    main {
+			      width: min(420px, calc(100vw - 32px));
+			      display: flex;
+			      flex-direction: column;
+			      gap: 14px;
+			    }
+			    h1 { margin: 0; font-size: 22px; letter-spacing: 0; }
+			    p { margin: 0; color: #cbd5e1; line-height: 1.5; }
+			    label { display: grid; gap: 6px; color: #d1d5db; font-size: 13px; }
+			    input {
+			      width: 100%;
+			      min-height: 42px;
+			      border: 1px solid #374151;
+			      border-radius: 6px;
+			      padding: 9px 11px;
+			      background: #030712;
+			      color: #f9fafb;
+			      font: inherit;
+			    }
+			    button {
+			      min-height: 42px;
+			      border: 0;
+			      border-radius: 6px;
+			      padding: 10px 12px;
+			      background: #2563eb;
+			      color: #ffffff;
+			      font: inherit;
+			      font-weight: 700;
+			      cursor: pointer;
+			    }
+			    button.secondary { background: #374151; }
+			    button:disabled { opacity: .6; cursor: default; }
+			    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+			    .status { min-height: 20px; color: #93c5fd; font-size: 13px; line-height: 1.45; }
+			    .status.error { color: #fca5a5; }
+			  </style>
+			</head>
+			<body>
+			  <main>
+			    <h1>SYNAIPSE 로그인</h1>
+			    <p>이메일 인증을 완료하면 VS Code 확장으로 자동 이동합니다.</p>
+			    <label>
+			      이메일
+			      <input id="email" type="email" autocomplete="email" placeholder="email@example.com">
+			    </label>
+			    <button id="sendCode" class="secondary">인증 코드 받기</button>
+			    <label>
+			      인증 코드
+			      <input id="code" type="text" inputmode="numeric" maxlength="6" placeholder="6자리 코드">
+			    </label>
+			    <button id="login">VS Code로 로그인</button>
+			    <div id="status" class="status"></div>
+			  </main>
+			  <script>
+			    const callbackUri = '__CALLBACK_URI__';
+			    const email = document.getElementById('email');
+			    const code = document.getElementById('code');
+			    const sendCode = document.getElementById('sendCode');
+			    const login = document.getElementById('login');
+			    const status = document.getElementById('status');
+
+			    sendCode.addEventListener('click', async () => {
+			      await run(sendCode, async () => {
+			        const userEmail = email.value.trim();
+			        if (!userEmail) throw new Error('이메일을 입력해 주세요.');
+			        await request('/api/v1/auth/email-login/code', {
+			          email: userEmail,
+			          deliveryChannel: 'EMAIL'
+			        });
+			        setStatus('인증 코드를 보냈습니다. 메일함을 확인해 주세요.');
+			      });
+			    });
+
+			    login.addEventListener('click', async () => {
+			      await run(login, async () => {
+			        const userEmail = email.value.trim();
+			        const verificationCode = code.value.trim();
+			        if (!userEmail || !verificationCode) throw new Error('이메일과 인증 코드를 모두 입력해 주세요.');
+			        const payload = await request('/api/v1/auth/email-login', { email: userEmail, verificationCode });
+			        const token = payload.data || payload;
+			        if (!token.accessToken) throw new Error('로그인 응답에 accessToken이 없습니다.');
+			        const params = new URLSearchParams();
+			        params.set('accessToken', token.accessToken);
+			        if (token.refreshToken) params.set('refreshToken', token.refreshToken);
+			        params.set('email', token.email || userEmail);
+			        window.location.href = callbackUri + (callbackUri.includes('?') ? '&' : '?') + params.toString();
+			      });
+			    });
+
+			    async function request(path, body) {
+			      const response = await fetch(path, {
+			        method: 'POST',
+			        headers: { 'Content-Type': 'application/json' },
+			        body: JSON.stringify(body)
+			      });
+			      const text = await response.text();
+			      const payload = text ? JSON.parse(text) : {};
+			      if (!response.ok || payload.success === false) {
+			        throw new Error(payload.message || text || '요청에 실패했습니다.');
+			      }
+			      return payload;
+			    }
+
+			    async function run(button, action) {
+			      button.disabled = true;
+			      setStatus('');
+			      try {
+			        await action();
+			      } catch (error) {
+			        setStatus(error instanceof Error ? error.message : String(error), true);
+			      } finally {
+			        button.disabled = false;
+			      }
+			    }
+
+			    function setStatus(message, isError = false) {
+			      status.textContent = message || '';
+			      status.className = 'status' + (isError ? ' error' : '');
+			    }
+			  </script>
+			</body>
+			</html>
+			""".replace("__CALLBACK_URI__", escapeJavaScriptString(callbackUri));
+	}
+
+	private String escapeJavaScriptString(String value) {
+		return value
+			.replace("\\", "\\\\")
+			.replace("'", "\\'")
+			.replace("\r", "")
+			.replace("\n", "");
 	}
 
 	@Hidden

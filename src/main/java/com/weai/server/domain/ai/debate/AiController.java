@@ -8,11 +8,16 @@ import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.Arrays;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +33,21 @@ public class AiController {
 	private final AiDebateService aiDebateService;
 	private final UserService userService;
 	private final ProjectService projectService;
+
+	@Operation(
+		summary = "List selectable AI agents",
+		description = "Returns the agent keys that can be used by custom debate and single-agent question APIs."
+	)
+	@GetMapping("/agents")
+	public ApiResponse<List<AiAgentResponse>> agents() {
+		return ApiResponse.success(
+			"AI_AGENTS_SUCCESS",
+			"Selectable AI agents loaded successfully.",
+			Arrays.stream(AiAgentType.values())
+				.map(AiAgentResponse::from)
+				.toList()
+		);
+	}
 
 	@Operation(
 		summary = "Run dynamic turn-based four-agent debate",
@@ -46,6 +66,54 @@ public class AiController {
 			"AI_DEBATE_SUCCESS",
 			"AI debate completed successfully.",
 			aiDebateService.debate(user, request.projectId(), request)
+		);
+	}
+
+	@Operation(
+		summary = "Run custom N-agent debate",
+		description = "Runs a RAG-grounded debate with the selected subset of ORACLE, BACKEND, FRONTEND, and INSPECTOR. Agents are executed in request order, duplicate entries are ignored, and Inspector can end the loop with [?좊줎 醫낅즺]."
+	)
+	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED, ErrorCode.INTERNAL_SERVER_ERROR})
+	@PostMapping("/debate/custom")
+	public ApiResponse<DebateResponse> customDebate(
+		Authentication authentication,
+		@Valid @RequestBody CustomDebateRequest request
+	) {
+		User user = authenticatedUser(authentication);
+		projectService.validateProjectAccess(request.context().projectId(), user.getId());
+
+		return ApiResponse.success(
+			"AI_CUSTOM_DEBATE_SUCCESS",
+			"Custom AI debate completed successfully.",
+			aiDebateService.debate(
+				user,
+				request.context().projectId(),
+				request.context(),
+				request.agents(),
+				request.maxRounds()
+			)
+		);
+	}
+
+	@Operation(
+		summary = "Ask one selected AI agent",
+		description = "Asks exactly one selected agent a RAG-grounded question using the VS Code editor context."
+	)
+	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED, ErrorCode.INTERNAL_SERVER_ERROR})
+	@PostMapping("/agents/{agent}/ask")
+	public ApiResponse<SingleAgentResponse> askAgent(
+		Authentication authentication,
+		@Parameter(description = "Agent key: ORACLE, BACKEND, FRONTEND, or INSPECTOR")
+		@PathVariable AiAgentType agent,
+		@Valid @RequestBody EditorContextDto request
+	) {
+		User user = authenticatedUser(authentication);
+		projectService.validateProjectAccess(request.projectId(), user.getId());
+
+		return ApiResponse.success(
+			"AI_AGENT_ASK_SUCCESS",
+			"AI agent answer completed successfully.",
+			aiDebateService.askAgent(user, request.projectId(), agent, request)
 		);
 	}
 

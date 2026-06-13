@@ -26,6 +26,12 @@ public record MyProjectResponse(
 	@Schema(description = "프로젝트 참여 코드", example = "WEAI2025")
 	String projectCode,
 
+	@Schema(description = "Repository URL", example = "https://github.com/example/we-ai")
+	String repositoryUrl,
+
+	@Schema(description = "Local working path", example = "D:\\WE_AI\\enterprise")
+	String localPath,
+
 	@Schema(description = "내 역할", example = "LEADER")
 	ProjectMemberRole role,
 
@@ -63,6 +69,8 @@ public record MyProjectResponse(
 			project.getProjectName(),
 			project.getDescription(),
 			project.getProjectCode(),
+			project.getRepositoryUrl(),
+			project.getLocalPath(),
 			projectMember.getRole(),
 			projectMember.getDepartment(),
 			project.getStatus(),

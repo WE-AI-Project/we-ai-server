@@ -1,5 +1,7 @@
 package com.weai.server.domain.smartcommit;
 
+import com.weai.server.domain.ai.rag.ProjectRagContext;
+import com.weai.server.domain.ai.rag.ProjectRagContextService;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -32,18 +34,24 @@ public class AutoAgentCommitScheduler {
 		""";
 
 	private final PendingDiffStore pendingDiffStore;
+	private final ProjectRagContextService projectRagContextService;
 	private final OllamaChatModel smartCommitModel;
+	private final Long projectId;
 	private final Duration idleThreshold;
 	private final Duration commitCooldown;
 
 	public AutoAgentCommitScheduler(
 		PendingDiffStore pendingDiffStore,
+		ProjectRagContextService projectRagContextService,
 		@Qualifier("debateLlamaChatModel") OllamaChatModel smartCommitModel,
+		@Value("${smart-commit.project-id:0}") Long projectId,
 		@Value("${smart-commit.idle-threshold:PT10M}") Duration idleThreshold,
 		@Value("${smart-commit.commit-cooldown:PT5M}") Duration commitCooldown
 	) {
 		this.pendingDiffStore = pendingDiffStore;
+		this.projectRagContextService = projectRagContextService;
 		this.smartCommitModel = smartCommitModel;
+		this.projectId = projectId;
 		this.idleThreshold = idleThreshold;
 		this.commitCooldown = commitCooldown;
 	}
@@ -79,20 +87,40 @@ public class AutoAgentCommitScheduler {
 	}
 
 	private String generateCommitAnalysis(String combinedDiff) {
+		ProjectRagContext ragContext = projectRagContextService.retrieve(projectId, buildRagQuery(combinedDiff));
+		if (ragContext.isEmpty()) {
+			throw new IllegalStateException("No project RAG context was found for smart commit projectId=" + projectId + ".");
+		}
+
 		List<ChatMessage> messages = new ArrayList<>();
 		messages.add(SystemMessage.from(SYSTEM_PROMPT));
 		messages.add(UserMessage.from("""
+			Project ID: %d
+
+			Project-isolated official document context:
+			%s
+
 			Create one AUTO_AGENT_COMMIT for the accumulated pending diffs below.
+			Use the project context above as the authority for conventions, architecture, and naming.
 
 			Diffs:
 			%s
-			""".formatted(combinedDiff)));
+			""".formatted(projectId, ragContext.formatted(), combinedDiff)));
 
 		String response = smartCommitModel.generate(messages).content().text();
 		if (!StringUtils.hasText(response)) {
 			throw new IllegalStateException("The smart commit model returned an empty response.");
 		}
 		return response.trim();
+	}
+
+	private String buildRagQuery(String combinedDiff) {
+		return """
+			Smart commit generation request.
+
+			Diffs:
+			%s
+			""".formatted(combinedDiff);
 	}
 
 	private String extractCommitMessage(String aiResult) {

@@ -2,6 +2,8 @@ package com.weai.server.domain.ai.qa;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.weai.server.domain.ai.rag.ProjectRagContext;
+import com.weai.server.domain.ai.rag.ProjectRagContextService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import dev.langchain4j.data.message.AiMessage;
@@ -60,14 +62,16 @@ public class AiQaService {
 
 	private final OllamaChatModel jsonQaModel;
 	private final ObjectMapper objectMapper;
+	private final ProjectRagContextService projectRagContextService;
 
 	public AiQaService(
-		ObjectMapper objectMapper,
+		ProjectRagContextService projectRagContextService,
 		@Value("${ai.qa.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.yhy-server.com}}") String baseUrl,
 		@Value("${ai.qa.model-name:${AI_QA_MODEL_NAME:qwen2.5-coder}}") String modelName,
 		@Value("${ai.qa.timeout:${AI_QA_TIMEOUT:PT60S}}") Duration timeout
 	) {
-		this.objectMapper = objectMapper;
+		this.objectMapper = new ObjectMapper();
+		this.projectRagContextService = projectRagContextService;
 		this.jsonQaModel = OllamaChatModel.builder()
 			.baseUrl(baseUrl)
 			.modelName(modelName)
@@ -77,9 +81,20 @@ public class AiQaService {
 			.build();
 	}
 
-	public QaResponse analyze(String diff) {
+	public QaResponse analyze(Long projectId, String diff) {
+		if (projectId == null) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "projectId is required.");
+		}
 		if (!StringUtils.hasText(diff)) {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "diff is required.");
+		}
+
+		ProjectRagContext ragContext = projectRagContextService.retrieve(projectId, buildRagQuery(diff.trim()));
+		if (ragContext.isEmpty()) {
+			throw new ApiException(
+				ErrorCode.INVALID_INPUT,
+				"No project RAG context was found for this QA request. Index project documents before running AI QA."
+			);
 		}
 
 		List<ChatMessage> messages = new ArrayList<>();
@@ -92,7 +107,7 @@ public class AiQaService {
 		messages.add(AiMessage.from("""
 			{"bug_report":"Changing the endpoint from GET to POST can break existing clients and violates the read-only semantics of the endpoint without any matching request-body change.","optimization":"Keep the retrieval endpoint as GET unless there is a clear write-side requirement, and document the change if the API contract must evolve.","commit_msg":"fix: restore get mapping for order retrieval endpoint"}
 			"""));
-		messages.add(UserMessage.from(buildAnalysisPrompt(diff.trim())));
+		messages.add(UserMessage.from(buildAnalysisPrompt(projectId, diff.trim(), ragContext.formatted())));
 
 		String rawJson = jsonQaModel.generate(messages).content().text();
 		if (!StringUtils.hasText(rawJson)) {
@@ -113,15 +128,31 @@ public class AiQaService {
 		}
 	}
 
-	private String buildAnalysisPrompt(String diff) {
+	private String buildRagQuery(String diff) {
 		return """
-			Analyze the following git diff.
-			Return exactly one JSON object with bug_report, optimization, and commit_msg.
-			Focus on realistic bug risk, code quality, and a concise semantic commit message.
+			Code QA diff analysis request.
 
 			Diff:
 			%s
 			""".formatted(diff);
+	}
+
+	private String buildAnalysisPrompt(Long projectId, String diff, String ragContext) {
+		return """
+			Project ID: %d
+
+			Project-isolated official document context:
+			%s
+
+			Analyze the following git diff.
+			Return exactly one JSON object with bug_report, optimization, and commit_msg.
+			Focus on realistic bug risk, code quality, and a concise semantic commit message.
+			Use the project context above as the authority for architecture, conventions, APIs, and naming.
+			If the diff conflicts with the project context, call that out in bug_report or optimization.
+
+			Diff:
+			%s
+			""".formatted(projectId, ragContext, diff);
 	}
 
 	private String readRequiredText(JsonNode root, String fieldName) {

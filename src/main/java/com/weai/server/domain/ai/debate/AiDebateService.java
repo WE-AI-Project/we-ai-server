@@ -9,7 +9,9 @@ import com.weai.server.domain.user.domain.User;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -43,9 +45,32 @@ public class AiDebateService {
 	}
 
 	public DebateResponse debate(User user, Long projectId, EditorContextDto context) {
+		return debate(user, projectId, context, List.of(
+			AiAgentType.ORACLE,
+			AiAgentType.BACKEND,
+			AiAgentType.FRONTEND,
+			AiAgentType.INSPECTOR
+		), maxRounds);
+	}
+
+	public DebateResponse debate(
+		User user,
+		Long projectId,
+		EditorContextDto context,
+		List<AiAgentType> selectedAgents,
+		Integer requestedMaxRounds
+	) {
 		validate(user, projectId, context);
+		List<AiAgentType> agents = normalizeAgents(selectedAgents);
+		int roundLimit = normalizeMaxRounds(requestedMaxRounds);
 
 		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context));
+		if (ragContexts.isEmpty()) {
+			throw new ApiException(
+				ErrorCode.INVALID_INPUT,
+				"No project RAG context was found for this debate request. Index project documents before running AI debate."
+			);
+		}
 		String ragContext = formatRagContext(projectId, ragContexts);
 
 		StringBuilder debateHistory = new StringBuilder();
@@ -65,23 +90,27 @@ public class AiDebateService {
 		String lastFrontendOpinion = "";
 		String lastInspectorOpinion = "";
 
-		for (int round = 1; round <= maxRounds; round++) {
+		for (int round = 1; round <= roundLimit; round++) {
 			executedRounds = round;
 
-			lastOracleOpinion = callOracle(context, projectId, ragContext, round, debateHistory);
-			appendTurn(debateHistory, turns, round, "Oracle", "Chief coordinator", "llama3.1", lastOracleOpinion);
+			for (AiAgentType agent : agents) {
+				String opinion = callAgent(agent, context, projectId, ragContext, round, debateHistory);
+				appendTurn(debateHistory, turns, round, agent, opinion);
 
-			lastBackendOpinion = callBackend(context, projectId, ragContext, round, debateHistory);
-			appendTurn(debateHistory, turns, round, "Backend", "Server/API specialist", "qwen2.5-coder", lastBackendOpinion);
+				switch (agent) {
+					case ORACLE -> lastOracleOpinion = opinion;
+					case BACKEND -> lastBackendOpinion = opinion;
+					case FRONTEND -> lastFrontendOpinion = opinion;
+					case INSPECTOR -> lastInspectorOpinion = opinion;
+				}
 
-			lastFrontendOpinion = callFrontend(context, projectId, ragContext, round, debateHistory);
-			appendTurn(debateHistory, turns, round, "Frontend", "UI/UX specialist", "llama3.1", lastFrontendOpinion);
+				if (agent == AiAgentType.INSPECTOR && opinion.contains(DEBATE_END_KEYWORD)) {
+					completed = true;
+					break;
+				}
+			}
 
-			lastInspectorOpinion = callInspector(context, projectId, ragContext, round, debateHistory);
-			appendTurn(debateHistory, turns, round, "Inspector", "QA/Security inspector", "qwen2.5-coder", lastInspectorOpinion);
-
-			if (lastInspectorOpinion.contains(DEBATE_END_KEYWORD)) {
-				completed = true;
+			if (completed) {
 				break;
 			}
 		}
@@ -92,6 +121,8 @@ public class AiDebateService {
 			ragContexts.size(),
 			completed,
 			executedRounds,
+			roundLimit,
+			agents,
 			debateHistory.toString(),
 			lastOracleOpinion,
 			lastBackendOpinion,
@@ -106,7 +137,7 @@ public class AiDebateService {
 			context.userQuery().trim(),
 			completed,
 			executedRounds,
-			maxRounds,
+			roundLimit,
 			lastOracleOpinion,
 			lastBackendOpinion,
 			lastFrontendOpinion,
@@ -115,6 +146,71 @@ public class AiDebateService {
 			markdown,
 			List.copyOf(ragContexts),
 			List.copyOf(turns)
+		);
+	}
+
+	public SingleAgentResponse askAgent(User user, Long projectId, AiAgentType agent, EditorContextDto context) {
+		validate(user, projectId, context);
+		if (agent == null) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "agent is required.");
+		}
+
+		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context));
+		if (ragContexts.isEmpty()) {
+			throw new ApiException(
+				ErrorCode.INVALID_INPUT,
+				"No project RAG context was found for this agent request. Index project documents before asking AI."
+			);
+		}
+
+		String ragContext = formatRagContext(projectId, ragContexts);
+		StringBuilder debateHistory = new StringBuilder()
+			.append("[Single Agent Request]\n")
+			.append("User: ").append(user.getEmail()).append("\n")
+			.append("Project ID: ").append(projectId).append("\n")
+			.append("Selected agent: ").append(agent.displayName()).append("\n")
+			.append("Project-isolated RAG documents: ").append(ragContexts.size()).append(" chunks\n")
+			.append(ragContext);
+
+		String answer = callAgent(agent, context, projectId, ragContext, 1, debateHistory);
+		String markdown = """
+			# SYNAIPSE Single Agent Answer
+
+			**Project ID:** `%d`
+			**Agent:** `%s`
+			**Role:** %s
+			**Model:** `%s`
+			**File:** `%s`
+			**Cursor line:** `%d`
+			**Question:** %s
+			**RAG contexts:** %d project-filtered chunks
+
+			## Answer
+			%s
+			""".formatted(
+			projectId,
+			agent.displayName(),
+			agent.role(),
+			agent.model(),
+			context.fileName().trim(),
+			context.cursorLine(),
+			context.userQuery().trim(),
+			ragContexts.size(),
+			answer
+		).trim();
+
+		return new SingleAgentResponse(
+			projectId,
+			agent,
+			agent.displayName(),
+			agent.role(),
+			agent.model(),
+			context.fileName().trim(),
+			context.cursorLine(),
+			context.userQuery().trim(),
+			answer,
+			markdown,
+			List.copyOf(ragContexts)
 		);
 	}
 
@@ -206,19 +302,58 @@ public class AiDebateService {
 		);
 	}
 
+	private String callAgent(
+		AiAgentType agent,
+		EditorContextDto context,
+		Long projectId,
+		String ragContext,
+		int round,
+		StringBuilder debateHistory
+	) {
+		return switch (agent) {
+			case ORACLE -> callOracle(context, projectId, ragContext, round, debateHistory);
+			case BACKEND -> callBackend(context, projectId, ragContext, round, debateHistory);
+			case FRONTEND -> callFrontend(context, projectId, ragContext, round, debateHistory);
+			case INSPECTOR -> callInspector(context, projectId, ragContext, round, debateHistory);
+		};
+	}
+
 	private void appendTurn(
 		StringBuilder debateHistory,
 		List<DebateResponse.DebateTurn> turns,
 		int round,
-		String agent,
-		String role,
-		String model,
+		AiAgentType agent,
 		String message
 	) {
 		debateHistory
-			.append("\n\n[Round ").append(round).append(" / ").append(agent).append(" / ").append(model).append("]\n")
+			.append("\n\n[Round ").append(round).append(" / ").append(agent.displayName()).append(" / ").append(agent.model()).append("]\n")
 			.append(message);
-		turns.add(new DebateResponse.DebateTurn(round, agent, role, model, message));
+		turns.add(new DebateResponse.DebateTurn(round, agent.displayName(), agent.role(), agent.model(), message));
+	}
+
+	private List<AiAgentType> normalizeAgents(List<AiAgentType> selectedAgents) {
+		if (selectedAgents == null || selectedAgents.isEmpty()) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "agents must contain at least one agent.");
+		}
+
+		Set<AiAgentType> deduplicated = new LinkedHashSet<>();
+		for (AiAgentType agent : selectedAgents) {
+			if (agent == null) {
+				throw new ApiException(ErrorCode.INVALID_INPUT, "agents cannot contain null.");
+			}
+			deduplicated.add(agent);
+		}
+		return List.copyOf(deduplicated);
+	}
+
+	private int normalizeMaxRounds(Integer requestedMaxRounds) {
+		if (requestedMaxRounds == null) {
+			return maxRounds;
+		}
+		if (requestedMaxRounds < 1 || requestedMaxRounds > 20) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "maxRounds must be between 1 and 20.");
+		}
+		return requestedMaxRounds;
 	}
 
 	private void validate(User user, Long projectId, EditorContextDto context) {
@@ -295,6 +430,8 @@ public class AiDebateService {
 		int ragContextCount,
 		boolean completed,
 		int executedRounds,
+		int roundLimit,
+		List<AiAgentType> agents,
 		String debateHistory,
 		String oracleOpinion,
 		String backendOpinion,
@@ -311,7 +448,7 @@ public class AiDebateService {
 			**RAG contexts:** %d project-filtered chunks
 			**Status:** %s
 			**Rounds:** %d / %d
-			**Models:** Oracle/Frontend = `llama3.1`, Backend/Inspector = `qwen2.5-coder`
+			**Selected agents:** %s
 
 			## Latest Oracle Opinion
 			%s
@@ -335,12 +472,20 @@ public class AiDebateService {
 			ragContextCount,
 			completed ? "COMPLETED_BY_INSPECTOR" : "MAX_ROUNDS_REACHED",
 			executedRounds,
-			maxRounds,
+			roundLimit,
+			formatSelectedAgents(agents),
 			oracleOpinion,
 			backendOpinion,
 			frontendOpinion,
 			inspectorOpinion,
 			debateHistory
 		).trim();
+	}
+
+	private String formatSelectedAgents(List<AiAgentType> agents) {
+		return agents.stream()
+			.map(agent -> "%s (`%s`)".formatted(agent.displayName(), agent.model()))
+			.toList()
+			.toString();
 	}
 }

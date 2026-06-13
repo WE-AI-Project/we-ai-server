@@ -71,3 +71,8 @@ app:
         - X-Request-Id
       allow-credentials: true
       max-age: 1h
+
+ai:
+  chat:
+    chroma:
+      enabled: false
