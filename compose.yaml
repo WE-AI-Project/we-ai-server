@@ -64,6 +64,7 @@ services:
       OLLAMA_ACCESS_CLIENT_SECRET: '${OLLAMA_ACCESS_CLIENT_SECRET:-}'
       AI_DEBATE_QWEN_MODEL_NAME: '${AI_DEBATE_QWEN_MODEL_NAME:-qwen2.5-coder}'
       AI_DEBATE_LLAMA_MODEL_NAME: '${AI_DEBATE_LLAMA_MODEL_NAME:-llama3.1}'
+      AI_DEBATE_MAX_ROUNDS: '${AI_DEBATE_MAX_ROUNDS:-1}'
       AI_QA_MODEL_NAME: '${AI_QA_MODEL_NAME:-qwen2.5-coder}'
       AI_COMMIT_MODEL_NAME: '${AI_COMMIT_MODEL_NAME:-qwen2.5-coder}'
       AI_CHAT_MODEL_NAME: '${AI_CHAT_MODEL_NAME:-llama3.1}'
@@ -162,6 +163,7 @@ services:
     environment:
       BACKEND_UPSTREAM: '${BACKEND_UPSTREAM:-host.docker.internal:8080}'
       NGINX_SERVER_NAME: '${NGINX_SERVER_NAME:-_}'
+      NGINX_PROXY_READ_TIMEOUT: '${NGINX_PROXY_READ_TIMEOUT:-300s}'
     depends_on:
       app:
         condition: service_healthy

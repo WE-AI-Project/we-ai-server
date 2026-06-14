@@ -13,7 +13,7 @@ ai:
     qwen-model-name: ${AI_DEBATE_QWEN_MODEL_NAME:qwen2.5-coder}
     llama-model-name: ${AI_DEBATE_LLAMA_MODEL_NAME:llama3.1}
     timeout: ${AI_DEBATE_TIMEOUT:PT60S}
-    max-rounds: ${AI_DEBATE_MAX_ROUNDS:10}
+    max-rounds: ${AI_DEBATE_MAX_ROUNDS:1}
   qa:
     ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
     model-name: ${AI_QA_MODEL_NAME:qwen2.5-coder}
