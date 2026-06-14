@@ -52,11 +52,15 @@ public enum ErrorCode {
 	CANNOT_CHANGE_OWN_LEADER_ROLE(HttpStatus.BAD_REQUEST, "PROJECT_400_19", "You cannot change your own leader role."),
 	PROJECT_LEADER_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_20", "At least one project leader is required."),
 	INVALID_PROJECT_STATUS(HttpStatus.BAD_REQUEST, "PROJECT_400_21", "Project status is invalid."),
+	INVALID_PROJECT_REPOSITORY_TYPE(HttpStatus.BAD_REQUEST, "PROJECT_400_22", "Project repository type is invalid."),
 	PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_1", "The requested project could not be found."),
 	ASSIGNEE_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_2", "The requested assignee could not be found."),
 	SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_3", "The requested project schedule could not be found."),
 	TECH_STACK_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_4", "The requested project tech stack could not be found."),
 	PROJECT_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_5", "The requested project member could not be found."),
+	PROJECT_REPOSITORY_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_6", "The requested project repository could not be found."),
+	PROJECT_COMMIT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_7", "The requested project commit could not be found."),
+	PROJECT_COMMIT_FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_8", "The requested project commit file could not be found."),
 	PROJECT_NOT_ACTIVE(HttpStatus.FORBIDDEN, "PROJECT_403_1", "The project is not active."),
 	PROJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "PROJECT_403_2", "You are not an active member of this project."),
 	PROJECT_LEADER_ONLY(HttpStatus.FORBIDDEN, "PROJECT_403_3", "Only the project leader can perform this action."),
@@ -65,7 +69,8 @@ public enum ErrorCode {
 	PROJECT_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_1", "Failed to generate a project code."),
 	PROJECT_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_2", "Failed to create the project."),
 	PROJECT_JOIN_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_3", "Failed to join the project."),
-	SCHEDULE_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_4", "Failed to create the project schedule.");
+	SCHEDULE_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_4", "Failed to create the project schedule."),
+	PROJECT_GIT_COMMAND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_5", "Failed to execute the project git command.");
 
 	private final HttpStatus status;
 	private final String code;

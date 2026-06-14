@@ -41,6 +41,13 @@ smart-commit:
   scheduler:
     fixed-delay-ms: ${SMART_COMMIT_SCHEDULER_FIXED_DELAY_MS:60000}
 
+project:
+  git:
+    default-backend-local-path: ${PROJECT_GIT_BACKEND_LOCAL_PATH:${user.dir}}
+    default-frontend-local-path: ${PROJECT_GIT_FRONTEND_LOCAL_PATH:}
+    default-commit-limit: ${PROJECT_GIT_DEFAULT_COMMIT_LIMIT:20}
+    max-commit-limit: ${PROJECT_GIT_MAX_COMMIT_LIMIT:100}
+
 spring:
   application:
     name: we-ai-server
