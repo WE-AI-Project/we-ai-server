@@ -14,7 +14,9 @@ import dev.langchain4j.model.ollama.OllamaChatModel;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -68,7 +70,8 @@ public class AiQaService {
 		ProjectRagContextService projectRagContextService,
 		@Value("${ai.qa.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.yhy-server.com}}") String baseUrl,
 		@Value("${ai.qa.model-name:${AI_QA_MODEL_NAME:qwen2.5-coder}}") String modelName,
-		@Value("${ai.qa.timeout:${AI_QA_TIMEOUT:PT60S}}") Duration timeout
+		@Value("${ai.qa.timeout:${AI_QA_TIMEOUT:PT60S}}") Duration timeout,
+		@Qualifier("ollamaCustomHeaders") Map<String, String> customHeaders
 	) {
 		this.objectMapper = new ObjectMapper();
 		this.projectRagContextService = projectRagContextService;
@@ -78,6 +81,7 @@ public class AiQaService {
 			.temperature(0.1)
 			.timeout(timeout)
 			.format("json")
+			.customHeaders(customHeaders)
 			.build();
 	}
 
