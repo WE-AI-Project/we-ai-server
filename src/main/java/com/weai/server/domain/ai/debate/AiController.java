@@ -9,6 +9,7 @@ import com.weai.server.global.exception.ApiException;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.Arrays;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "AI Debate", description = "Dynamic four-agent debate API powered by Ollama qwen2.5-coder and llama3.1.")
+@SecurityRequirement(name = "bearerAuth")
 @CrossOrigin
 @RestController
 @RequestMapping("/api/v1/ai")

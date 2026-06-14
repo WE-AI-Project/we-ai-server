@@ -8,6 +8,7 @@ import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.context.annotation.Lazy;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "AI Chat", description = "RAG-based project knowledge assistant API.")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/ai")
 public class AiChatController {
