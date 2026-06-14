@@ -40,8 +40,8 @@ public class SmartCommitController {
 		User user = authenticatedUser(authentication);
 		projectService.validateProjectAccess(request.projectId(), user.getId());
 
-		pendingDiffStore.addOrUpdate(request.fileName(), request.diff());
-		PendingDiffStore.PendingStateSnapshot snapshot = pendingDiffStore.snapshot();
+		pendingDiffStore.addOrUpdate(request.projectId(), request.fileName(), request.diff());
+		PendingDiffStore.PendingStateSnapshot snapshot = pendingDiffStore.snapshot(request.projectId());
 
 		return ApiResponse.success(
 			"SMART_COMMIT_PENDING_REGISTERED",

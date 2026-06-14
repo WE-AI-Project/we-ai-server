@@ -39,15 +39,20 @@ public class ProjectRagRetriever {
 	}
 
 	public List<String> retrieve(Long projectId, String query) {
+		return retrieve(projectId, query, maxResults);
+	}
+
+	public List<String> retrieve(Long projectId, String query, Integer requestedMaxResults) {
 		if (projectId == null || !StringUtils.hasText(query)) {
 			return List.of();
 		}
 
+		int effectiveMaxResults = normalizeMaxResults(requestedMaxResults);
 		Filter projectFilter = metadataKey("projectId").isEqualTo(projectId);
 		ContentRetriever retriever = EmbeddingStoreContentRetriever.builder()
 			.embeddingStore(embeddingStore)
 			.embeddingModel(embeddingModel)
-			.maxResults(maxResults)
+			.maxResults(effectiveMaxResults)
 			.minScore(minScore)
 			.filter(projectFilter)
 			.build();
@@ -58,5 +63,12 @@ public class ProjectRagRetriever {
 			.map(TextSegment::text)
 			.filter(StringUtils::hasText)
 			.toList();
+	}
+
+	private int normalizeMaxResults(Integer requestedMaxResults) {
+		if (requestedMaxResults == null) {
+			return maxResults;
+		}
+		return Math.min(12, Math.max(1, requestedMaxResults));
 	}
 }

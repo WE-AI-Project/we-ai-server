@@ -3,6 +3,7 @@ package com.weai.server.domain.ai.qa;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 @Schema(description = "Code QA request based on a git diff")
 public record QaRequest(
@@ -20,6 +21,7 @@ public record QaRequest(
 			"""
 	)
 	@NotBlank(message = "diff is required.")
+	@Size(max = 200000, message = "diff must be 200000 characters or fewer.")
 	String diff
 ) {
 }

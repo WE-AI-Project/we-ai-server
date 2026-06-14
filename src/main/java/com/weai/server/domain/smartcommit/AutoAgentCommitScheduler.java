@@ -36,7 +36,6 @@ public class AutoAgentCommitScheduler {
 	private final PendingDiffStore pendingDiffStore;
 	private final ProjectRagContextService projectRagContextService;
 	private final OllamaChatModel smartCommitModel;
-	private final Long projectId;
 	private final Duration idleThreshold;
 	private final Duration commitCooldown;
 
@@ -44,14 +43,12 @@ public class AutoAgentCommitScheduler {
 		PendingDiffStore pendingDiffStore,
 		ProjectRagContextService projectRagContextService,
 		@Qualifier("debateLlamaChatModel") OllamaChatModel smartCommitModel,
-		@Value("${smart-commit.project-id:0}") Long projectId,
 		@Value("${smart-commit.idle-threshold:PT10M}") Duration idleThreshold,
 		@Value("${smart-commit.commit-cooldown:PT5M}") Duration commitCooldown
 	) {
 		this.pendingDiffStore = pendingDiffStore;
 		this.projectRagContextService = projectRagContextService;
 		this.smartCommitModel = smartCommitModel;
-		this.projectId = projectId;
 		this.idleThreshold = idleThreshold;
 		this.commitCooldown = commitCooldown;
 	}
@@ -59,13 +56,13 @@ public class AutoAgentCommitScheduler {
 	@Scheduled(fixedDelayString = "${smart-commit.scheduler.fixed-delay-ms:60000}")
 	public void createAutoCommitWhenIdle() {
 		Instant now = Instant.now();
-		pendingDiffStore.drainForAutoCommit(now, idleThreshold, commitCooldown)
-			.ifPresent(this::createAutoAgentCommit);
+		pendingDiffStore.drainAllReadyForAutoCommit(now, idleThreshold, commitCooldown)
+			.forEach(this::createAutoAgentCommit);
 	}
 
 	private void createAutoAgentCommit(PendingDiffStore.PendingCommitBatch batch) {
 		try {
-			String aiResult = generateCommitAnalysis(batch.combinedDiff());
+			String aiResult = generateCommitAnalysis(batch.projectId(), batch.combinedDiff());
 			PendingDiffStore.AutoAgentCommit commit = new PendingDiffStore.AutoAgentCommit(
 				AUTO_AGENT_COMMIT,
 				extractCommitMessage(aiResult),
@@ -73,7 +70,7 @@ public class AutoAgentCommitScheduler {
 				batch.diffs().size(),
 				Instant.now()
 			);
-			pendingDiffStore.recordAutoAgentCommit(commit);
+			pendingDiffStore.recordAutoAgentCommit(batch.projectId(), commit);
 			log.info(
 				"Created {} with {} pending file(s): {}",
 				AUTO_AGENT_COMMIT,
@@ -86,7 +83,7 @@ public class AutoAgentCommitScheduler {
 		}
 	}
 
-	private String generateCommitAnalysis(String combinedDiff) {
+	private String generateCommitAnalysis(Long projectId, String combinedDiff) {
 		ProjectRagContext ragContext = projectRagContextService.retrieve(projectId, buildRagQuery(combinedDiff));
 		if (ragContext.isEmpty()) {
 			throw new IllegalStateException("No project RAG context was found for smart commit projectId=" + projectId + ".");

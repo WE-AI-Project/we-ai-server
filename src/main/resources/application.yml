@@ -5,6 +5,9 @@ ollama:
     llama: llama3.1
 
 ai:
+  ollama:
+    access-client-id: ${OLLAMA_ACCESS_CLIENT_ID:}
+    access-client-secret: ${OLLAMA_ACCESS_CLIENT_SECRET:}
   debate:
     ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
     qwen-model-name: ${AI_DEBATE_QWEN_MODEL_NAME:qwen2.5-coder}
@@ -35,7 +38,6 @@ ai:
       min-score: ${AI_CHAT_RETRIEVER_MIN_SCORE:0.65}
 
 smart-commit:
-  project-id: ${SMART_COMMIT_PROJECT_ID:0}
   idle-threshold: ${SMART_COMMIT_IDLE_THRESHOLD:PT10M}
   commit-cooldown: ${SMART_COMMIT_COOLDOWN:PT5M}
   scheduler:

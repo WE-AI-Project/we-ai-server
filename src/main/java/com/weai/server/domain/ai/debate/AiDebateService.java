@@ -65,7 +65,7 @@ public class AiDebateService {
 		List<AiAgentType> agents = normalizeAgents(selectedAgents);
 		int roundLimit = normalizeMaxRounds(requestedMaxRounds);
 
-		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context));
+		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context), context.ragMaxResults());
 		if (ragContexts.isEmpty()) {
 			throw new ApiException(
 				ErrorCode.INVALID_INPUT,
@@ -156,7 +156,7 @@ public class AiDebateService {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "agent is required.");
 		}
 
-		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context));
+		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context), context.ragMaxResults());
 		if (ragContexts.isEmpty()) {
 			throw new ApiException(
 				ErrorCode.INVALID_INPUT,
