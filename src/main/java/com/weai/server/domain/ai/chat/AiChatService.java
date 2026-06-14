@@ -56,7 +56,7 @@ public class AiChatService {
 		messages.add(SystemMessage.from(SYSTEM_PROMPT));
 		messages.add(UserMessage.from(buildUserPrompt(projectId, question.trim(), contexts)));
 
-		String answer = oracleRagChatModel.generate(messages).content().text();
+		String answer = oracleRagChatModel.chat(messages).aiMessage().text();
 		if (!StringUtils.hasText(answer)) {
 			throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "The RAG chat model returned an empty response.");
 		}

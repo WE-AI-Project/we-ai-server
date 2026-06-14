@@ -107,7 +107,7 @@ public class AutoAgentCommitScheduler {
 			%s
 			""".formatted(projectId, ragContext.formatted(), combinedDiff)));
 
-		String response = smartCommitModel.generate(messages).content().text();
+		String response = smartCommitModel.chat(messages).aiMessage().text();
 		if (!StringUtils.hasText(response)) {
 			throw new IllegalStateException("The smart commit model returned an empty response.");
 		}

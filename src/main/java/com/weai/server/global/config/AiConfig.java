@@ -4,22 +4,19 @@ import com.weai.server.domain.ai.debate.agent.BackendAi;
 import com.weai.server.domain.ai.debate.agent.FrontendAi;
 import com.weai.server.domain.ai.debate.agent.InspectorAi;
 import com.weai.server.domain.ai.debate.agent.OracleAi;
-import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
+import dev.langchain4j.model.chat.request.ResponseFormat;
 import dev.langchain4j.service.AiServices;
-import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
-import dev.langchain4j.store.embedding.EmbeddingSearchResult;
 import dev.langchain4j.store.embedding.EmbeddingStore;
+import dev.langchain4j.store.embedding.chroma.ChromaApiVersion;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
+import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -129,7 +126,7 @@ public class AiConfig {
 			.modelName(modelName)
 			.temperature(0.1)
 			.timeout(timeout)
-			.format("json")
+			.responseFormat(ResponseFormat.JSON)
 			.customHeaders(customHeaders)
 			.build();
 	}
@@ -156,10 +153,15 @@ public class AiConfig {
 	public EmbeddingStore<TextSegment> oracleChromaEmbeddingStore(
 		@Value("${ai.chat.chroma.base-url:${CHROMA_BASE_URL:http://localhost:8000}}") String baseUrl,
 		@Value("${ai.chat.chroma.collection-name:${CHROMA_COLLECTION_NAME:synaipse-docs}}") String collectionName,
+		@Value("${ai.chat.chroma.tenant-name:${CHROMA_TENANT_NAME:default_tenant}}") String tenantName,
+		@Value("${ai.chat.chroma.database-name:${CHROMA_DATABASE_NAME:default_database}}") String databaseName,
 		@Value("${ai.chat.chroma.timeout:${CHROMA_TIMEOUT:PT10S}}") Duration timeout
 	) {
 		return ChromaEmbeddingStore.builder()
+			.apiVersion(ChromaApiVersion.V2)
 			.baseUrl(baseUrl)
+			.tenantName(tenantName)
+			.databaseName(databaseName)
 			.collectionName(collectionName)
 			.timeout(timeout)
 			.build();
@@ -168,43 +170,7 @@ public class AiConfig {
 	@Bean("oracleChromaEmbeddingStore")
 	@ConditionalOnProperty(name = "ai.chat.chroma.enabled", havingValue = "false")
 	public EmbeddingStore<TextSegment> testOracleEmbeddingStore() {
-		return new EmptySearchEmbeddingStore<>();
-	}
-
-	private static final class EmptySearchEmbeddingStore<Embedded> implements EmbeddingStore<Embedded> {
-
-		@Override
-		public String add(Embedding embedding) {
-			return UUID.randomUUID().toString();
-		}
-
-		@Override
-		public void add(String id, Embedding embedding) {
-		}
-
-		@Override
-		public String add(Embedding embedding, Embedded embedded) {
-			return UUID.randomUUID().toString();
-		}
-
-		@Override
-		public List<String> addAll(List<Embedding> embeddings) {
-			List<String> ids = new ArrayList<>();
-			for (int i = 0; i < embeddings.size(); i++) {
-				ids.add(UUID.randomUUID().toString());
-			}
-			return ids;
-		}
-
-		@Override
-		public List<String> addAll(List<Embedding> embeddings, List<Embedded> embedded) {
-			return addAll(embeddings);
-		}
-
-		@Override
-		public EmbeddingSearchResult<Embedded> search(EmbeddingSearchRequest request) {
-			return new EmbeddingSearchResult<>(List.of());
-		}
+		return new InMemoryEmbeddingStore<>();
 	}
 
 }

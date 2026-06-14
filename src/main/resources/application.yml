@@ -27,6 +27,8 @@ ai:
     chroma:
       base-url: ${CHROMA_BASE_URL:http://localhost:8000}
       collection-name: ${CHROMA_COLLECTION_NAME:synaipse-docs}
+      tenant-name: ${CHROMA_TENANT_NAME:default_tenant}
+      database-name: ${CHROMA_DATABASE_NAME:default_database}
       timeout: ${CHROMA_TIMEOUT:PT10S}
     retriever:
       max-results: ${AI_CHAT_RETRIEVER_MAX_RESULTS:4}

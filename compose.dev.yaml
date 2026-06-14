@@ -41,6 +41,15 @@ services:
     volumes:
       - "we-ai-dev-minio-data:/data"
 
+  chroma:
+    image: "chromadb/chroma:1.0.0"
+    container_name: "we-ai-chroma-dev"
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - "we-ai-dev-chroma-data:/data"
+
   minio-init:
     image: "quay.io/minio/mc:latest"
     container_name: "we-ai-minio-init-dev"
@@ -67,3 +76,4 @@ services:
 volumes:
   we-ai-dev-mysql-data:
   we-ai-dev-minio-data:
+  we-ai-dev-chroma-data:

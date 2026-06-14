@@ -66,7 +66,7 @@ public class AiCommitService {
 		messages.add(SystemMessage.from(SYSTEM_PROMPT));
 		messages.add(UserMessage.from(buildPrompt(projectId, diff.trim(), files, ragContext.formatted())));
 
-		String rawJson = commitModel.generate(messages).content().text();
+		String rawJson = commitModel.chat(messages).aiMessage().text();
 		if (!StringUtils.hasText(rawJson)) {
 			throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "The AI commit model returned an empty response.");
 		}

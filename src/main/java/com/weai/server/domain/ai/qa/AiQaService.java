@@ -11,6 +11,7 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.ollama.OllamaChatModel;
+import dev.langchain4j.model.chat.request.ResponseFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -80,7 +81,7 @@ public class AiQaService {
 			.modelName(modelName)
 			.temperature(0.1)
 			.timeout(timeout)
-			.format("json")
+			.responseFormat(ResponseFormat.JSON)
 			.customHeaders(customHeaders)
 			.build();
 	}
@@ -113,7 +114,7 @@ public class AiQaService {
 			"""));
 		messages.add(UserMessage.from(buildAnalysisPrompt(projectId, diff.trim(), ragContext.formatted())));
 
-		String rawJson = jsonQaModel.generate(messages).content().text();
+		String rawJson = jsonQaModel.chat(messages).aiMessage().text();
 		if (!StringUtils.hasText(rawJson)) {
 			throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "The AI QA model returned an empty response.");
 		}
