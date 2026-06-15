@@ -1,0 +1,8 @@
+{
+  "projectId": 1,
+  "fileName": "PendingDiffStore.java",
+  "currentCodeSnippet": "public void append(Long projectId, String diff) { pendingDiffs.put(projectId, diff); }",
+  "cursorLine": 42,
+  "userQuery": "Review this concurrent diff storage design and agree on a safe implementation and test strategy.",
+  "ragMaxResults": 4
+}
