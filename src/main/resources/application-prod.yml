@@ -17,6 +17,15 @@ logging:
 server:
   forward-headers-strategy: framework
 
+management:
+  health:
+    mail:
+      enabled: false
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 springdoc:
   api-docs:
     enabled: ${SWAGGER_ENABLED:false}
