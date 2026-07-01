@@ -4,6 +4,7 @@ build/
 out/
 tools/node_modules/
 .run/
+.codex-run/
 *.iml
 .env
 .env.*
