@@ -18,6 +18,9 @@ public record UserResponse(
 	@Schema(description = "Email address", example = "gildong@example.com")
 	String email,
 
+	@Schema(description = "Profile image URL", example = "https://cdn.example.com/profiles/gildong.png")
+	String profileImageUrl,
+
 	@Schema(description = "Assigned role", example = "USER")
 	UserRole role
 ) {
@@ -28,6 +31,7 @@ public record UserResponse(
 			user.getUsername(),
 			user.getName(),
 			user.getEmail(),
+			user.getProfileImageUrl(),
 			user.getRole()
 		);
 	}
