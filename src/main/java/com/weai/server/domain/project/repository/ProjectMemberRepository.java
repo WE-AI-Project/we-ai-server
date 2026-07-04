@@ -38,6 +38,19 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 
 	long countByProject_IdAndRoleAndStatus(Long projectId, ProjectMemberRole role, ProjectMemberStatus status);
 
+	long countByUser_IdAndStatusAndProject_Status(
+		Long userId,
+		ProjectMemberStatus memberStatus,
+		ProjectStatus projectStatus
+	);
+
+	long countByUser_IdAndRoleAndStatusAndProject_Status(
+		Long userId,
+		ProjectMemberRole role,
+		ProjectMemberStatus memberStatus,
+		ProjectStatus projectStatus
+	);
+
 	@Query("""
 		select pm
 		from ProjectMember pm

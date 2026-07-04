@@ -128,6 +128,71 @@ class UserControllerIntegrationTest {
 		assertThat(userResponse.body()).contains("\"role\":\"USER\"");
 	}
 
+	@Test
+	void userCanUpdateProfileAndFetchOwnActivityEndpoints() throws Exception {
+		String username = "profile-" + UUID.randomUUID().toString().substring(0, 8);
+		String email = username + "@example.com";
+		String signupRequest = createSignupRequestBody(username);
+
+		HttpResponse<String> signUpResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString(signupRequest))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(signUpResponse.statusCode()).isEqualTo(201);
+
+		String accessToken = issueAccessToken(email, "password1234!");
+		String updatedUsername = username + "-edit";
+
+		HttpResponse<String> profileResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/users/me/profile".formatted(port)))
+				.header("Authorization", "Bearer " + accessToken)
+				.header("Content-Type", "application/json")
+				.method("PATCH", HttpRequest.BodyPublishers.ofString("""
+					{
+					  "username": "%s",
+					  "name": "Updated User"
+					}
+					""".formatted(updatedUsername)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(profileResponse.statusCode()).isEqualTo(200);
+		assertThat(profileResponse.body()).contains("\"username\":\"" + updatedUsername + "\"");
+		assertThat(profileResponse.body()).contains("\"name\":\"Updated User\"");
+
+		HttpResponse<String> summaryResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/users/me/activity-summary".formatted(port)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		HttpResponse<String> recentActivitiesResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/users/me/recent-activities?limit=5".formatted(port)))
+				.header("Authorization", "Bearer " + accessToken)
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(summaryResponse.statusCode()).isEqualTo(200);
+		assertThat(summaryResponse.body()).contains("\"activeProjectCount\":0");
+		assertThat(summaryResponse.body()).contains("\"assignedScheduleCount\":0");
+		assertThat(recentActivitiesResponse.statusCode()).isEqualTo(200);
+		assertThat(recentActivitiesResponse.body()).contains("\"limit\":5");
+		assertThat(recentActivitiesResponse.body()).contains("\"activities\":[]");
+	}
+
 	private String issueAdminAccessToken() throws Exception {
 		String loginRequestBody = """
 			{
@@ -141,6 +206,25 @@ class UserControllerIntegrationTest {
 				.uri(URI.create("http://localhost:%d/api/v1/auth/login".formatted(port)))
 				.header("Content-Type", "application/json")
 				.POST(HttpRequest.BodyPublishers.ofString(loginRequestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(response.statusCode()).isEqualTo(200);
+		return extractAccessToken(response.body());
+	}
+
+	private String issueAccessToken(String email, String password) throws Exception {
+		HttpResponse<String> response = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/login".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s",
+					  "password": "%s"
+					}
+					""".formatted(email, password)))
 				.build(),
 			HttpResponse.BodyHandlers.ofString()
 		);

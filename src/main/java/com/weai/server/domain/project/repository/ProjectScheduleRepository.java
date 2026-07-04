@@ -3,7 +3,9 @@ package com.weai.server.domain.project.repository;
 import com.weai.server.domain.project.domain.ProjectDepartment;
 import com.weai.server.domain.project.domain.ProjectSchedule;
 import com.weai.server.domain.project.domain.ProjectScheduleStatus;
+import com.weai.server.domain.project.domain.ProjectStatus;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -53,4 +55,31 @@ public interface ProjectScheduleRepository extends JpaRepository<ProjectSchedule
 	List<ProjectSchedule> findByProjectIdOrderByStartDateAscIdAscWithAssignee(@Param("projectId") Long projectId);
 
 	List<ProjectSchedule> findByProject_IdOrderByStartDateAscIdAsc(Long projectId);
+
+	long countByAssignee_IdAndProject_Status(Long assigneeId, ProjectStatus projectStatus);
+
+	long countByAssignee_IdAndProject_StatusAndStatus(
+		Long assigneeId,
+		ProjectStatus projectStatus,
+		ProjectScheduleStatus status
+	);
+
+	long countByAssignee_IdAndProject_StatusAndStatusIn(
+		Long assigneeId,
+		ProjectStatus projectStatus,
+		Collection<ProjectScheduleStatus> statuses
+	);
+
+	@Query("""
+		select ps
+		from ProjectSchedule ps
+		join fetch ps.project p
+		where ps.assignee.id = :assigneeId
+		  and p.status = :projectStatus
+		order by ps.updatedAt desc, ps.id desc
+		""")
+	List<ProjectSchedule> findByAssigneeIdAndProjectStatusOrderByUpdatedAtDesc(
+		@Param("assigneeId") Long assigneeId,
+		@Param("projectStatus") ProjectStatus projectStatus
+	);
 }

@@ -43,7 +43,7 @@ public record ProjectMemberDetailResponse(
 			member.getUser().getId(),
 			member.getUser().getName(),
 			member.getUser().getEmail(),
-			null,
+			member.getUser().getProfileImageUrl(),
 			member.getRole(),
 			member.getDepartment(),
 			member.getStatus(),

@@ -22,9 +22,9 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [req:%X{requestId:-}] %-5level %logger{36} - %msg%n"
 
 management:
-  endpoint:
-    health:
-      show-details: always
+  health:
+    mail:
+      enabled: false
 
 oauth:
   kakao:

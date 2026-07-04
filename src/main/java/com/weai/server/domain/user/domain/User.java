@@ -46,6 +46,9 @@ public class User extends BaseEntity {
 	@Column(nullable = false, length = 100, unique = true)
 	private String email;
 
+	@Column(name = "profile_image_url", length = 500)
+	private String profileImageUrl;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private UserRole role;
@@ -58,5 +61,14 @@ public class User extends BaseEntity {
 			.email(email)
 			.role(role)
 			.build();
+	}
+
+	public void updateProfile(String username, String name) {
+		this.username = username;
+		this.name = name;
+	}
+
+	public void updateProfileImageUrl(String profileImageUrl) {
+		this.profileImageUrl = profileImageUrl;
 	}
 }
