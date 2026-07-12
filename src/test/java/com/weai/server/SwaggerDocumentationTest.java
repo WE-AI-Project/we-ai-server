@@ -70,6 +70,9 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules/{scheduleId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules/{scheduleId}/status\"");
 		assertThat(response.body()).contains("\"/api/v1/users/me\"");
+		assertThat(response.body()).contains("\"/api/v1/users/me/profile\"");
+		assertThat(response.body()).contains("\"/api/v1/users/me/activity-summary\"");
+		assertThat(response.body()).contains("\"/api/v1/users/me/recent-activities\"");
 		assertThat(response.body()).doesNotContain("\"/api/v1/admin/users\"");
 		assertThat(response.body()).doesNotContain("\"/api/v1/admin/users/{userId}\"");
 		assertThat(response.body()).contains("\"COMMON_401\"");
