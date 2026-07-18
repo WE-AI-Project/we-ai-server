@@ -2,10 +2,13 @@ package com.weai.server.domain.project.repository;
 
 import com.weai.server.domain.project.domain.ProjectTechStack;
 import com.weai.server.domain.project.domain.ProjectTechStackCategory;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ProjectTechStackRepository extends JpaRepository<ProjectTechStack, Long> {
 
@@ -22,5 +25,18 @@ public interface ProjectTechStackRepository extends JpaRepository<ProjectTechSta
 		String name,
 		ProjectTechStackCategory category,
 		Long techStackId
+	);
+
+	@Query("""
+		select pts
+		from ProjectTechStack pts
+		where pts.project.id = :projectId
+		  and (pts.createdAt between :startAt and :endAt or pts.updatedAt between :startAt and :endAt)
+		order by pts.updatedAt desc, pts.id desc
+		""")
+	List<ProjectTechStack> findDailyStandupTechStacks(
+		@Param("projectId") Long projectId,
+		@Param("startAt") LocalDateTime startAt,
+		@Param("endAt") LocalDateTime endAt
 	);
 }

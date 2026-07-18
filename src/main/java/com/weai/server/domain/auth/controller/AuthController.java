@@ -5,9 +5,11 @@ import com.weai.server.domain.auth.request.EmailLoginCodeSendRequest;
 import com.weai.server.domain.auth.request.LoginRequest;
 import com.weai.server.domain.auth.request.LogoutRequest;
 import com.weai.server.domain.auth.request.NaverSocialCodeLoginRequest;
+import com.weai.server.domain.auth.request.PasswordFindRequest;
 import com.weai.server.domain.auth.request.RefreshTokenRequest;
 import com.weai.server.domain.auth.request.SignUpRequest;
 import com.weai.server.domain.auth.request.SocialCodeLoginRequest;
+import com.weai.server.domain.auth.response.PasswordFindResponse;
 import com.weai.server.domain.auth.response.SocialAuthorizationUrlResponse;
 import com.weai.server.domain.auth.response.TokenResponse;
 import com.weai.server.domain.auth.response.VerificationCodeDispatchResponse;
@@ -15,6 +17,7 @@ import com.weai.server.domain.auth.service.AuthService;
 import com.weai.server.domain.auth.service.GoogleOAuthService;
 import com.weai.server.domain.auth.service.KakaoOAuthService;
 import com.weai.server.domain.auth.service.NaverOAuthService;
+import com.weai.server.domain.auth.service.PasswordRecoveryService;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
@@ -45,6 +48,7 @@ public class AuthController {
 	private final KakaoOAuthService kakaoOAuthService;
 	private final NaverOAuthService naverOAuthService;
 	private final GoogleOAuthService googleOAuthService;
+	private final PasswordRecoveryService passwordRecoveryService;
 
 	@Operation(summary = "Sign up", description = "Creates a local account with email and password.")
 	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.CONFLICT})
@@ -60,6 +64,24 @@ public class AuthController {
 	@PostMapping("/login")
 	public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
 		return ApiResponse.success(authService.login(request));
+	}
+
+	@Operation(
+		summary = "비밀번호 찾기",
+		description = "가입된 이메일로 임시 비밀번호를 발급합니다. 로컬 mock 모드에서는 응답에 개발 확인용 임시 비밀번호가 포함됩니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.RESOURCE_NOT_FOUND,
+		ErrorCode.PASSWORD_FIND_FAILED
+	})
+	@PostMapping("/password/find")
+	public ApiResponse<PasswordFindResponse> findPassword(@Valid @RequestBody PasswordFindRequest request) {
+		return ApiResponse.success(
+			"PASSWORD_FIND_SUCCESS",
+			"임시 비밀번호가 발급되었습니다.",
+			passwordRecoveryService.issueTemporaryPassword(request)
+		);
 	}
 
 	@Operation(

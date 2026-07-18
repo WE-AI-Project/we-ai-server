@@ -29,6 +29,11 @@ public enum ErrorCode {
 		"AUTH_500_1",
 		"Failed to deliver the verification code."
 	),
+	PASSWORD_FIND_FAILED(
+		HttpStatus.INTERNAL_SERVER_ERROR,
+		"AUTH_500_2",
+		"Failed to process the password recovery request."
+	),
 
 	// Project Errors
 	PROJECT_NAME_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_1", "Project name is required."),
@@ -70,7 +75,9 @@ public enum ErrorCode {
 	PROJECT_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_2", "Failed to create the project."),
 	PROJECT_JOIN_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_3", "Failed to join the project."),
 	SCHEDULE_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_4", "Failed to create the project schedule."),
-	PROJECT_GIT_COMMAND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_5", "Failed to execute the project git command.");
+	PROJECT_GIT_COMMAND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_5", "Failed to execute the project git command."),
+	DAILY_STANDUP_DISMISS_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_6", "Failed to save daily standup dismissal."),
+	DAILY_STANDUP_SUMMARY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_7", "Failed to retrieve daily standup summary.");
 
 	private final HttpStatus status;
 	private final String code;

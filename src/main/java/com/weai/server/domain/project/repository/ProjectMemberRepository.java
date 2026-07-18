@@ -4,6 +4,7 @@ import com.weai.server.domain.project.domain.ProjectMember;
 import com.weai.server.domain.project.domain.ProjectMemberRole;
 import com.weai.server.domain.project.domain.ProjectMemberStatus;
 import com.weai.server.domain.project.domain.ProjectStatus;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -84,4 +85,19 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 		group by pm.project.id
 		""")
 	List<ProjectMemberCountProjection> countActiveMembersByProjectIds(@Param("projectIds") Collection<Long> projectIds);
+
+	@Query("""
+		select pm
+		from ProjectMember pm
+		join fetch pm.user u
+		where pm.project.id = :projectId
+		  and pm.status = com.weai.server.domain.project.domain.ProjectMemberStatus.ACTIVE
+		  and pm.joinedAt between :startAt and :endAt
+		order by pm.joinedAt desc, pm.id desc
+		""")
+	List<ProjectMember> findDailyStandupJoinedMembers(
+		@Param("projectId") Long projectId,
+		@Param("startAt") LocalDateTime startAt,
+		@Param("endAt") LocalDateTime endAt
+	);
 }

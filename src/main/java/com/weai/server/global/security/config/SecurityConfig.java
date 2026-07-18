@@ -60,6 +60,7 @@ public class SecurityConfig {
 					"/actuator/info",
 					"/api/v1/health/**",
 					"/api/v1/auth/login",
+					"/api/v1/auth/password/find",
 					"/api/v1/auth/email-login",
 					"/api/v1/auth/email-login/code",
 					"/api/v1/auth/signup",

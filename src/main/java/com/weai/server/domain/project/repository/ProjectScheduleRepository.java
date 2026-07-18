@@ -5,6 +5,7 @@ import com.weai.server.domain.project.domain.ProjectSchedule;
 import com.weai.server.domain.project.domain.ProjectScheduleStatus;
 import com.weai.server.domain.project.domain.ProjectStatus;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -55,6 +56,20 @@ public interface ProjectScheduleRepository extends JpaRepository<ProjectSchedule
 	List<ProjectSchedule> findByProjectIdOrderByStartDateAscIdAscWithAssignee(@Param("projectId") Long projectId);
 
 	List<ProjectSchedule> findByProject_IdOrderByStartDateAscIdAsc(Long projectId);
+
+	@Query("""
+		select ps
+		from ProjectSchedule ps
+		join fetch ps.assignee a
+		where ps.project.id = :projectId
+		  and (ps.createdAt between :startAt and :endAt or ps.updatedAt between :startAt and :endAt)
+		order by ps.updatedAt desc, ps.id desc
+		""")
+	List<ProjectSchedule> findDailyStandupSchedules(
+		@Param("projectId") Long projectId,
+		@Param("startAt") LocalDateTime startAt,
+		@Param("endAt") LocalDateTime endAt
+	);
 
 	long countByAssignee_IdAndProject_Status(Long assigneeId, ProjectStatus projectStatus);
 
