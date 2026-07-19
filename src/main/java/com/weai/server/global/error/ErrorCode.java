@@ -83,7 +83,21 @@ public enum ErrorCode {
 	PROJECT_GIT_COMMAND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_5", "Failed to execute the project git command."),
 	DAILY_STANDUP_DISMISS_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_6", "Failed to save daily standup dismissal."),
 	DAILY_STANDUP_SUMMARY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_7", "Failed to retrieve daily standup summary."),
-	INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_8", "Failed to generate an invite code.");
+	INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_8", "Failed to generate an invite code."),
+
+	// Notification Errors
+	NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_404_1", "The requested notification could not be found."),
+	NOTIFICATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "NOTIFICATION_403_1", "You cannot access this notification."),
+	NOTIFICATION_READ_FAILED(
+		HttpStatus.INTERNAL_SERVER_ERROR,
+		"NOTIFICATION_500_1",
+		"Failed to mark the notification as read."
+	),
+	NOTIFICATION_DELETE_FAILED(
+		HttpStatus.INTERNAL_SERVER_ERROR,
+		"NOTIFICATION_500_2",
+		"Failed to delete the notification."
+	);
 
 	private final HttpStatus status;
 	private final String code;
