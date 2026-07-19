@@ -37,8 +37,11 @@ import com.weai.server.domain.project.response.ProjectDashboardResponse;
 import com.weai.server.domain.project.response.ProjectDepartmentStatusResponse;
 import com.weai.server.domain.project.response.ProjectDetailResponse;
 import com.weai.server.domain.project.response.ProjectJoinResponse;
+import com.weai.server.domain.project.response.ProjectInviteCodeReissueResponse;
+import com.weai.server.domain.project.response.ProjectLeaveResponse;
 import com.weai.server.domain.project.response.ProjectMilestoneListResponse;
 import com.weai.server.domain.project.response.ProjectMemberDetailResponse;
+import com.weai.server.domain.project.response.ProjectMemberKickResponse;
 import com.weai.server.domain.project.response.ProjectMemberListResponse;
 import com.weai.server.domain.project.response.ProjectMemberUpdateResponse;
 import com.weai.server.domain.project.response.ProjectProgressStatResponse;
@@ -47,6 +50,7 @@ import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
 import com.weai.server.domain.project.response.ProjectScheduleListResponse;
+import com.weai.server.domain.project.response.ProjectStatusChangeResponse;
 import com.weai.server.domain.project.response.ProjectTechStackDeleteResponse;
 import com.weai.server.domain.project.response.ProjectTechStackListResponse;
 import com.weai.server.domain.project.response.ProjectTechStackResponse;
@@ -84,6 +88,7 @@ public class ProjectService {
 	private static final String PROJECT_CODE_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 	private static final int PROJECT_CODE_LENGTH = 8;
 	private static final int PROJECT_CODE_MAX_ATTEMPTS = 20;
+	private static final int INVITE_CODE_MAX_ATTEMPTS = 10;
 	private static final Pattern PROJECT_CODE_PATTERN = Pattern.compile("^[A-Z0-9]{8}$");
 	private static final Set<ProjectScheduleStatus> COMPLETED_SCHEDULE_STATUSES = Set.of(
 		ProjectScheduleStatus.DONE,
@@ -461,6 +466,76 @@ public class ProjectService {
 		return ProjectScheduleDeleteResponse.from(schedule.getId());
 	}
 
+	@Transactional
+	public ProjectLeaveResponse leaveProject(String userEmail, Long projectId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateActiveProject(projectId);
+		ProjectMember currentMember = projectMemberRepository.findByProject_IdAndUser_Id(projectId, user.getId())
+			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_ACCESS_DENIED));
+
+		if (currentMember.getStatus() == ProjectMemberStatus.LEFT) {
+			throw new ApiException(ErrorCode.PROJECT_MEMBER_ALREADY_LEFT);
+		}
+		validateEditableProjectMember(currentMember);
+
+		validateNotLastActiveLeader(currentMember, ErrorCode.CANNOT_LEAVE_LAST_LEADER_PROJECT);
+
+		currentMember.leave();
+		return ProjectLeaveResponse.from(projectMemberRepository.saveAndFlush(currentMember));
+	}
+
+	@Transactional
+	public ProjectMemberKickResponse kickProjectMember(String userEmail, Long projectId, Long projectMemberId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateProjectLeaderAccess(projectId, user.getId());
+		ProjectMember targetMember = getProjectMember(projectId, projectMemberId);
+
+		if (targetMember.getUser().getId().equals(user.getId())) {
+			throw new ApiException(ErrorCode.CANNOT_KICK_SELF);
+		}
+		validateEditableProjectMember(targetMember);
+		validateNotLastActiveLeader(targetMember, ErrorCode.PROJECT_LEADER_REQUIRED);
+
+		targetMember.kick();
+		return ProjectMemberKickResponse.from(projectMemberRepository.saveAndFlush(targetMember));
+	}
+
+	@Transactional
+	public ProjectInviteCodeReissueResponse reissueProjectInviteCode(String userEmail, Long projectId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		Project project = validateProjectLeaderAccess(projectId, user.getId());
+		String oldInviteCode = project.getProjectCode();
+		String newInviteCode = generateNewInviteCode(oldInviteCode);
+
+		project.reissueProjectCode(newInviteCode);
+		Project savedProject = projectRepository.saveAndFlush(project);
+		return new ProjectInviteCodeReissueResponse(savedProject.getId(), oldInviteCode, savedProject.getProjectCode());
+	}
+
+	@Transactional
+	public ProjectStatusChangeResponse archiveProject(String userEmail, Long projectId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		Project project = validateProjectLeaderAccessForManagement(projectId, user.getId());
+		if (project.getStatus() == ProjectStatus.ARCHIVED) {
+			return ProjectStatusChangeResponse.from(project);
+		}
+		if (project.getStatus() != ProjectStatus.ACTIVE) {
+			throw new ApiException(ErrorCode.PROJECT_NOT_ACTIVE);
+		}
+
+		project.archive();
+		return ProjectStatusChangeResponse.from(projectRepository.saveAndFlush(project));
+	}
+
+	@Transactional
+	public ProjectStatusChangeResponse deleteProject(String userEmail, Long projectId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		Project project = validateProjectLeaderAccessForManagement(projectId, user.getId());
+
+		project.delete();
+		return ProjectStatusChangeResponse.from(projectRepository.saveAndFlush(project));
+	}
+
 	public ProjectDashboardResponse getProjectDashboard(String userEmail, Long projectId) {
 		User user = userService.getUserEntityByEmail(userEmail);
 		Project project = getAccessibleProject(projectId, user.getId());
@@ -802,8 +877,34 @@ public class ProjectService {
 		return project;
 	}
 
+	private Project validateActiveProject(Long projectId) {
+		Project project = projectRepository.findById(projectId)
+			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_NOT_FOUND));
+
+		if (project.getStatus() != ProjectStatus.ACTIVE) {
+			throw new ApiException(ErrorCode.PROJECT_NOT_ACTIVE);
+		}
+
+		return project;
+	}
+
 	private Project validateProjectLeaderAccess(Long projectId, Long userId) {
 		Project project = validateProjectAccess(projectId, userId);
+		ProjectMember projectMember = getActiveProjectMember(projectId, userId);
+		if (!projectMember.isLeader()) {
+			throw new ApiException(ErrorCode.PROJECT_LEADER_ONLY);
+		}
+		return project;
+	}
+
+	private Project validateProjectLeaderAccessForManagement(Long projectId, Long userId) {
+		Project project = projectRepository.findById(projectId)
+			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_NOT_FOUND));
+
+		if (project.getStatus() == ProjectStatus.DELETED) {
+			throw new ApiException(ErrorCode.PROJECT_NOT_FOUND);
+		}
+
 		ProjectMember projectMember = getActiveProjectMember(projectId, userId);
 		if (!projectMember.isLeader()) {
 			throw new ApiException(ErrorCode.PROJECT_LEADER_ONLY);
@@ -814,6 +915,21 @@ public class ProjectService {
 	private ProjectMember getActiveProjectMember(Long projectId, Long userId) {
 		return projectMemberRepository.findByProject_IdAndUser_IdAndStatus(projectId, userId, ProjectMemberStatus.ACTIVE)
 			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_ACCESS_DENIED));
+	}
+
+	private void validateNotLastActiveLeader(ProjectMember projectMember, ErrorCode errorCode) {
+		if (!projectMember.isLeader()) {
+			return;
+		}
+
+		long leaderCount = projectMemberRepository.countByProject_IdAndRoleAndStatus(
+			projectMember.getProject().getId(),
+			ProjectMemberRole.LEADER,
+			ProjectMemberStatus.ACTIVE
+		);
+		if (leaderCount <= 1) {
+			throw new ApiException(errorCode);
+		}
 	}
 
 	private User resolveAssignee(Long projectId, User currentUser, Long assigneeId) {
@@ -1231,6 +1347,17 @@ public class ProjectService {
 		}
 
 		throw new ApiException(ErrorCode.PROJECT_CODE_GENERATION_FAILED);
+	}
+
+	private String generateNewInviteCode(String oldInviteCode) {
+		for (int attempt = 0; attempt < INVITE_CODE_MAX_ATTEMPTS; attempt++) {
+			String candidate = secureRandomCode();
+			if (!candidate.equals(oldInviteCode) && !projectRepository.existsByProjectCode(candidate)) {
+				return candidate;
+			}
+		}
+
+		throw new ApiException(ErrorCode.INVITE_CODE_GENERATION_FAILED);
 	}
 
 	private String secureRandomCode() {

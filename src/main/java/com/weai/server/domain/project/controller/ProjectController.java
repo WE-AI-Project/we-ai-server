@@ -18,7 +18,10 @@ import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
 import com.weai.server.domain.project.response.ProjectDetailResponse;
 import com.weai.server.domain.project.response.ProjectJoinResponse;
+import com.weai.server.domain.project.response.ProjectInviteCodeReissueResponse;
+import com.weai.server.domain.project.response.ProjectLeaveResponse;
 import com.weai.server.domain.project.response.ProjectMemberDetailResponse;
+import com.weai.server.domain.project.response.ProjectMemberKickResponse;
 import com.weai.server.domain.project.response.ProjectMemberListResponse;
 import com.weai.server.domain.project.response.ProjectMemberUpdateResponse;
 import com.weai.server.domain.project.response.ProjectScheduleCreateResponse;
@@ -26,6 +29,7 @@ import com.weai.server.domain.project.response.ProjectScheduleDeleteResponse;
 import com.weai.server.domain.project.response.ProjectScheduleDetailResponse;
 import com.weai.server.domain.project.response.ProjectScheduleListResponse;
 import com.weai.server.domain.project.response.ProjectStackDetectResponse;
+import com.weai.server.domain.project.response.ProjectStatusChangeResponse;
 import com.weai.server.domain.project.response.ProjectTechStackDeleteResponse;
 import com.weai.server.domain.project.response.ProjectTechStackListResponse;
 import com.weai.server.domain.project.response.ProjectTechStackResponse;
@@ -158,6 +162,27 @@ public class ProjectController {
 		);
 	}
 
+	@Operation(summary = "프로젝트 나가기", description = "로그인 사용자가 프로젝트에서 나갑니다. 멤버 데이터는 삭제하지 않고 LEFT 상태로 변경합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_MEMBER_NOT_ACTIVE,
+		ErrorCode.CANNOT_LEAVE_LAST_LEADER_PROJECT
+	})
+	@PostMapping("/{projectId}/leave")
+	public ApiResponse<ProjectLeaveResponse> leaveProject(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		return ApiResponse.success(
+			"PROJECT_LEAVE_SUCCESS",
+			"프로젝트에서 나갔습니다.",
+			projectService.leaveProject(authentication.getName(), projectId)
+		);
+	}
+
 	@Operation(summary = "프로젝트 대시보드 조회", description = "프로젝트 요약, 진행률, 부서별 진행 현황을 조회합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
@@ -243,6 +268,66 @@ public class ProjectController {
 		);
 	}
 
+	@Operation(summary = "프로젝트 초대 코드 재발급", description = "프로젝트 리더가 기존 초대 코드를 새 8자리 코드로 재발급합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY,
+		ErrorCode.INVITE_CODE_GENERATION_FAILED
+	})
+	@PatchMapping("/{projectId}/invite-code/reissue")
+	public ApiResponse<ProjectInviteCodeReissueResponse> reissueProjectInviteCode(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		return ApiResponse.success(
+			"PROJECT_INVITE_CODE_REISSUE_SUCCESS",
+			"프로젝트 초대 코드가 재발급되었습니다.",
+			projectService.reissueProjectInviteCode(authentication.getName(), projectId)
+		);
+	}
+
+	@Operation(summary = "프로젝트 보관", description = "프로젝트 리더가 프로젝트를 ARCHIVED 상태로 보관합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY
+	})
+	@PatchMapping("/{projectId}/archive")
+	public ApiResponse<ProjectStatusChangeResponse> archiveProject(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		return ApiResponse.success(
+			"PROJECT_ARCHIVE_SUCCESS",
+			"프로젝트가 보관되었습니다.",
+			projectService.archiveProject(authentication.getName(), projectId)
+		);
+	}
+
+	@Operation(summary = "프로젝트 삭제", description = "프로젝트 리더가 프로젝트를 실제 삭제하지 않고 DELETED 상태로 변경합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY
+	})
+	@DeleteMapping("/{projectId}")
+	public ApiResponse<ProjectStatusChangeResponse> deleteProject(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		return ApiResponse.success(
+			"PROJECT_DELETE_SUCCESS",
+			"프로젝트가 삭제되었습니다.",
+			projectService.deleteProject(authentication.getName(), projectId)
+		);
+	}
+
 	@Operation(summary = "프로젝트 멤버 목록 조회", description = "프로젝트의 ACTIVE 멤버 목록을 조회합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
@@ -280,6 +365,31 @@ public class ProjectController {
 			"PROJECT_MEMBER_DETAIL_SUCCESS",
 			"프로젝트 멤버 상세 조회에 성공했습니다.",
 			projectService.getProjectMemberDetail(authentication.getName(), projectId, memberId)
+		);
+	}
+
+	@Operation(summary = "프로젝트 멤버 추방", description = "프로젝트 리더가 특정 프로젝트 멤버를 KICKED 상태로 변경합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY,
+		ErrorCode.PROJECT_MEMBER_NOT_FOUND,
+		ErrorCode.PROJECT_MEMBER_NOT_ACTIVE,
+		ErrorCode.CANNOT_KICK_SELF,
+		ErrorCode.PROJECT_LEADER_REQUIRED
+	})
+	@PatchMapping("/{projectId}/members/{memberId}/kick")
+	public ApiResponse<ProjectMemberKickResponse> kickProjectMember(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long memberId
+	) {
+		return ApiResponse.success(
+			"PROJECT_MEMBER_KICK_SUCCESS",
+			"프로젝트 멤버가 추방되었습니다.",
+			projectService.kickProjectMember(authentication.getName(), projectId, memberId)
 		);
 	}
 

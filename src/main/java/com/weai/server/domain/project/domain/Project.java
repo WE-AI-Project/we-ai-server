@@ -119,4 +119,16 @@ public class Project extends BaseEntity {
 		this.startDate = startDate;
 		this.targetDate = targetDate;
 	}
+
+	public void reissueProjectCode(String projectCode) {
+		this.projectCode = projectCode;
+	}
+
+	public void archive() {
+		this.status = ProjectStatus.ARCHIVED;
+	}
+
+	public void delete() {
+		this.status = ProjectStatus.DELETED;
+	}
 }
