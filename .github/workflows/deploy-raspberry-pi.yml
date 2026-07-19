@@ -1,0 +1,16 @@
+name: Deploy Raspberry Pi Backend
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Deploy on Raspberry Pi
+        run: |
+          cd /home/synaipse/we-ai-server
+          ./deploy.sh
