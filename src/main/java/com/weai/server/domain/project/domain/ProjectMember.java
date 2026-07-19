@@ -105,6 +105,14 @@ public class ProjectMember extends BaseEntity {
 		this.department = department;
 	}
 
+	public void leave() {
+		this.status = ProjectMemberStatus.LEFT;
+	}
+
+	public void kick() {
+		this.status = ProjectMemberStatus.KICKED;
+	}
+
 	public void reactivate(ProjectDepartment department) {
 		this.role = ProjectMemberRole.MEMBER;
 		this.department = department;

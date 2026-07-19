@@ -58,6 +58,11 @@ public enum ErrorCode {
 	PROJECT_LEADER_REQUIRED(HttpStatus.BAD_REQUEST, "PROJECT_400_20", "At least one project leader is required."),
 	INVALID_PROJECT_STATUS(HttpStatus.BAD_REQUEST, "PROJECT_400_21", "Project status is invalid."),
 	INVALID_PROJECT_REPOSITORY_TYPE(HttpStatus.BAD_REQUEST, "PROJECT_400_22", "Project repository type is invalid."),
+	PROJECT_MEMBER_ALREADY_LEFT(HttpStatus.BAD_REQUEST, "PROJECT_400_23", "The project member has already left."),
+	CANNOT_LEAVE_LAST_LEADER_PROJECT(HttpStatus.BAD_REQUEST, "PROJECT_400_24", "The last project leader cannot leave the project."),
+	CANNOT_KICK_SELF(HttpStatus.BAD_REQUEST, "PROJECT_400_25", "You cannot kick yourself from the project."),
+	PROJECT_ALREADY_ARCHIVED(HttpStatus.BAD_REQUEST, "PROJECT_400_26", "The project is already archived."),
+	PROJECT_ALREADY_DELETED(HttpStatus.BAD_REQUEST, "PROJECT_400_27", "The project is already deleted."),
 	PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_1", "The requested project could not be found."),
 	ASSIGNEE_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_2", "The requested assignee could not be found."),
 	SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "PROJECT_404_3", "The requested project schedule could not be found."),
@@ -77,7 +82,8 @@ public enum ErrorCode {
 	SCHEDULE_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_4", "Failed to create the project schedule."),
 	PROJECT_GIT_COMMAND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_5", "Failed to execute the project git command."),
 	DAILY_STANDUP_DISMISS_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_6", "Failed to save daily standup dismissal."),
-	DAILY_STANDUP_SUMMARY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_7", "Failed to retrieve daily standup summary.");
+	DAILY_STANDUP_SUMMARY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_7", "Failed to retrieve daily standup summary."),
+	INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_8", "Failed to generate an invite code.");
 
 	private final HttpStatus status;
 	private final String code;
