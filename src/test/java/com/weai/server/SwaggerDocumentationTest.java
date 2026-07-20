@@ -62,6 +62,7 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/tech-stacks/{techStackId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules/filter\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/chat/rooms\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/notifications\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/notifications/{notificationId}/read\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/notifications/read-all\"");
@@ -85,6 +86,7 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"PROJECT_404_1\"");
 		assertThat(response.body()).contains("\"PROJECT_403_3\"");
 		assertThat(response.body()).contains("\"PROJECT_404_5\"");
+		assertThat(response.body()).contains("\"CHAT_400_2\"");
 		assertThat(response.body()).contains("\"NOTIFICATION_404_1\"");
 		assertThat(response.body()).contains("\"Invalid request input.\"");
 	}
