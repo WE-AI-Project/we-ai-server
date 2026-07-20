@@ -23,10 +23,14 @@ public class AiChatService {
 		If the context is insufficient, say that you do not know.
 		Do not invent APIs, tables, or architecture details.
 		Write in Korean, but keep code identifiers and API names unchanged.
+		Keep the answer concise and presentation-friendly.
+		Start with a one-sentence summary, followed by 3 to 5 short bullet points.
+		Do not quote raw context, source code, or repeat the same explanation.
+		Keep the entire answer within 600 Korean characters unless the user explicitly asks for detail.
 		""";
 
 	private static final String NO_CONTEXT_MESSAGE =
-		"모르겠습니다. 해당 프로젝트의 공식 문서 컨텍스트에서 관련 내용을 찾지 못했습니다.";
+		"주의: 충분한 프로젝트의 표본이 없습니다. 프로젝트 문서를 추가하면 더 정확한 답변을 받을 수 있습니다.";
 
 	private final OllamaChatModel oracleRagChatModel;
 	private final ProjectRagRetriever projectRagRetriever;
@@ -79,6 +83,9 @@ public class AiChatService {
 			- Use only documents whose metadata projectId matches the Project ID above.
 			- If the context does not contain enough information, say you do not know.
 			- Do not invent APIs, tables, or architecture details.
+			- Return one short summary followed by 3 to 5 concise bullet points.
+			- Do not reproduce raw document context or source code.
+			- Keep the answer within 600 Korean characters.
 			""".formatted(projectId, joinedContext, question);
 	}
 }

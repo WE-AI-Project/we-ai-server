@@ -66,12 +66,6 @@ public class AiDebateService {
 		int roundLimit = normalizeMaxRounds(requestedMaxRounds);
 
 		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context), context.ragMaxResults());
-		if (ragContexts.isEmpty()) {
-			throw new ApiException(
-				ErrorCode.INVALID_INPUT,
-				"No project RAG context was found for this debate request. Index project documents before running AI debate."
-			);
-		}
 		String ragContext = formatRagContext(projectId, ragContexts);
 
 		StringBuilder debateHistory = new StringBuilder();
@@ -157,13 +151,6 @@ public class AiDebateService {
 		}
 
 		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context), context.ragMaxResults());
-		if (ragContexts.isEmpty()) {
-			throw new ApiException(
-				ErrorCode.INVALID_INPUT,
-				"No project RAG context was found for this agent request. Index project documents before asking AI."
-			);
-		}
-
 		String ragContext = formatRagContext(projectId, ragContexts);
 		StringBuilder debateHistory = new StringBuilder()
 			.append("[Single Agent Request]\n")
@@ -402,7 +389,8 @@ public class AiDebateService {
 
 	private String formatRagContext(Long projectId, List<String> ragContexts) {
 		if (ragContexts.isEmpty()) {
-			return "No internal design documents were retrieved for Project ID: " + projectId + ".";
+			return "CAUTION: There are not enough project samples for Project ID " + projectId
+				+ ". Answer from the provided editor context and clearly disclose uncertainty.";
 		}
 
 		StringBuilder builder = new StringBuilder();
