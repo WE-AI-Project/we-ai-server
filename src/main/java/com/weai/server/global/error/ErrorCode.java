@@ -97,7 +97,11 @@ public enum ErrorCode {
 		HttpStatus.INTERNAL_SERVER_ERROR,
 		"NOTIFICATION_500_2",
 		"Failed to delete the notification."
-	);
+	),
+
+	// Chat Errors
+	INVALID_CHAT_ROOM_TYPE(HttpStatus.BAD_REQUEST, "CHAT_400_1", "Chat room type is invalid."),
+	INVALID_DEPARTMENT(HttpStatus.BAD_REQUEST, "CHAT_400_2", "Department is invalid.");
 
 	private final HttpStatus status;
 	private final String code;
