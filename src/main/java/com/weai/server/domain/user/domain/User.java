@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -53,6 +54,12 @@ public class User extends BaseEntity {
 	@Column(nullable = false, length = 20)
 	private UserRole role;
 
+	@Column(name = "last_login_at")
+	private LocalDateTime lastLoginAt;
+
+	@Column(name = "last_accessed_at")
+	private LocalDateTime lastAccessedAt;
+
 	public static User create(String username, String encodedPassword, String name, String email, UserRole role) {
 		return User.builder()
 			.username(username)
@@ -74,5 +81,10 @@ public class User extends BaseEntity {
 
 	public void updatePassword(String encodedPassword) {
 		this.password = encodedPassword;
+	}
+
+	public void markLogin(LocalDateTime loginAt) {
+		this.lastLoginAt = loginAt;
+		this.lastAccessedAt = loginAt;
 	}
 }

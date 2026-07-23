@@ -8,6 +8,8 @@ import com.weai.server.domain.auth.response.TokenResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.repository.UserRepository;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -23,6 +25,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Service
 @RequiredArgsConstructor
 public class KakaoOAuthService {
+	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -47,6 +50,7 @@ public class KakaoOAuthService {
 		String kakaoAccessToken = getKakaoAccessToken(code);
 		KakaoUserResponse kakaoUserInfo = getKakaoUserInfo(kakaoAccessToken);
 		User user = registerOrLoginKakaoUser(kakaoUserInfo);
+		user.markLogin(LocalDateTime.now(SEOUL_ZONE));
 		return tokenService.issueTokens(user);
 	}
 

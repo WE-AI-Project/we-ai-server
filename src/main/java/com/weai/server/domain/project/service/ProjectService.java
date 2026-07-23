@@ -32,6 +32,7 @@ import com.weai.server.domain.project.request.ProjectTechStackRequest;
 import com.weai.server.domain.project.request.ProjectTechStackUpdateRequest;
 import com.weai.server.domain.project.request.ProjectUpdateRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
+import com.weai.server.domain.project.response.ProjectAccessTimeUpdateResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
 import com.weai.server.domain.project.response.ProjectDepartmentStatusResponse;
@@ -64,6 +65,7 @@ import java.net.URI;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -89,6 +91,7 @@ public class ProjectService {
 	private static final int PROJECT_CODE_LENGTH = 8;
 	private static final int PROJECT_CODE_MAX_ATTEMPTS = 20;
 	private static final int INVITE_CODE_MAX_ATTEMPTS = 10;
+	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 	private static final Pattern PROJECT_CODE_PATTERN = Pattern.compile("^[A-Z0-9]{8}$");
 	private static final Set<ProjectScheduleStatus> COMPLETED_SCHEDULE_STATUSES = Set.of(
 		ProjectScheduleStatus.DONE,
@@ -171,6 +174,18 @@ public class ProjectService {
 				today
 			))
 			.toList();
+	}
+
+	@Transactional
+	public ProjectAccessTimeUpdateResponse updateProjectAccessTime(String userEmail, Long projectId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		Project project = validateProjectAccess(projectId, user.getId());
+		ProjectMember projectMember = getActiveProjectMember(projectId, user.getId());
+		LocalDateTime accessedAt = LocalDateTime.now(SEOUL_ZONE);
+
+		projectMember.updateLastAccessedAt(accessedAt);
+
+		return new ProjectAccessTimeUpdateResponse(project.getId(), user.getId(), accessedAt);
 	}
 
 	@Transactional
