@@ -61,6 +61,9 @@ public class ProjectMember extends BaseEntity {
 	@Column(name = "joined_at", nullable = false)
 	private LocalDateTime joinedAt;
 
+	@Column(name = "last_accessed_at")
+	private LocalDateTime lastAccessedAt;
+
 	public static ProjectMember leader(Project project, User user, ProjectDepartment department) {
 		return create(project, user, ProjectMemberRole.LEADER, department);
 	}
@@ -118,5 +121,10 @@ public class ProjectMember extends BaseEntity {
 		this.department = department;
 		this.status = ProjectMemberStatus.ACTIVE;
 		this.joinedAt = LocalDateTime.now();
+		this.lastAccessedAt = null;
+	}
+
+	public void updateLastAccessedAt(LocalDateTime lastAccessedAt) {
+		this.lastAccessedAt = lastAccessedAt;
 	}
 }

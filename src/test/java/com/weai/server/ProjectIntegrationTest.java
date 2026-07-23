@@ -792,6 +792,35 @@ class ProjectIntegrationTest {
 	}
 
 	@Test
+	void projectMemberCanUpdateProjectAccessTime() throws Exception {
+		UserSession leader = signUpAndLogin("project-access-leader");
+		UserSession outsider = signUpAndLogin("project-access-outsider");
+		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
+			{
+			  "projectName": "Project Access Time",
+			  "localPath": "D:\\\\WE_AI\\\\project-access-time"
+			}
+			""");
+
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		assertThat(findProjectMemberLastAccessedAt(projectId, leader.userId())).isNull();
+
+		HttpResponse<String> accessResponse = updateProjectAccessTime(leader.accessToken(), projectId);
+
+		assertThat(accessResponse.statusCode()).isEqualTo(200);
+		assertThat(accessResponse.body()).contains("\"code\":\"PROJECT_ACCESS_TIME_UPDATE_SUCCESS\"");
+		assertThat(accessResponse.body()).contains("\"projectId\":" + projectId);
+		assertThat(accessResponse.body()).contains("\"userId\":" + leader.userId());
+		assertThat(accessResponse.body()).contains("\"lastAccessedAt\":");
+		assertThat(findProjectMemberLastAccessedAt(projectId, leader.userId())).isNotNull();
+
+		HttpResponse<String> outsiderResponse = updateProjectAccessTime(outsider.accessToken(), projectId);
+
+		assertThat(outsiderResponse.statusCode()).isEqualTo(403);
+		assertThat(outsiderResponse.body()).contains("\"code\":\"PROJECT_403_2\"");
+	}
+
+	@Test
 	void projectDetailReturns404ForUnknownProject() throws Exception {
 		UserSession leader = signUpAndLogin("missing-project");
 
@@ -1187,6 +1216,30 @@ class ProjectIntegrationTest {
 				.method("PATCH", HttpRequest.BodyPublishers.ofString(requestBody))
 				.build(),
 			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private HttpResponse<String> updateProjectAccessTime(String accessToken, long projectId) throws Exception {
+		return httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/projects/%d/access".formatted(port, projectId)))
+				.header("Authorization", "Bearer " + accessToken)
+				.method("PATCH", HttpRequest.BodyPublishers.noBody())
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	private LocalDateTime findProjectMemberLastAccessedAt(long projectId, long userId) {
+		return jdbcTemplate.queryForObject(
+			"""
+			select last_accessed_at
+			from project_members
+			where project_id = ? and user_id = ?
+			""",
+			LocalDateTime.class,
+			projectId,
+			userId
 		);
 	}
 

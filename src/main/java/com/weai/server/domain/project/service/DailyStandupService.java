@@ -3,6 +3,7 @@ package com.weai.server.domain.project.service;
 import com.weai.server.domain.project.domain.DailyStandupDismissal;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectMember;
+import com.weai.server.domain.project.domain.ProjectMemberStatus;
 import com.weai.server.domain.project.domain.ProjectSchedule;
 import com.weai.server.domain.project.domain.ProjectScheduleStatus;
 import com.weai.server.domain.project.domain.ProjectTechStack;
@@ -46,9 +47,17 @@ public class DailyStandupService {
 	public DailyStandupSummaryResponse getSummary(String userEmail, Long projectId) {
 		User user = userService.getUserEntityByEmail(userEmail);
 		Project project = projectService.validateProjectAccess(projectId, user.getId());
+		ProjectMember currentMember = projectMemberRepository.findByProject_IdAndUser_IdAndStatus(
+				projectId,
+				user.getId(),
+				ProjectMemberStatus.ACTIVE
+			)
+			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_ACCESS_DENIED));
 		LocalDate today = LocalDate.now(SEOUL_ZONE);
-		LocalDateTime startAt = today.atStartOfDay();
-		LocalDateTime endAt = LocalDateTime.now(SEOUL_ZONE);
+		LocalDateTime currentAccessedAt = LocalDateTime.now(SEOUL_ZONE);
+		LocalDateTime lastAccessedAt = currentMember.getLastAccessedAt();
+		LocalDateTime startAt = lastAccessedAt != null ? lastAccessedAt : today.atStartOfDay();
+		LocalDateTime endAt = currentAccessedAt;
 
 		try {
 			boolean shouldShow = !dailyStandupDismissalRepository.existsByProject_IdAndUser_IdAndDismissDate(
@@ -77,6 +86,10 @@ public class DailyStandupService {
 				project.getProjectName(),
 				today,
 				shouldShow,
+				lastAccessedAt,
+				currentAccessedAt,
+				startAt,
+				endAt,
 				summary,
 				completedItems,
 				inProgressItems,

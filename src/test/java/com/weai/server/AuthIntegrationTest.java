@@ -70,6 +70,9 @@ class AuthIntegrationTest {
 		TokenPair loginTokens = login(email, "password1234!");
 		assertAccessTokenClaims(loginTokens.accessToken(), email, "USER");
 		assertStoredRefreshTokenIsHashed(username, loginTokens.refreshToken());
+		User loggedInUser = userRepository.findByUsername(username).orElseThrow();
+		assertThat(loggedInUser.getLastLoginAt()).isNotNull();
+		assertThat(loggedInUser.getLastAccessedAt()).isEqualTo(loggedInUser.getLastLoginAt());
 
 		HttpResponse<String> meResponse = httpClient.send(
 			HttpRequest.newBuilder()

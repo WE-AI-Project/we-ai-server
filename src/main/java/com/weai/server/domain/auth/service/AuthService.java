@@ -12,6 +12,8 @@ import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
@@ -37,6 +41,7 @@ public class AuthService {
             throw new ApiException(ErrorCode.UNAUTHORIZED, "Password does not match.");
         }
 
+        markLogin(user);
         return tokenService.issueTokens(user);
     }
 
@@ -50,6 +55,7 @@ public class AuthService {
     public TokenResponse loginWithEmailCode(EmailCodeLoginRequest request) {
         User user = ensureUserExists(request.email());
         verificationCodeService.verifyEmailLoginCode(request.email(), request.verificationCode());
+        markLogin(user);
         return tokenService.issueTokens(user);
     }
 
@@ -77,6 +83,7 @@ public class AuthService {
         User user = userRepository.findByEmail(profile.getEmail())
                 .orElseGet(() -> saveNaverUser(profile));
 
+        markLogin(user);
         return tokenService.issueTokens(user);
     }
 
@@ -88,7 +95,12 @@ public class AuthService {
         User user = userRepository.findByEmail(profile.getEmail())
                 .orElseGet(() -> saveGoogleUser(profile));
 
+        markLogin(user);
         return tokenService.issueTokens(user);
+    }
+
+    private void markLogin(User user) {
+        user.markLogin(LocalDateTime.now(SEOUL_ZONE));
     }
 
     private User saveNaverUser(NaverUserResponse.Response profile) {

@@ -14,6 +14,7 @@ import com.weai.server.domain.project.request.ProjectTechStackCreateRequest;
 import com.weai.server.domain.project.request.ProjectTechStackUpdateRequest;
 import com.weai.server.domain.project.request.ProjectUpdateRequest;
 import com.weai.server.domain.project.response.MyProjectResponse;
+import com.weai.server.domain.project.response.ProjectAccessTimeUpdateResponse;
 import com.weai.server.domain.project.response.ProjectCreateResponse;
 import com.weai.server.domain.project.response.ProjectDashboardResponse;
 import com.weai.server.domain.project.response.ProjectDetailResponse;
@@ -137,6 +138,28 @@ public class ProjectController {
 			? "참여 중인 프로젝트가 없습니다."
 			: "내 프로젝트 목록 조회에 성공했습니다.";
 		return ApiResponse.success("PROJECT_LIST_SUCCESS", message, projects);
+	}
+
+	@Operation(
+		summary = "프로젝트 접속 시간 갱신",
+		description = "로그인 사용자가 프로젝트에 접속한 시간을 저장합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED
+	})
+	@PatchMapping("/{projectId}/access")
+	public ApiResponse<ProjectAccessTimeUpdateResponse> updateProjectAccessTime(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		return ApiResponse.success(
+			"PROJECT_ACCESS_TIME_UPDATE_SUCCESS",
+			"프로젝트 접속 시간이 갱신되었습니다.",
+			projectService.updateProjectAccessTime(authentication.getName(), projectId)
+		);
 	}
 
 	@Operation(summary = "참여 코드로 프로젝트 참여", description = "8자리 참여 코드를 사용해 활성 프로젝트에 참여합니다.")
