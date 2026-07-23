@@ -75,3 +75,21 @@ tasks.named('bootRun') {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.register('resolveDockerDependencies') {
+	group = 'build'
+	description = 'Resolves dependencies required for Docker image builds.'
+
+	doLast {
+		[
+			'annotationProcessor',
+			'compileClasspath',
+			'runtimeClasspath'
+		].each { configurationName ->
+			def configuration = configurations.findByName(configurationName)
+			if (configuration != null && configuration.canBeResolved) {
+				configuration.resolve()
+			}
+		}
+	}
+}
