@@ -9,11 +9,23 @@ COPY gradle ./gradle
 COPY build.gradle settings.gradle ./
 
 RUN chmod +x ./gradlew
-RUN ./gradlew dependencies --no-daemon
+RUN --mount=type=cache,target=/root/.gradle \
+    for attempt in 1 2 3; do \
+      ./gradlew resolveDockerDependencies --no-daemon && exit 0; \
+      if [ "$attempt" = "3" ]; then exit 1; fi; \
+      echo "Dependency resolution failed (attempt ${attempt}/3). Retrying..."; \
+      sleep $((attempt * 10)); \
+    done
 
 COPY src ./src
 
-RUN ./gradlew bootJar --no-daemon -x test
+RUN --mount=type=cache,target=/root/.gradle \
+    for attempt in 1 2 3; do \
+      ./gradlew bootJar --no-daemon -x test && exit 0; \
+      if [ "$attempt" = "3" ]; then exit 1; fi; \
+      echo "bootJar failed (attempt ${attempt}/3). Retrying..."; \
+      sleep $((attempt * 10)); \
+    done
 
 FROM eclipse-temurin:17-jre AS runtime
 
