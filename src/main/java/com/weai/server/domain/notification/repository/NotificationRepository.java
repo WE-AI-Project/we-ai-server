@@ -39,4 +39,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 	long countByProject_IdAndReceiver_IdAndIsReadFalseAndDeletedAtIsNull(Long projectId, Long receiverUserId);
 
 	List<Notification> findByProject_IdAndReceiver_IdAndIsReadFalseAndDeletedAtIsNull(Long projectId, Long receiverUserId);
+
+	boolean existsByProject_IdAndReceiver_IdAndTitleAndDeletedAtIsNull(Long projectId, Long receiverUserId, String title);
 }
