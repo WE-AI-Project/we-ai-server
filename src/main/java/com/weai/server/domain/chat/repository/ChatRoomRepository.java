@@ -3,9 +3,11 @@ package com.weai.server.domain.chat.repository;
 import com.weai.server.domain.chat.domain.ChatRoom;
 import com.weai.server.domain.chat.domain.ChatRoomType;
 import com.weai.server.domain.project.domain.ProjectDepartment;
+import java.time.LocalDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -69,4 +71,12 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 		@Param("keyword") String keyword,
 		Pageable pageable
 	);
+
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("""
+		update ChatRoom cr
+		set cr.updatedAt = :updatedAt
+		where cr.id = :chatRoomId
+		""")
+	void touchUpdatedAt(@Param("chatRoomId") Long chatRoomId, @Param("updatedAt") LocalDateTime updatedAt);
 }

@@ -4,12 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.weai.server.domain.chat.domain.ChatMessage;
+import com.weai.server.domain.chat.domain.ChatMessageType;
 import com.weai.server.domain.chat.domain.ChatRoom;
 import com.weai.server.domain.chat.domain.ChatRoomMember;
 import com.weai.server.domain.chat.domain.ChatRoomType;
 import com.weai.server.domain.chat.repository.ChatMessageRepository;
 import com.weai.server.domain.chat.repository.ChatRoomMemberRepository;
 import com.weai.server.domain.chat.repository.ChatRoomRepository;
+import com.weai.server.domain.chat.request.ChatMessageSendRequest;
+import com.weai.server.domain.chat.response.ChatFileUploadResponse;
+import com.weai.server.domain.chat.response.ChatMessageListResponse;
+import com.weai.server.domain.chat.response.ChatMessageSendResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse.ChatRoomResponse;
 import com.weai.server.domain.project.domain.Project;
@@ -27,6 +32,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -285,6 +291,203 @@ class ChatRoomServiceTest {
 			.isInstanceOf(ApiException.class)
 			.extracting("errorCode")
 			.isEqualTo(ErrorCode.INVALID_DEPARTMENT);
+	}
+
+	@Test
+	void getChatMessagesReturnsLatestMessagesInAscendingOrder() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+		ChatMessage first = chatMessageRepository.save(ChatMessage.text(room, fixture.leader(), "첫 번째 메시지"));
+		ChatMessage second = chatMessageRepository.save(ChatMessage.text(room, fixture.member(), "두 번째 메시지"));
+		ChatMessage third = chatMessageRepository.save(ChatMessage.text(room, fixture.leader(), "세 번째 메시지"));
+		chatMessageRepository.flush();
+
+		ChatMessageListResponse response = chatRoomService.getChatMessages(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			null,
+			2,
+			null
+		);
+
+		assertThat(response.projectId()).isEqualTo(fixture.project().getId());
+		assertThat(response.chatRoomId()).isEqualTo(room.getId());
+		assertThat(response.hasNext()).isTrue();
+		assertThat(response.nextCursor()).isEqualTo(second.getId());
+		assertThat(response.messages()).extracting(ChatMessageListResponse.ChatMessageResponse::messageId)
+			.containsExactly(second.getId(), third.getId());
+		assertThat(response.messages().get(1).isMine()).isTrue();
+		assertThat(first.getId()).isNotNull();
+	}
+
+	@Test
+	void getChatMessagesReturnsEmptyArrayWhenRoomHasNoMessages() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+
+		ChatMessageListResponse response = chatRoomService.getChatMessages(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			null,
+			null,
+			null
+		);
+
+		assertThat(response.hasNext()).isFalse();
+		assertThat(response.nextCursor()).isNull();
+		assertThat(response.messages()).isEmpty();
+	}
+
+	@Test
+	void getChatMessagesSupportsBeforeMessageIdCursor() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+		ChatMessage first = chatMessageRepository.save(ChatMessage.text(room, fixture.leader(), "첫 번째 메시지"));
+		ChatMessage second = chatMessageRepository.save(ChatMessage.text(room, fixture.member(), "두 번째 메시지"));
+		chatMessageRepository.save(ChatMessage.text(room, fixture.leader(), "세 번째 메시지"));
+		chatMessageRepository.flush();
+
+		ChatMessageListResponse response = chatRoomService.getChatMessages(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			second.getId(),
+			30,
+			null
+		);
+
+		assertThat(response.hasNext()).isFalse();
+		assertThat(response.messages()).extracting(ChatMessageListResponse.ChatMessageResponse::messageId)
+			.containsExactly(first.getId());
+	}
+
+	@Test
+	void sendChatMessageCreatesTextMessage() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+
+		ChatMessageSendResponse response = chatRoomService.sendChatMessage(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			new ChatMessageSendRequest("오늘 프로젝트 일정 API 작업 완료했습니다.", null)
+		);
+
+		assertThat(response.messageId()).isNotNull();
+		assertThat(response.messageType()).isEqualTo(ChatMessageType.TEXT);
+		assertThat(response.senderId()).isEqualTo(fixture.leader().getId());
+	}
+
+	@Test
+	void sendChatMessageRejectsBlankAndTooLongContent() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+
+		assertThatThrownBy(() -> chatRoomService.sendChatMessage(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			new ChatMessageSendRequest(" ", null)
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_MESSAGE_CONTENT_REQUIRED);
+
+		assertThatThrownBy(() -> chatRoomService.sendChatMessage(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			new ChatMessageSendRequest("a".repeat(2001), null)
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_MESSAGE_CONTENT_TOO_LONG);
+	}
+
+	@Test
+	void uploadChatFileCreatesImageMessage() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+		MockMultipartFile file = new MockMultipartFile("file", "sample.png", "image/png", "image".getBytes());
+
+		ChatFileUploadResponse response = chatRoomService.uploadChatFile(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			file,
+			"화면 캡처 공유합니다."
+		);
+
+		assertThat(response.messageId()).isNotNull();
+		assertThat(response.messageType()).isEqualTo(ChatMessageType.IMAGE);
+		assertThat(response.fileUrl()).contains("/uploads/chat/" + fixture.project().getId() + "/" + room.getId());
+		assertThat(response.originalFileName()).isEqualTo("sample.png");
+	}
+
+	@Test
+	void uploadChatFileRejectsMissingAndUnsupportedFile() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+		MockMultipartFile unsupported = new MockMultipartFile(
+			"file",
+			"malware.exe",
+			"application/octet-stream",
+			"binary".getBytes()
+		);
+
+		assertThatThrownBy(() -> chatRoomService.uploadChatFile(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			null,
+			null
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_FILE_REQUIRED);
+
+		assertThatThrownBy(() -> chatRoomService.uploadChatFile(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			unsupported,
+			null
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_FILE_TYPE_NOT_ALLOWED);
+	}
+
+	@Test
+	void chatMessageApisRejectNonProjectMemberAndMissingRoom() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+
+		assertThatThrownBy(() -> chatRoomService.getChatMessages(
+			fixture.outsider().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			null,
+			null,
+			null
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.PROJECT_ACCESS_DENIED);
+
+		assertThatThrownBy(() -> chatRoomService.getChatMessages(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			999_999L,
+			null,
+			null,
+			null
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
 	}
 
 	private TestFixture createFixture() {

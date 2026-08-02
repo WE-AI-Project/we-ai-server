@@ -76,3 +76,7 @@ ai:
   chat:
     chroma:
       enabled: false
+
+chat:
+  file:
+    upload-root: build/test-uploads/chat

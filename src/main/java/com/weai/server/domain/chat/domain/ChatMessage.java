@@ -48,7 +48,7 @@ public class ChatMessage extends BaseEntity {
 	@JoinColumn(name = "sender_id", nullable = false)
 	private User sender;
 
-	@Column(nullable = false, length = 2000)
+	@Column(length = 2000)
 	private String content;
 
 	@Enumerated(EnumType.STRING)
@@ -58,8 +58,47 @@ public class ChatMessage extends BaseEntity {
 	@Column(name = "deleted_at")
 	private LocalDateTime deletedAt;
 
+	@Column(name = "file_url", length = 500)
+	private String fileUrl;
+
+	@Column(name = "original_file_name", length = 255)
+	private String originalFileName;
+
+	@Column(name = "stored_file_name", length = 255)
+	private String storedFileName;
+
+	@Column(name = "file_size")
+	private Long fileSize;
+
+	@Column(name = "file_content_type", length = 100)
+	private String fileContentType;
+
 	public static ChatMessage text(ChatRoom chatRoom, User sender, String content) {
 		return create(chatRoom, sender, content, ChatMessageType.TEXT);
+	}
+
+	public static ChatMessage file(
+		ChatRoom chatRoom,
+		User sender,
+		String content,
+		ChatMessageType messageType,
+		String fileUrl,
+		String originalFileName,
+		String storedFileName,
+		Long fileSize,
+		String fileContentType
+	) {
+		return ChatMessage.builder()
+			.chatRoom(chatRoom)
+			.sender(sender)
+			.content(content)
+			.messageType(messageType)
+			.fileUrl(fileUrl)
+			.originalFileName(originalFileName)
+			.storedFileName(storedFileName)
+			.fileSize(fileSize)
+			.fileContentType(fileContentType)
+			.build();
 	}
 
 	public static ChatMessage create(ChatRoom chatRoom, User sender, String content, ChatMessageType messageType) {
