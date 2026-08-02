@@ -174,10 +174,37 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 			return "<binary %s (%d bytes)>".formatted(contentType == null ? "unknown" : contentType, content.length);
 		}
 
-		Charset charset = StringUtils.hasText(encoding) ? Charset.forName(encoding) : StandardCharsets.UTF_8;
+		Charset charset = resolveCharset(contentType, encoding);
 		String body = new String(content, charset);
 		String sanitizedBody = SENSITIVE_FIELDS.matcher(body).replaceAll("\"$1\":\"***\"");
 		return abbreviate(sanitizedBody, MAX_PAYLOAD_LENGTH);
+	}
+
+	private Charset resolveCharset(String contentType, String encoding) {
+		if (StringUtils.hasText(contentType)) {
+			try {
+				MediaType mediaType = MediaType.parseMediaType(contentType);
+				if (mediaType.getCharset() != null) {
+					return mediaType.getCharset();
+				}
+				if (isUtf8ByDefault(mediaType)) {
+					return StandardCharsets.UTF_8;
+				}
+			} catch (IllegalArgumentException ignored) {
+				return StandardCharsets.UTF_8;
+			}
+		}
+
+		if (StringUtils.hasText(encoding)) {
+			return Charset.forName(encoding);
+		}
+		return StandardCharsets.UTF_8;
+	}
+
+	private boolean isUtf8ByDefault(MediaType mediaType) {
+		return mediaType.isCompatibleWith(MediaType.APPLICATION_JSON)
+			|| mediaType.isCompatibleWith(MediaType.APPLICATION_XML)
+			|| mediaType.getType().equalsIgnoreCase("text");
 	}
 
 	private boolean isTextBasedContentType(String contentType) {

@@ -101,7 +101,19 @@ public enum ErrorCode {
 
 	// Chat Errors
 	INVALID_CHAT_ROOM_TYPE(HttpStatus.BAD_REQUEST, "CHAT_400_1", "Chat room type is invalid."),
-	INVALID_DEPARTMENT(HttpStatus.BAD_REQUEST, "CHAT_400_2", "Department is invalid.");
+	INVALID_DEPARTMENT(HttpStatus.BAD_REQUEST, "CHAT_400_2", "Department is invalid."),
+	CHAT_MESSAGE_CONTENT_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_400_3", "Chat message content is required."),
+	CHAT_MESSAGE_CONTENT_TOO_LONG(HttpStatus.BAD_REQUEST, "CHAT_400_4", "Chat message content is too long."),
+	INVALID_CHAT_MESSAGE_TYPE(HttpStatus.BAD_REQUEST, "CHAT_400_5", "Chat message type is invalid."),
+	CHAT_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_400_6", "Chat file is required."),
+	CHAT_FILE_EMPTY(HttpStatus.BAD_REQUEST, "CHAT_400_7", "Chat file is empty."),
+	CHAT_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "CHAT_400_8", "Chat file size exceeded."),
+	CHAT_FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "CHAT_400_9", "Chat file type is not allowed."),
+	CHAT_ROOM_ACCESS_DENIED(HttpStatus.FORBIDDEN, "CHAT_403_1", "You cannot access this chat room."),
+	CHAT_ROOM_NOT_ACTIVE(HttpStatus.FORBIDDEN, "CHAT_403_2", "The chat room is not active."),
+	CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_1", "The requested chat room could not be found."),
+	CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_2", "The requested chat message could not be found."),
+	CHAT_FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_500_1", "Failed to upload the chat file.");
 
 	private final HttpStatus status;
 	private final String code;

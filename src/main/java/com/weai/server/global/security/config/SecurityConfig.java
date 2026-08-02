@@ -50,6 +50,7 @@ public class SecurityConfig {
 				.accessDeniedHandler(jwtAccessDeniedHandler))
 			.authorizeHttpRequests(authorize -> authorize
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+				.requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 				.requestMatchers(
 					"/error",
 					"/swagger-ui.html",
