@@ -85,6 +85,13 @@ public enum ErrorCode {
 	DAILY_STANDUP_SUMMARY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_7", "Failed to retrieve daily standup summary."),
 	INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_8", "Failed to generate an invite code."),
 
+	// QA Query Errors
+	INVALID_QA_REPORT_STATUS(HttpStatus.BAD_REQUEST, "QA_400_1", "QA report status is invalid."),
+	INVALID_SPRING_PROFILE(HttpStatus.BAD_REQUEST, "ENVIRONMENT_400_1", "Spring profile is invalid."),
+	QA_RUN_NOT_FOUND(HttpStatus.NOT_FOUND, "QA_404_1", "The requested QA run could not be found."),
+	QA_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "QA_404_2", "The requested QA report could not be found."),
+	COMMIT_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMIT_404_1", "The requested commit could not be found."),
+
 	// Notification Errors
 	NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_404_1", "The requested notification could not be found."),
 	NOTIFICATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "NOTIFICATION_403_1", "You cannot access this notification."),
