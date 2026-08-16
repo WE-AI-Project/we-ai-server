@@ -51,6 +51,7 @@ public class SecurityConfig {
 			.authorizeHttpRequests(authorize -> authorize
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+				.requestMatchers(HttpMethod.GET, "/uploads/projects/**").permitAll()
 				.requestMatchers(
 					"/error",
 					"/swagger-ui.html",

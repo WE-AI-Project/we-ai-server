@@ -120,7 +120,25 @@ public enum ErrorCode {
 	CHAT_ROOM_NOT_ACTIVE(HttpStatus.FORBIDDEN, "CHAT_403_2", "The chat room is not active."),
 	CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_1", "The requested chat room could not be found."),
 	CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_2", "The requested chat message could not be found."),
-	CHAT_FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_500_1", "Failed to upload the chat file.");
+	CHAT_FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_500_1", "Failed to upload the chat file."),
+
+	// Chat Document & Meeting Errors
+	DOCUMENT_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_DOCUMENT_400_1", "Document file is required."),
+	DOCUMENT_FILE_EMPTY(HttpStatus.BAD_REQUEST, "CHAT_DOCUMENT_400_2", "Document file is empty."),
+	DOCUMENT_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "CHAT_DOCUMENT_400_3", "Document file size exceeded."),
+	DOCUMENT_FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "CHAT_DOCUMENT_400_4", "Document file type is not allowed."),
+	DOCUMENT_TEXT_NOT_EXTRACTED(HttpStatus.BAD_REQUEST, "CHAT_DOCUMENT_400_5", "Document text has not been extracted."),
+	MEETING_TITLE_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_MEETING_400_1", "Meeting title is required."),
+	MEETING_ALREADY_ENDED(HttpStatus.BAD_REQUEST, "CHAT_MEETING_400_2", "Meeting has already ended."),
+	MEETING_MINUTE_CONTENT_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_MEETING_400_3", "Meeting minute content is required."),
+	DOCUMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_DOCUMENT_404_1", "The requested document could not be found."),
+	DOCUMENT_BRIEFING_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_DOCUMENT_404_2", "The requested document briefing could not be found."),
+	MEETING_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_MEETING_404_1", "The requested meeting could not be found."),
+	MEETING_MINUTE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_MEETING_404_2", "The requested meeting minute could not be found."),
+	MEETING_ALREADY_IN_PROGRESS(HttpStatus.CONFLICT, "CHAT_MEETING_409_1", "A meeting is already in progress."),
+	MEETING_PARTICIPANT_NOT_PROJECT_MEMBER(HttpStatus.BAD_REQUEST, "CHAT_MEETING_400_4", "Meeting participant is not an active project member."),
+	DOCUMENT_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_DOCUMENT_500_1", "Failed to upload the document."),
+	DOCUMENT_BRIEFING_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_DOCUMENT_500_2", "Failed to create the document briefing.");
 
 	private final HttpStatus status;
 	private final String code;

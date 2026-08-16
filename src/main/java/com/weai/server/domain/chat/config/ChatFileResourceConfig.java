@@ -11,14 +11,21 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class ChatFileResourceConfig implements WebMvcConfigurer {
 
 	private final Path uploadRoot;
+	private final Path projectUploadRoot;
 
-	public ChatFileResourceConfig(@Value("${chat.file.upload-root:uploads/chat}") String uploadRoot) {
+	public ChatFileResourceConfig(
+		@Value("${chat.file.upload-root:uploads/chat}") String uploadRoot,
+		@Value("${chat.document.upload-root:uploads/projects}") String projectUploadRoot
+	) {
 		this.uploadRoot = Paths.get(uploadRoot).toAbsolutePath().normalize();
+		this.projectUploadRoot = Paths.get(projectUploadRoot).toAbsolutePath().normalize();
 	}
 
 	@Override
 	public void addResourceHandlers(ResourceHandlerRegistry registry) {
 		registry.addResourceHandler("/uploads/chat/**")
 			.addResourceLocations(uploadRoot.toUri().toString());
+		registry.addResourceHandler("/uploads/projects/**")
+			.addResourceLocations(projectUploadRoot.toUri().toString());
 	}
 }
