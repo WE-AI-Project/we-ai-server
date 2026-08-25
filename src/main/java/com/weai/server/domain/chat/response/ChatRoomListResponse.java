@@ -65,6 +65,9 @@ public record ChatRoomListResponse(
 		@Schema(description = "비공개 여부", example = "false")
 		boolean isPrivate,
 
+		@Schema(description = "프로젝트 기본 채팅방 여부", example = "true")
+		boolean isDefault,
+
 		@Schema(description = "채팅방 멤버 수", example = "6")
 		long memberCount,
 
@@ -95,6 +98,7 @@ public record ChatRoomListResponse(
 				chatRoom.getType(),
 				chatRoom.getDepartment(),
 				chatRoom.isPrivate(),
+				chatRoom.isDefault(),
 				memberCount,
 				unreadCount,
 				lastMessage == null ? null : LastMessageResponse.from(lastMessage),

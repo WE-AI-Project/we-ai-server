@@ -1,5 +1,6 @@
 package com.weai.server.domain.project.service;
 
+import com.weai.server.domain.chat.service.ChatRoomProjectLifecycleService;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectDashboardActivityType;
 import com.weai.server.domain.project.domain.ProjectDepartment;
@@ -105,6 +106,7 @@ public class ProjectService {
 	private final ProjectScheduleRepository projectScheduleRepository;
 	private final UserRepository userRepository;
 	private final UserService userService;
+	private final ChatRoomProjectLifecycleService chatRoomProjectLifecycleService;
 	private final SecureRandom secureRandom = new SecureRandom();
 
 	@Transactional
@@ -131,6 +133,7 @@ public class ProjectService {
 
 			ProjectMember leader = projectMemberRepository.save(ProjectMember.leader(project, creator, leaderDepartment));
 			saveTechStacks(project, request.techStacksOrEmpty());
+			chatRoomProjectLifecycleService.createDefaultChatRoom(project);
 
 			return ProjectCreateResponse.from(project, leader, techStackNames, today);
 		} catch (DataIntegrityViolationException exception) {
@@ -213,11 +216,13 @@ public class ProjectService {
 			}
 
 			existingMember.reactivate(request.department());
+			chatRoomProjectLifecycleService.addToDefaultChatRoom(project, user);
 			return ProjectJoinResponse.from(existingMember);
 		}
 
 		try {
 			ProjectMember joinedMember = projectMemberRepository.save(ProjectMember.member(project, user, request.department()));
+			chatRoomProjectLifecycleService.addToDefaultChatRoom(project, user);
 			return ProjectJoinResponse.from(joinedMember);
 		} catch (DataIntegrityViolationException exception) {
 			throw new ApiException(ErrorCode.PROJECT_JOIN_FAILED, "Failed to join the project.");
@@ -496,7 +501,9 @@ public class ProjectService {
 		validateNotLastActiveLeader(currentMember, ErrorCode.CANNOT_LEAVE_LAST_LEADER_PROJECT);
 
 		currentMember.leave();
-		return ProjectLeaveResponse.from(projectMemberRepository.saveAndFlush(currentMember));
+		ProjectMember savedMember = projectMemberRepository.saveAndFlush(currentMember);
+		chatRoomProjectLifecycleService.leaveProjectChatRooms(projectId, user.getId());
+		return ProjectLeaveResponse.from(savedMember);
 	}
 
 	@Transactional
@@ -512,7 +519,9 @@ public class ProjectService {
 		validateNotLastActiveLeader(targetMember, ErrorCode.PROJECT_LEADER_REQUIRED);
 
 		targetMember.kick();
-		return ProjectMemberKickResponse.from(projectMemberRepository.saveAndFlush(targetMember));
+		ProjectMember savedMember = projectMemberRepository.saveAndFlush(targetMember);
+		chatRoomProjectLifecycleService.kickFromProjectChatRooms(projectId, targetMember.getUser().getId());
+		return ProjectMemberKickResponse.from(savedMember);
 	}
 
 	@Transactional

@@ -78,6 +78,19 @@ class ProjectIntegrationTest {
 		assertThat(createResponse.body()).contains("\"role\":\"LEADER\"");
 
 		String projectCode = extractValue(createResponse.body(), PROJECT_CODE_PATTERN);
+		long projectId = extractLongValue(createResponse.body(), PROJECT_ID_PATTERN);
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from chat_rooms where project_id = ? and is_default = true and status = 'ACTIVE'",
+			Integer.class,
+			projectId
+		)).isEqualTo(1);
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from chat_room_members crm join chat_rooms cr on cr.chat_room_id = crm.chat_room_id "
+				+ "where cr.project_id = ? and cr.is_default = true and crm.user_id = ? and crm.status = 'ACTIVE'",
+			Integer.class,
+			projectId,
+			leader.userId()
+		)).isEqualTo(1);
 
 		HttpResponse<String> leaderProjectsBeforeJoin = getMyProjects(leader.accessToken());
 
@@ -100,6 +113,13 @@ class ProjectIntegrationTest {
 		assertThat(joinResponse.body()).contains("\"code\":\"PROJECT_JOIN_SUCCESS\"");
 		assertThat(joinResponse.body()).contains("\"projectCode\":\"" + projectCode + "\"");
 		assertThat(joinResponse.body()).contains("\"role\":\"MEMBER\"");
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from chat_room_members crm join chat_rooms cr on cr.chat_room_id = crm.chat_room_id "
+				+ "where cr.project_id = ? and cr.is_default = true and crm.user_id = ? and crm.status = 'ACTIVE'",
+			Integer.class,
+			projectId,
+			member.userId()
+		)).isEqualTo(1);
 
 		HttpResponse<String> leaderProjectsAfterJoin = getMyProjects(leader.accessToken());
 		HttpResponse<String> memberProjects = getMyProjects(member.accessToken());

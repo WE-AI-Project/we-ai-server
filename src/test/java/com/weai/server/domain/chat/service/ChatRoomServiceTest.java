@@ -7,16 +7,20 @@ import com.weai.server.domain.chat.domain.ChatMessage;
 import com.weai.server.domain.chat.domain.ChatMessageType;
 import com.weai.server.domain.chat.domain.ChatRoom;
 import com.weai.server.domain.chat.domain.ChatRoomMember;
+import com.weai.server.domain.chat.domain.ChatRoomMemberStatus;
 import com.weai.server.domain.chat.domain.ChatRoomType;
 import com.weai.server.domain.chat.repository.ChatMessageRepository;
 import com.weai.server.domain.chat.repository.ChatRoomMemberRepository;
 import com.weai.server.domain.chat.repository.ChatRoomRepository;
 import com.weai.server.domain.chat.request.ChatMessageSendRequest;
+import com.weai.server.domain.chat.request.ChatRoomCreateRequest;
 import com.weai.server.domain.chat.response.ChatFileUploadResponse;
 import com.weai.server.domain.chat.response.ChatMessageListResponse;
 import com.weai.server.domain.chat.response.ChatMessageSendResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse.ChatRoomResponse;
+import com.weai.server.domain.chat.response.ChatRoomCreateResponse;
+import com.weai.server.domain.chat.response.ProjectDepartmentListResponse;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectDepartment;
 import com.weai.server.domain.project.domain.ProjectMember;
@@ -43,6 +47,9 @@ class ChatRoomServiceTest {
 
 	@Autowired
 	private ChatRoomService chatRoomService;
+
+	@Autowired
+	private ChatRoomProjectLifecycleService chatRoomProjectLifecycleService;
 
 	@Autowired
 	private ChatRoomRepository chatRoomRepository;
@@ -488,6 +495,145 @@ class ChatRoomServiceTest {
 			.isInstanceOf(ApiException.class)
 			.extracting("errorCode")
 			.isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
+	}
+
+	@Test
+	void createGeneralChatRoomAddsCreatorAsActiveMember() {
+		TestFixture fixture = createFixture();
+
+		ChatRoomCreateResponse response = chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest(" API 질문방 ", "GENERAL", null)
+		);
+
+		assertThat(response.name()).isEqualTo("API 질문방");
+		assertThat(response.type()).isEqualTo(ChatRoomType.GENERAL);
+		assertThat(response.department()).isNull();
+		assertThat(response.isDefault()).isFalse();
+		assertThat(response.memberCount()).isEqualTo(1);
+		assertThat(chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(response.chatRoomId(), fixture.leader().getId()))
+			.get()
+			.extracting(ChatRoomMember::getStatus)
+			.isEqualTo(ChatRoomMemberStatus.ACTIVE);
+	}
+
+	@Test
+	void createDefaultChatRoomAddsAllProjectMembersAndRejectsDuplicate() {
+		TestFixture fixture = createFixture();
+
+		ChatRoom defaultRoom = chatRoomProjectLifecycleService.createDefaultChatRoom(fixture.project());
+
+		assertThat(defaultRoom.isDefault()).isTrue();
+		assertThat(defaultRoom.getType()).isEqualTo(ChatRoomType.GENERAL);
+		assertThat(defaultRoom.getDepartment()).isNull();
+		assertThat(chatRoomMemberRepository.countByChatRoom_IdAndStatus(
+			defaultRoom.getId(),
+			ChatRoomMemberStatus.ACTIVE
+		)).isEqualTo(2);
+
+		assertThatThrownBy(() -> chatRoomProjectLifecycleService.createDefaultChatRoom(fixture.project()))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.DEFAULT_CHAT_ROOM_ALREADY_EXISTS);
+	}
+
+	@Test
+	void createGeneralChatRoomRejectsDepartment() {
+		TestFixture fixture = createFixture();
+
+		assertThatThrownBy(() -> chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("API 질문방", "GENERAL", "BACKEND")
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.DEPARTMENT_NOT_ALLOWED_FOR_GENERAL_CHAT_ROOM);
+	}
+
+	@Test
+	void createDepartmentChatRoomAddsOnlyActiveDepartmentMembersAndRejectsDuplicate() {
+		TestFixture fixture = createFixture();
+
+		ChatRoomCreateResponse response = chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("백엔드 채팅방", "DEPARTMENT", "BACKEND")
+		);
+
+		ChatRoom room = chatRoomRepository.findById(response.chatRoomId()).orElseThrow();
+		assertThat(room.isPrivate()).isTrue();
+		assertThat(response.memberCount()).isEqualTo(1);
+		assertThat(chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(room.getId(), fixture.leader().getId())).isPresent();
+		assertThat(chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(room.getId(), fixture.member().getId())).isEmpty();
+
+		assertThatThrownBy(() -> chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("백엔드 두 번째 방", "DEPARTMENT", "BACKEND")
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.DEPARTMENT_CHAT_ROOM_ALREADY_EXISTS);
+	}
+
+	@Test
+	void createDepartmentChatRoomValidatesDepartmentAndProjectMembership() {
+		TestFixture fixture = createFixture();
+
+		assertThatThrownBy(() -> chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("부서방", "DEPARTMENT", null)
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_DEPARTMENT_REQUIRED);
+
+		assertThatThrownBy(() -> chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("데브옵스방", "DEPARTMENT", "DEVOPS")
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.PROJECT_DEPARTMENT_NOT_FOUND);
+
+		assertThatThrownBy(() -> chatRoomService.createChatRoom(
+			fixture.outsider().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("일반방", "GENERAL", null)
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.PROJECT_ACCESS_DENIED);
+	}
+
+	@Test
+	void getProjectDepartmentsReturnsActiveCountsAndChatRoomExistence() {
+		TestFixture fixture = createFixture();
+		chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("백엔드 채팅방", "DEPARTMENT", "BACKEND")
+		);
+
+		ProjectDepartmentListResponse response = chatRoomService.getProjectDepartments(
+			fixture.leader().getEmail(),
+			fixture.project().getId()
+		);
+
+		assertThat(response.departments())
+			.extracting(
+				ProjectDepartmentListResponse.DepartmentItem::department,
+				ProjectDepartmentListResponse.DepartmentItem::memberCount,
+				ProjectDepartmentListResponse.DepartmentItem::chatRoomExists
+			)
+			.containsExactly(
+				org.assertj.core.groups.Tuple.tuple(ProjectDepartment.BACKEND, 1L, true),
+				org.assertj.core.groups.Tuple.tuple(ProjectDepartment.FRONTEND, 1L, false)
+			);
 	}
 
 	private TestFixture createFixture() {

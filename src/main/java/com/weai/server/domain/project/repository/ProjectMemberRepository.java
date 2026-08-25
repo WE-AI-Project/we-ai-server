@@ -66,6 +66,31 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 	);
 
 	@Query("""
+		select pm.department as department, count(pm.id) as memberCount
+		from ProjectMember pm
+		where pm.project.id = :projectId
+		  and pm.status = com.weai.server.domain.project.domain.ProjectMemberStatus.ACTIVE
+		  and pm.department is not null
+		group by pm.department
+		order by pm.department
+		""")
+	List<ProjectDepartmentCountProjection> countActiveMembersByDepartment(@Param("projectId") Long projectId);
+
+	@Query("""
+		select pm
+		from ProjectMember pm
+		join fetch pm.user u
+		where pm.project.id = :projectId
+		  and pm.status = com.weai.server.domain.project.domain.ProjectMemberStatus.ACTIVE
+		  and pm.department = :department
+		order by pm.id
+		""")
+	List<ProjectMember> findActiveByProjectIdAndDepartmentWithUser(
+		@Param("projectId") Long projectId,
+		@Param("department") com.weai.server.domain.project.domain.ProjectDepartment department
+	);
+
+	@Query("""
 		select pm
 		from ProjectMember pm
 		join fetch pm.user u
