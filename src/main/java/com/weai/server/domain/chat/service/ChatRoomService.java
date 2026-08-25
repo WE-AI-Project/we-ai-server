@@ -10,13 +10,19 @@ import com.weai.server.domain.chat.repository.ChatMessageRepository;
 import com.weai.server.domain.chat.repository.ChatRoomMemberRepository;
 import com.weai.server.domain.chat.repository.ChatRoomRepository;
 import com.weai.server.domain.chat.request.ChatMessageSendRequest;
+import com.weai.server.domain.chat.request.ChatRoomCreateRequest;
 import com.weai.server.domain.chat.response.ChatFileUploadResponse;
 import com.weai.server.domain.chat.response.ChatMessageListResponse;
 import com.weai.server.domain.chat.response.ChatMessageSendResponse;
+import com.weai.server.domain.chat.response.ChatRoomCreateResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse.ChatRoomResponse;
+import com.weai.server.domain.chat.response.ProjectDepartmentListResponse;
 import com.weai.server.domain.project.domain.ProjectDepartment;
+import com.weai.server.domain.project.domain.Project;
+import com.weai.server.domain.project.domain.ProjectMember;
 import com.weai.server.domain.project.domain.ProjectMemberStatus;
+import com.weai.server.domain.project.repository.ProjectDepartmentCountProjection;
 import com.weai.server.domain.project.repository.ProjectMemberRepository;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.domain.user.domain.User;
@@ -26,8 +32,10 @@ import com.weai.server.global.exception.ApiException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -37,6 +45,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +59,7 @@ public class ChatRoomService {
 	private static final int MAX_MESSAGE_SIZE = 100;
 	private static final int MAX_TEXT_MESSAGE_LENGTH = 2000;
 	private static final int MAX_FILE_MESSAGE_LENGTH = 500;
+	private static final int MAX_CHAT_ROOM_NAME_LENGTH = 50;
 
 	private final ChatRoomRepository chatRoomRepository;
 	private final ChatMessageRepository chatMessageRepository;
@@ -58,6 +68,59 @@ public class ChatRoomService {
 	private final ProjectMemberRepository projectMemberRepository;
 	private final ProjectService projectService;
 	private final UserService userService;
+
+	public ProjectDepartmentListResponse getProjectDepartments(String userEmail, Long projectId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		projectService.validateProjectAccess(projectId, user.getId());
+
+		Set<ProjectDepartment> departmentsWithRoom = new HashSet<>(
+			chatRoomRepository.findActiveDepartmentChatRoomDepartments(projectId)
+		);
+		List<ProjectDepartmentListResponse.DepartmentItem> departments = projectMemberRepository
+			.countActiveMembersByDepartment(projectId)
+			.stream()
+			.map(department -> toDepartmentItem(department, departmentsWithRoom))
+			.toList();
+		return new ProjectDepartmentListResponse(projectId, departments);
+	}
+
+	@Transactional
+	public ChatRoomCreateResponse createChatRoom(
+		String userEmail,
+		Long projectId,
+		ChatRoomCreateRequest request
+	) {
+		User creator = userService.getUserEntityByEmail(userEmail);
+		Project project = projectService.validateProjectAccess(projectId, creator.getId());
+		String name = validateChatRoomName(request == null ? null : request.name());
+		ChatRoomType type = parseCreatableChatRoomType(request == null ? null : request.type());
+		ProjectDepartment department = validateCreateDepartment(type, request == null ? null : request.department());
+
+		List<User> members = resolveChatRoomMembers(projectId, type, department, creator);
+		validateDepartmentChatRoomDuplicate(projectId, type, department);
+
+		try {
+			ChatRoom chatRoom = chatRoomRepository.saveAndFlush(ChatRoom.create(
+				project,
+				name,
+				null,
+				type,
+				department,
+				type == ChatRoomType.DEPARTMENT,
+				creator
+			));
+			chatRoomMemberRepository.saveAll(members.stream()
+				.map(member -> ChatRoomMember.active(chatRoom, member))
+				.toList());
+			chatRoomMemberRepository.flush();
+			return ChatRoomCreateResponse.from(chatRoom, members.size());
+		} catch (DataIntegrityViolationException exception) {
+			if (type == ChatRoomType.DEPARTMENT) {
+				throw new ApiException(ErrorCode.DEPARTMENT_CHAT_ROOM_ALREADY_EXISTS);
+			}
+			throw new ApiException(ErrorCode.CONFLICT, "Failed to create the chat room due to conflicting data.");
+		}
+	}
 
 	public ChatRoomListResponse getChatRooms(
 		String userEmail,
@@ -190,6 +253,92 @@ public class ChatRoomService {
 		long memberCount = countMembers(chatRoom);
 		long unreadCount = countUnreadMessages(chatRoom.getId(), userId);
 		return ChatRoomResponse.from(chatRoom, memberCount, unreadCount, lastMessage);
+	}
+
+	private ProjectDepartmentListResponse.DepartmentItem toDepartmentItem(
+		ProjectDepartmentCountProjection projection,
+		Set<ProjectDepartment> departmentsWithRoom
+	) {
+		return new ProjectDepartmentListResponse.DepartmentItem(
+			projection.getDepartment(),
+			projection.getMemberCount(),
+			departmentsWithRoom.contains(projection.getDepartment())
+		);
+	}
+
+	private String validateChatRoomName(String name) {
+		String normalizedName = trimToNull(name);
+		if (normalizedName == null) {
+			throw new ApiException(ErrorCode.CHAT_ROOM_NAME_REQUIRED);
+		}
+		if (normalizedName.length() > MAX_CHAT_ROOM_NAME_LENGTH) {
+			throw new ApiException(ErrorCode.CHAT_ROOM_NAME_TOO_LONG);
+		}
+		return normalizedName;
+	}
+
+	private ChatRoomType parseCreatableChatRoomType(String type) {
+		String normalizedType = trimToNull(type);
+		if (normalizedType == null) {
+			throw new ApiException(ErrorCode.CHAT_ROOM_TYPE_REQUIRED);
+		}
+		try {
+			ChatRoomType chatRoomType = ChatRoomType.valueOf(normalizedType.toUpperCase(Locale.ROOT));
+			if (chatRoomType != ChatRoomType.GENERAL && chatRoomType != ChatRoomType.DEPARTMENT) {
+				throw new ApiException(ErrorCode.INVALID_CHAT_ROOM_TYPE);
+			}
+			return chatRoomType;
+		} catch (IllegalArgumentException exception) {
+			throw new ApiException(ErrorCode.INVALID_CHAT_ROOM_TYPE);
+		}
+	}
+
+	private ProjectDepartment validateCreateDepartment(ChatRoomType type, String department) {
+		String normalizedDepartment = trimToNull(department);
+		if (type == ChatRoomType.GENERAL) {
+			if (normalizedDepartment != null) {
+				throw new ApiException(ErrorCode.DEPARTMENT_NOT_ALLOWED_FOR_GENERAL_CHAT_ROOM);
+			}
+			return null;
+		}
+		if (normalizedDepartment == null) {
+			throw new ApiException(ErrorCode.CHAT_ROOM_DEPARTMENT_REQUIRED);
+		}
+		return parseDepartment(normalizedDepartment);
+	}
+
+	private List<User> resolveChatRoomMembers(
+		Long projectId,
+		ChatRoomType type,
+		ProjectDepartment department,
+		User creator
+	) {
+		if (type == ChatRoomType.GENERAL) {
+			return List.of(creator);
+		}
+
+		List<ProjectMember> departmentMembers = projectMemberRepository
+			.findActiveByProjectIdAndDepartmentWithUser(projectId, department);
+		if (departmentMembers.isEmpty()) {
+			throw new ApiException(ErrorCode.PROJECT_DEPARTMENT_NOT_FOUND);
+		}
+		return departmentMembers.stream().map(ProjectMember::getUser).toList();
+	}
+
+	private void validateDepartmentChatRoomDuplicate(
+		Long projectId,
+		ChatRoomType type,
+		ProjectDepartment department
+	) {
+		if (type == ChatRoomType.DEPARTMENT
+			&& chatRoomRepository.existsByProject_IdAndTypeAndDepartmentAndStatusAndDeletedAtIsNull(
+				projectId,
+				type,
+				department,
+				com.weai.server.domain.chat.domain.ChatRoomStatus.ACTIVE
+			)) {
+			throw new ApiException(ErrorCode.DEPARTMENT_CHAT_ROOM_ALREADY_EXISTS);
+		}
 	}
 
 	private long countMembers(ChatRoom chatRoom) {

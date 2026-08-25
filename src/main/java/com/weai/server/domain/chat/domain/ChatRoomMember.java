@@ -80,4 +80,14 @@ public class ChatRoomMember extends BaseEntity {
 	public void leave() {
 		this.status = ChatRoomMemberStatus.LEFT;
 	}
+
+	public void kick() {
+		this.status = ChatRoomMemberStatus.KICKED;
+	}
+
+	public void reactivate() {
+		this.status = ChatRoomMemberStatus.ACTIVE;
+		this.joinedAt = LocalDateTime.now();
+		this.lastReadMessage = null;
+	}
 }

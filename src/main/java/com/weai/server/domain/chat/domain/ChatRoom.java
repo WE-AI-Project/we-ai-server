@@ -68,6 +68,9 @@ public class ChatRoom extends BaseEntity {
 	@Column(name = "is_private", nullable = false)
 	private boolean isPrivate;
 
+	@Column(name = "is_default", nullable = false)
+	private boolean isDefault;
+
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "created_by", nullable = false)
 	private User createdBy;
@@ -92,6 +95,21 @@ public class ChatRoom extends BaseEntity {
 			.department(department)
 			.status(ChatRoomStatus.ACTIVE)
 			.isPrivate(isPrivate)
+			.isDefault(false)
+			.createdBy(createdBy)
+			.build();
+	}
+
+	public static ChatRoom createDefault(Project project, User createdBy) {
+		return ChatRoom.builder()
+			.project(project)
+			.name("프로젝트 전체")
+			.description("프로젝트 전체 멤버가 참여하는 기본 채팅방입니다.")
+			.type(ChatRoomType.GENERAL)
+			.department(null)
+			.status(ChatRoomStatus.ACTIVE)
+			.isPrivate(false)
+			.isDefault(true)
 			.createdBy(createdBy)
 			.build();
 	}

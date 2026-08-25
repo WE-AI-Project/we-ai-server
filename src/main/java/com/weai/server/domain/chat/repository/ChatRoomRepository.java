@@ -1,9 +1,12 @@
 package com.weai.server.domain.chat.repository;
 
 import com.weai.server.domain.chat.domain.ChatRoom;
+import com.weai.server.domain.chat.domain.ChatRoomStatus;
 import com.weai.server.domain.chat.domain.ChatRoomType;
 import com.weai.server.domain.project.domain.ProjectDepartment;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,6 +15,31 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
+
+	boolean existsByProject_IdAndIsDefaultTrueAndStatusAndDeletedAtIsNull(Long projectId, ChatRoomStatus status);
+
+	Optional<ChatRoom> findByProject_IdAndIsDefaultTrueAndStatusAndDeletedAtIsNull(
+		Long projectId,
+		ChatRoomStatus status
+	);
+
+	boolean existsByProject_IdAndTypeAndDepartmentAndStatusAndDeletedAtIsNull(
+		Long projectId,
+		ChatRoomType type,
+		ProjectDepartment department,
+		ChatRoomStatus status
+	);
+
+	@Query("""
+		select cr.department
+		from ChatRoom cr
+		where cr.project.id = :projectId
+		  and cr.type = com.weai.server.domain.chat.domain.ChatRoomType.DEPARTMENT
+		  and cr.status = com.weai.server.domain.chat.domain.ChatRoomStatus.ACTIVE
+		  and cr.deletedAt is null
+		  and cr.department is not null
+		""")
+	List<ProjectDepartment> findActiveDepartmentChatRoomDepartments(@Param("projectId") Long projectId);
 
 	@Query(
 		value = """

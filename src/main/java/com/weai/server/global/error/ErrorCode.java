@@ -116,10 +116,30 @@ public enum ErrorCode {
 	CHAT_FILE_EMPTY(HttpStatus.BAD_REQUEST, "CHAT_400_7", "Chat file is empty."),
 	CHAT_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "CHAT_400_8", "Chat file size exceeded."),
 	CHAT_FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "CHAT_400_9", "Chat file type is not allowed."),
+	CHAT_ROOM_NAME_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_400_10", "Chat room name is required."),
+	CHAT_ROOM_NAME_TOO_LONG(HttpStatus.BAD_REQUEST, "CHAT_400_11", "Chat room name must be 50 characters or fewer."),
+	CHAT_ROOM_TYPE_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_400_12", "Chat room type is required."),
+	DEPARTMENT_NOT_ALLOWED_FOR_GENERAL_CHAT_ROOM(
+		HttpStatus.BAD_REQUEST,
+		"CHAT_400_13",
+		"Department is not allowed for a general chat room."
+	),
+	CHAT_ROOM_DEPARTMENT_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_400_14", "Department is required for a department chat room."),
 	CHAT_ROOM_ACCESS_DENIED(HttpStatus.FORBIDDEN, "CHAT_403_1", "You cannot access this chat room."),
 	CHAT_ROOM_NOT_ACTIVE(HttpStatus.FORBIDDEN, "CHAT_403_2", "The chat room is not active."),
 	CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_1", "The requested chat room could not be found."),
 	CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_2", "The requested chat message could not be found."),
+	PROJECT_DEPARTMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_3", "The department has no active members in this project."),
+	DEPARTMENT_CHAT_ROOM_ALREADY_EXISTS(
+		HttpStatus.CONFLICT,
+		"CHAT_409_1",
+		"An active chat room already exists for this department."
+	),
+	DEFAULT_CHAT_ROOM_ALREADY_EXISTS(
+		HttpStatus.CONFLICT,
+		"CHAT_409_2",
+		"An active default chat room already exists for this project."
+	),
 	CHAT_FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_500_1", "Failed to upload the chat file."),
 
 	// Chat Document & Meeting Errors

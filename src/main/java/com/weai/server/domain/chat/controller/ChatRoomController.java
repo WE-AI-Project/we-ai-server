@@ -1,10 +1,12 @@
 package com.weai.server.domain.chat.controller;
 
 import com.weai.server.domain.chat.request.ChatMessageSendRequest;
+import com.weai.server.domain.chat.request.ChatRoomCreateRequest;
 import com.weai.server.domain.chat.response.ChatFileUploadResponse;
 import com.weai.server.domain.chat.response.ChatMessageListResponse;
 import com.weai.server.domain.chat.response.ChatMessageSendResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
+import com.weai.server.domain.chat.response.ChatRoomCreateResponse;
 import com.weai.server.domain.chat.service.ChatRoomService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
@@ -32,6 +34,35 @@ import org.springframework.web.multipart.MultipartFile;
 public class ChatRoomController {
 
 	private final ChatRoomService chatRoomService;
+
+	@Operation(summary = "채팅방 생성", description = "프로젝트에 일반 또는 부서 채팅방을 생성합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.CHAT_ROOM_NAME_REQUIRED,
+		ErrorCode.CHAT_ROOM_NAME_TOO_LONG,
+		ErrorCode.CHAT_ROOM_TYPE_REQUIRED,
+		ErrorCode.INVALID_CHAT_ROOM_TYPE,
+		ErrorCode.INVALID_DEPARTMENT,
+		ErrorCode.DEPARTMENT_NOT_ALLOWED_FOR_GENERAL_CHAT_ROOM,
+		ErrorCode.CHAT_ROOM_DEPARTMENT_REQUIRED,
+		ErrorCode.PROJECT_DEPARTMENT_NOT_FOUND,
+		ErrorCode.DEPARTMENT_CHAT_ROOM_ALREADY_EXISTS
+	})
+	@PostMapping("/rooms")
+	public ApiResponse<ChatRoomCreateResponse> createChatRoom(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@RequestBody(required = false) ChatRoomCreateRequest request
+	) {
+		return ApiResponse.success(
+			"CHAT_ROOM_CREATE_SUCCESS",
+			"채팅방이 생성되었습니다.",
+			chatRoomService.createChatRoom(authentication.getName(), projectId, request)
+		);
+	}
 
 	@Operation(summary = "채팅방 목록 조회", description = "로그인 사용자가 참여 중인 프로젝트의 채팅방 목록을 조회합니다.")
 	@SwaggerErrorResponses({
