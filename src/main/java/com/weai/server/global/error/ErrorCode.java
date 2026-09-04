@@ -149,6 +149,11 @@ public enum ErrorCode {
 		"CHAT_409_2",
 		"An active default chat room already exists for this project."
 	),
+	CHAT_ROOM_ALREADY_EXISTS(
+		HttpStatus.CONFLICT,
+		"CHAT_409_3",
+		"An active chat room with the same name already exists in this project."
+	),
 	CHAT_FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_500_1", "Failed to upload the chat file."),
 
 	// Chat Document & Meeting Errors
