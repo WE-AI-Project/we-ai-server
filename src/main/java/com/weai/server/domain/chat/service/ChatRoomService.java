@@ -5,6 +5,7 @@ import com.weai.server.domain.chat.domain.ChatMessageType;
 import com.weai.server.domain.chat.domain.ChatRoom;
 import com.weai.server.domain.chat.domain.ChatRoomMember;
 import com.weai.server.domain.chat.domain.ChatRoomMemberStatus;
+import com.weai.server.domain.chat.domain.ChatRoomStatus;
 import com.weai.server.domain.chat.domain.ChatRoomType;
 import com.weai.server.domain.chat.repository.ChatMessageRepository;
 import com.weai.server.domain.chat.repository.ChatRoomMemberRepository;
@@ -97,6 +98,7 @@ public class ChatRoomService {
 		ProjectDepartment department = validateCreateDepartment(type, request == null ? null : request.department());
 
 		List<User> members = resolveChatRoomMembers(projectId, type, department, creator);
+		validateGeneralChatRoomNameDuplicate(projectId, type, name);
 		validateDepartmentChatRoomDuplicate(projectId, type, department);
 
 		try {
@@ -335,9 +337,25 @@ public class ChatRoomService {
 				projectId,
 				type,
 				department,
-				com.weai.server.domain.chat.domain.ChatRoomStatus.ACTIVE
+				ChatRoomStatus.ACTIVE
 			)) {
 			throw new ApiException(ErrorCode.DEPARTMENT_CHAT_ROOM_ALREADY_EXISTS);
+		}
+	}
+
+	private void validateGeneralChatRoomNameDuplicate(
+		Long projectId,
+		ChatRoomType type,
+		String name
+	) {
+		if (type == ChatRoomType.GENERAL
+			&& chatRoomRepository.existsByProject_IdAndTypeAndNameIgnoreCaseAndStatusAndDeletedAtIsNull(
+				projectId,
+				type,
+				name,
+				ChatRoomStatus.ACTIVE
+			)) {
+			throw new ApiException(ErrorCode.CHAT_ROOM_ALREADY_EXISTS);
 		}
 	}
 

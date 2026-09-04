@@ -519,6 +519,25 @@ class ChatRoomServiceTest {
 	}
 
 	@Test
+	void createGeneralChatRoomRejectsDuplicateNameInSameProject() {
+		TestFixture fixture = createFixture();
+		chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("front", "GENERAL", null)
+		);
+
+		assertThatThrownBy(() -> chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest(" FRONT ", "GENERAL", null)
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_ALREADY_EXISTS);
+	}
+
+	@Test
 	void createDefaultChatRoomAddsAllProjectMembersAndRejectsDuplicate() {
 		TestFixture fixture = createFixture();
 
