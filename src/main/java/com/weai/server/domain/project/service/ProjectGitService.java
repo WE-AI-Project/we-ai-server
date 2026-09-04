@@ -7,6 +7,9 @@ import com.weai.server.domain.project.response.ProjectCommitDetailResponse;
 import com.weai.server.domain.project.response.ProjectCommitFileDiffResponse;
 import com.weai.server.domain.project.response.ProjectCommitFileListResponse;
 import com.weai.server.domain.project.response.ProjectCommitListResponse;
+import com.weai.server.domain.project.response.ProjectGitChangeResponse;
+import com.weai.server.domain.project.response.ProjectGitChangeResponse.GitChangeFileResponse;
+import com.weai.server.domain.project.response.ProjectGitChangeResponse.GitChangeStatus;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
@@ -19,9 +22,11 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -165,6 +170,73 @@ public class ProjectGitService {
 		);
 	}
 
+	@Transactional
+	public ProjectGitChangeResponse stageFiles(String userEmail, Long projectId, List<String> rawFilePaths) {
+		Project project = getAccessibleProject(userEmail, projectId);
+		Path repositoryPath = resolveStagingRepositoryPath(project);
+		List<String> filePaths = validateRelativeFilePaths(repositoryPath, rawFilePaths);
+
+		List<String> arguments = new ArrayList<>();
+		arguments.add("add");
+		arguments.add("--");
+		arguments.addAll(filePaths);
+		runChangeGitCommand(repositoryPath, arguments, ErrorCode.GIT_STAGE_FAILED);
+
+		return ProjectGitChangeResponse.files(projectId, filePaths, readWorkingTreeStatus(repositoryPath));
+	}
+
+	@Transactional
+	public ProjectGitChangeResponse unstageFiles(String userEmail, Long projectId, List<String> rawFilePaths) {
+		Project project = getAccessibleProject(userEmail, projectId);
+		Path repositoryPath = resolveStagingRepositoryPath(project);
+		List<String> filePaths = validateRelativeFilePaths(repositoryPath, rawFilePaths);
+
+		List<String> restoreArguments = new ArrayList<>();
+		restoreArguments.add("restore");
+		restoreArguments.add("--staged");
+		restoreArguments.add("--");
+		restoreArguments.addAll(filePaths);
+
+		List<String> resetArguments = new ArrayList<>();
+		resetArguments.add("reset");
+		resetArguments.add("HEAD");
+		resetArguments.add("--");
+		resetArguments.addAll(filePaths);
+
+		runChangeGitCommandWithFallback(repositoryPath, restoreArguments, resetArguments, ErrorCode.GIT_UNSTAGE_FAILED);
+
+		return ProjectGitChangeResponse.files(projectId, filePaths, readWorkingTreeStatus(repositoryPath));
+	}
+
+	@Transactional
+	public ProjectGitChangeResponse stageAll(String userEmail, Long projectId) {
+		Project project = getAccessibleProject(userEmail, projectId);
+		Path repositoryPath = resolveStagingRepositoryPath(project);
+
+		runChangeGitCommand(repositoryPath, List.of("add", "-A"), ErrorCode.GIT_STAGE_ALL_FAILED);
+
+		return ProjectGitChangeResponse.stageAll(projectId, readWorkingTreeStatus(repositoryPath));
+	}
+
+	@Transactional
+	public ProjectGitChangeResponse unstageAll(String userEmail, Long projectId) {
+		Project project = getAccessibleProject(userEmail, projectId);
+		Path repositoryPath = resolveStagingRepositoryPath(project);
+		GitChangeStatus currentStatus = readWorkingTreeStatus(repositoryPath);
+		if (currentStatus.stagedFiles().isEmpty()) {
+			return ProjectGitChangeResponse.unstageAll(projectId, currentStatus);
+		}
+
+		runChangeGitCommandWithFallback(
+			repositoryPath,
+			List.of("restore", "--staged", "."),
+			List.of("reset", "HEAD"),
+			ErrorCode.GIT_UNSTAGE_ALL_FAILED
+		);
+
+		return ProjectGitChangeResponse.unstageAll(projectId, readWorkingTreeStatus(repositoryPath));
+	}
+
 	private Project getAccessibleProject(String userEmail, Long projectId) {
 		User user = userService.getUserEntityByEmail(userEmail);
 		return projectService.validateProjectAccess(projectId, user.getId());
@@ -195,6 +267,20 @@ public class ProjectGitService {
 			}
 			case FRONTEND -> resolveFrontendRepositoryPath(project);
 		};
+	}
+
+	private Path resolveStagingRepositoryPath(Project project) {
+		Path repositoryPath = safeToPath(project.getLocalPath());
+		if (repositoryPath == null) {
+			throw new ApiException(ErrorCode.GIT_REPOSITORY_PATH_NOT_FOUND);
+		}
+
+		Path normalizedRepositoryPath = repositoryPath.toAbsolutePath().normalize();
+		if (!Files.isDirectory(normalizedRepositoryPath) || !Files.exists(normalizedRepositoryPath.resolve(".git"))) {
+			throw new ApiException(ErrorCode.GIT_REPOSITORY_NOT_FOUND);
+		}
+
+		return normalizedRepositoryPath;
 	}
 
 	private Path resolveFrontendRepositoryPath(Project project) {
@@ -375,6 +461,114 @@ public class ProjectGitService {
 		return files;
 	}
 
+	private List<String> validateRelativeFilePaths(Path repositoryPath, List<String> rawFilePaths) {
+		if (rawFilePaths == null || rawFilePaths.isEmpty()) {
+			throw new ApiException(ErrorCode.GIT_FILE_PATH_REQUIRED);
+		}
+
+		Set<String> normalizedFilePaths = new LinkedHashSet<>();
+		for (String rawFilePath : rawFilePaths) {
+			normalizedFilePaths.add(validateRelativeFilePath(repositoryPath, rawFilePath));
+		}
+
+		return new ArrayList<>(normalizedFilePaths);
+	}
+
+	private String validateRelativeFilePath(Path repositoryPath, String rawFilePath) {
+		String filePath = rawFilePath == null ? null : rawFilePath.trim();
+		if (filePath == null || filePath.isBlank()) {
+			throw new ApiException(ErrorCode.GIT_FILE_PATH_REQUIRED);
+		}
+		if (filePath.indexOf('\0') >= 0) {
+			throw new ApiException(ErrorCode.INVALID_GIT_FILE_PATH);
+		}
+
+		String slashNormalizedFilePath = filePath.replace('\\', '/');
+		if (slashNormalizedFilePath.startsWith("/") || slashNormalizedFilePath.matches("^[A-Za-z]:/.*")) {
+			throw new ApiException(ErrorCode.INVALID_GIT_FILE_PATH);
+		}
+
+		Path relativePath;
+		try {
+			relativePath = Paths.get(slashNormalizedFilePath);
+		} catch (RuntimeException exception) {
+			throw new ApiException(ErrorCode.INVALID_GIT_FILE_PATH);
+		}
+
+		Path normalizedRelativePath = relativePath.normalize();
+		if (relativePath.isAbsolute() || normalizedRelativePath.toString().isBlank() || normalizedRelativePath.toString().equals(".")) {
+			throw new ApiException(ErrorCode.INVALID_GIT_FILE_PATH);
+		}
+
+		Path resolvedPath = repositoryPath.resolve(normalizedRelativePath).normalize();
+		if (!resolvedPath.startsWith(repositoryPath)) {
+			throw new ApiException(ErrorCode.INVALID_GIT_FILE_PATH);
+		}
+
+		return normalizedRelativePath.toString().replace('\\', '/');
+	}
+
+	private GitChangeStatus readWorkingTreeStatus(Path repositoryPath) {
+		String output = runRepositoryGitCommand(repositoryPath, List.of("status", "--porcelain=v1"));
+		if (output.isBlank()) {
+			return new GitChangeStatus(List.of(), List.of());
+		}
+
+		Map<String, GitChangeFileResponse> stagedFiles = new LinkedHashMap<>();
+		Map<String, GitChangeFileResponse> unstagedFiles = new LinkedHashMap<>();
+
+		for (String rawLine : output.split("\\R")) {
+			if (rawLine == null || rawLine.length() < 3) {
+				continue;
+			}
+
+			char indexStatus = rawLine.charAt(0);
+			char workingTreeStatus = rawLine.charAt(1);
+			String filePath = extractStatusFilePath(rawLine.substring(3));
+			boolean staged = indexStatus != ' ' && indexStatus != '?';
+			boolean unstaged = workingTreeStatus != ' ' || indexStatus == '?';
+			String status = resolveChangeStatus(indexStatus, workingTreeStatus);
+			GitChangeFileResponse file = new GitChangeFileResponse(filePath, status, staged, unstaged);
+
+			if (staged) {
+				stagedFiles.put(filePath, file);
+			}
+			if (unstaged) {
+				unstagedFiles.put(filePath, file);
+			}
+		}
+
+		return new GitChangeStatus(
+			stagedFiles.values().stream().toList(),
+			unstagedFiles.values().stream().toList()
+		);
+	}
+
+	private String extractStatusFilePath(String rawPath) {
+		String filePath = rawPath == null ? "" : rawPath.trim();
+		int renameSeparatorIndex = filePath.indexOf(" -> ");
+		if (renameSeparatorIndex >= 0) {
+			filePath = filePath.substring(renameSeparatorIndex + " -> ".length());
+		}
+		return filePath.replace('\\', '/');
+	}
+
+	private String resolveChangeStatus(char indexStatus, char workingTreeStatus) {
+		if (indexStatus == '?') {
+			return "UNTRACKED";
+		}
+		char status = indexStatus != ' ' ? indexStatus : workingTreeStatus;
+		return switch (status) {
+			case 'A' -> "ADDED";
+			case 'D' -> "DELETED";
+			case 'R' -> "RENAMED";
+			case 'C' -> "COPIED";
+			case 'M' -> "MODIFIED";
+			case 'U' -> "UNMERGED";
+			default -> "UNKNOWN";
+		};
+	}
+
 	private String runRepositoryGitCommand(Path repositoryPath, List<String> arguments) {
 		try {
 			return runGitCommand(repositoryPath, arguments);
@@ -398,6 +592,41 @@ public class ProjectGitService {
 				ErrorCode.PROJECT_GIT_COMMAND_FAILED,
 				"Failed to execute the project git command: " + exception.getOutput()
 			);
+		}
+	}
+
+	private void runChangeGitCommand(Path repositoryPath, List<String> arguments, ErrorCode failureCode) {
+		try {
+			runGitCommand(repositoryPath, arguments);
+		} catch (GitCommandException exception) {
+			throw new ApiException(failureCode, "Failed to execute git command: " + exception.getOutput());
+		} catch (ApiException exception) {
+			if (exception.getErrorCode() == ErrorCode.PROJECT_GIT_COMMAND_FAILED) {
+				throw new ApiException(ErrorCode.GIT_COMMAND_EXECUTION_FAILED, exception.getMessage());
+			}
+			throw exception;
+		}
+	}
+
+	private void runChangeGitCommandWithFallback(
+		Path repositoryPath,
+		List<String> primaryArguments,
+		List<String> fallbackArguments,
+		ErrorCode failureCode
+	) {
+		try {
+			runGitCommand(repositoryPath, primaryArguments);
+		} catch (GitCommandException primaryException) {
+			try {
+				runGitCommand(repositoryPath, fallbackArguments);
+			} catch (GitCommandException fallbackException) {
+				throw new ApiException(failureCode, "Failed to execute git command: " + fallbackException.getOutput());
+			}
+		} catch (ApiException exception) {
+			if (exception.getErrorCode() == ErrorCode.PROJECT_GIT_COMMAND_FAILED) {
+				throw new ApiException(ErrorCode.GIT_COMMAND_EXECUTION_FAILED, exception.getMessage());
+			}
+			throw exception;
 		}
 	}
 

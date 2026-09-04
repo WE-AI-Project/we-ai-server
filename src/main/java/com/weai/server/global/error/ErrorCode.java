@@ -84,6 +84,15 @@ public enum ErrorCode {
 	DAILY_STANDUP_DISMISS_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_6", "Failed to save daily standup dismissal."),
 	DAILY_STANDUP_SUMMARY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_7", "Failed to retrieve daily standup summary."),
 	INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "PROJECT_500_8", "Failed to generate an invite code."),
+	GIT_REPOSITORY_PATH_NOT_FOUND(HttpStatus.BAD_REQUEST, "GIT_400_1", "Project git repository path is required."),
+	GIT_REPOSITORY_NOT_FOUND(HttpStatus.BAD_REQUEST, "GIT_400_2", "Git repository could not be found at the project path."),
+	GIT_FILE_PATH_REQUIRED(HttpStatus.BAD_REQUEST, "GIT_400_3", "Git file path is required."),
+	INVALID_GIT_FILE_PATH(HttpStatus.BAD_REQUEST, "GIT_400_4", "Git file path must be a relative path inside the repository."),
+	GIT_STAGE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_1", "Failed to stage the requested files."),
+	GIT_UNSTAGE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_2", "Failed to unstage the requested files."),
+	GIT_STAGE_ALL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_3", "Failed to stage all files."),
+	GIT_UNSTAGE_ALL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_4", "Failed to unstage all files."),
+	GIT_COMMAND_EXECUTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_5", "Failed to execute the git command."),
 
 	// QA Query Errors
 	INVALID_QA_REPORT_STATUS(HttpStatus.BAD_REQUEST, "QA_400_1", "QA report status is invalid."),
