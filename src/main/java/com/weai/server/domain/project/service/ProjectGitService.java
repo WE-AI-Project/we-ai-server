@@ -3,6 +3,9 @@ package com.weai.server.domain.project.service;
 import com.weai.server.domain.project.config.ProjectGitProperties;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectRepositoryType;
+import com.weai.server.domain.project.request.ProjectGitCommitRequest;
+import com.weai.server.domain.project.response.ProjectChangedFileListResponse;
+import com.weai.server.domain.project.response.ProjectChangedFileListResponse.ChangedFileResponse;
 import com.weai.server.domain.project.response.ProjectCommitDetailResponse;
 import com.weai.server.domain.project.response.ProjectCommitFileDiffResponse;
 import com.weai.server.domain.project.response.ProjectCommitFileListResponse;
@@ -10,11 +13,15 @@ import com.weai.server.domain.project.response.ProjectCommitListResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse.GitChangeFileResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse.GitChangeStatus;
+import com.weai.server.domain.project.response.ProjectGitCommitCreateResponse;
+import com.weai.server.domain.project.response.ProjectGitFileDiffResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +36,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -167,6 +176,108 @@ public class ProjectGitService {
 			file.additions(),
 			file.deletions(),
 			file.diff()
+		);
+	}
+
+	public ProjectChangedFileListResponse getChangedFiles(String userEmail, Long projectId) {
+		Project project = getAccessibleProject(userEmail, projectId);
+		Path repositoryPath = resolveStagingRepositoryPath(project);
+		List<GitChangedFile> files = readChangedFiles(repositoryPath);
+
+		return new ProjectChangedFileListResponse(
+			projectId,
+			getCurrentBranch(repositoryPath),
+			files.size(),
+			(int) files.stream().filter(GitChangedFile::staged).count(),
+			(int) files.stream().filter(GitChangedFile::unstaged).count(),
+			(int) files.stream().filter(GitChangedFile::untracked).count(),
+			files.stream()
+				.map(file -> new ChangedFileResponse(
+					file.filePath(),
+					file.fileName(),
+					file.extension(),
+					file.changeType(),
+					file.staged(),
+					file.unstaged(),
+					file.stagedStatus(),
+					file.unstagedStatus(),
+					file.displayStatus()
+				))
+				.toList()
+		);
+	}
+
+	public ProjectGitFileDiffResponse getChangedFileDiff(
+		String userEmail,
+		Long projectId,
+		String rawFilePath,
+		boolean staged
+	) {
+		Project project = getAccessibleProject(userEmail, projectId);
+		Path repositoryPath = resolveStagingRepositoryPath(project);
+		String filePath = validateRelativeFilePath(repositoryPath, rawFilePath);
+		GitChangedFile file = readChangedFiles(repositoryPath).stream()
+			.filter(candidate -> Objects.equals(candidate.filePath(), filePath))
+			.findFirst()
+			.orElseThrow(() -> new ApiException(ErrorCode.GIT_CHANGED_FILE_NOT_FOUND));
+
+		List<String> arguments = staged
+			? List.of("diff", "--cached", "--", filePath)
+			: List.of("diff", "--", filePath);
+		String diffContent = runChangeGitCommandWithOutput(repositoryPath, arguments, ErrorCode.GIT_DIFF_FAILED);
+		DiffStats stats = countDiffStats(diffContent);
+
+		return new ProjectGitFileDiffResponse(
+			projectId,
+			file.filePath(),
+			file.fileName(),
+			file.extension(),
+			staged,
+			file.changeType(),
+			stats.additions(),
+			stats.deletions(),
+			diffContent
+		);
+	}
+
+	@Transactional
+	public ProjectGitCommitCreateResponse createCommit(
+		String userEmail,
+		Long projectId,
+		ProjectGitCommitRequest request
+	) {
+		Project project = getAccessibleProject(userEmail, projectId);
+		Path repositoryPath = resolveStagingRepositoryPath(project);
+		String message = validateCommitMessage(request == null ? null : request.message());
+		String description = validateCommitDescription(request == null ? null : request.description());
+		List<String> stagedFilePaths = getStagedFilePaths(repositoryPath);
+
+		if (stagedFilePaths.isEmpty()) {
+			throw new ApiException(ErrorCode.GIT_NO_STAGED_FILES);
+		}
+
+		List<String> arguments = new ArrayList<>();
+		arguments.add("commit");
+		arguments.add("-m");
+		arguments.add(message);
+		if (description != null) {
+			arguments.add("-m");
+			arguments.add(description);
+		}
+		runChangeGitCommand(repositoryPath, arguments, ErrorCode.GIT_COMMIT_FAILED);
+
+		String commitHash = runChangeGitCommandWithOutput(repositoryPath, List.of("rev-parse", "HEAD"), ErrorCode.GIT_COMMIT_FAILED)
+			.trim();
+
+		return new ProjectGitCommitCreateResponse(
+			projectId,
+			commitHash,
+			commitHash.length() <= 7 ? commitHash : commitHash.substring(0, 7),
+			getCurrentBranch(repositoryPath),
+			message,
+			stagedFilePaths.size(),
+			stagedFilePaths,
+			LocalDateTime.now()
 		);
 	}
 
@@ -509,32 +620,21 @@ public class ProjectGitService {
 	}
 
 	private GitChangeStatus readWorkingTreeStatus(Path repositoryPath) {
-		String output = runRepositoryGitCommand(repositoryPath, List.of("status", "--porcelain=v1"));
-		if (output.isBlank()) {
-			return new GitChangeStatus(List.of(), List.of());
-		}
-
 		Map<String, GitChangeFileResponse> stagedFiles = new LinkedHashMap<>();
 		Map<String, GitChangeFileResponse> unstagedFiles = new LinkedHashMap<>();
 
-		for (String rawLine : output.split("\\R")) {
-			if (rawLine == null || rawLine.length() < 3) {
-				continue;
+		for (GitChangedFile changedFile : readChangedFiles(repositoryPath)) {
+			GitChangeFileResponse file = new GitChangeFileResponse(
+				changedFile.filePath(),
+				changedFile.changeType(),
+				changedFile.staged(),
+				changedFile.unstaged()
+			);
+			if (changedFile.staged()) {
+				stagedFiles.put(changedFile.filePath(), file);
 			}
-
-			char indexStatus = rawLine.charAt(0);
-			char workingTreeStatus = rawLine.charAt(1);
-			String filePath = extractStatusFilePath(rawLine.substring(3));
-			boolean staged = indexStatus != ' ' && indexStatus != '?';
-			boolean unstaged = workingTreeStatus != ' ' || indexStatus == '?';
-			String status = resolveChangeStatus(indexStatus, workingTreeStatus);
-			GitChangeFileResponse file = new GitChangeFileResponse(filePath, status, staged, unstaged);
-
-			if (staged) {
-				stagedFiles.put(filePath, file);
-			}
-			if (unstaged) {
-				unstagedFiles.put(filePath, file);
+			if (changedFile.unstaged()) {
+				unstagedFiles.put(changedFile.filePath(), file);
 			}
 		}
 
@@ -544,6 +644,47 @@ public class ProjectGitService {
 		);
 	}
 
+	private List<GitChangedFile> readChangedFiles(Path repositoryPath) {
+		String output = runChangeGitCommandWithOutput(
+			repositoryPath,
+			List.of("status", "--porcelain=v1"),
+			ErrorCode.GIT_COMMAND_EXECUTION_FAILED
+		);
+		if (output.isBlank()) {
+			return List.of();
+		}
+
+		List<GitChangedFile> files = new ArrayList<>();
+		for (String rawLine : output.split("\\R")) {
+			if (rawLine == null || rawLine.length() < 3) {
+				continue;
+			}
+
+			char indexStatus = rawLine.charAt(0);
+			char workingTreeStatus = rawLine.charAt(1);
+			String filePath = extractStatusFilePath(rawLine.substring(3));
+			String changeType = resolveChangeStatus(indexStatus, workingTreeStatus);
+			boolean staged = indexStatus != ' ' && indexStatus != '?';
+			boolean unstaged = workingTreeStatus != ' ' || indexStatus == '?';
+			String stagedStatus = toStatusValue(indexStatus);
+			String unstagedStatus = indexStatus == '?' ? "?" : toStatusValue(workingTreeStatus);
+
+			files.add(new GitChangedFile(
+				filePath,
+				extractFileName(filePath),
+				extractExtension(filePath),
+				changeType,
+				staged,
+				unstaged,
+				stagedStatus,
+				unstagedStatus,
+				resolveDisplayStatus(changeType, staged, unstaged)
+			));
+		}
+
+		return files;
+	}
+
 	private String extractStatusFilePath(String rawPath) {
 		String filePath = rawPath == null ? "" : rawPath.trim();
 		int renameSeparatorIndex = filePath.indexOf(" -> ");
@@ -551,6 +692,22 @@ public class ProjectGitService {
 			filePath = filePath.substring(renameSeparatorIndex + " -> ".length());
 		}
 		return filePath.replace('\\', '/');
+	}
+
+	private String extractFileName(String filePath) {
+		if (filePath == null || filePath.isBlank()) {
+			return "";
+		}
+		String normalizedPath = filePath.replace('\\', '/');
+		return normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+	}
+
+	private String extractExtension(String filePath) {
+		String fileName = extractFileName(filePath);
+		if (!fileName.contains(".") || fileName.endsWith(".")) {
+			return "";
+		}
+		return fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
 	}
 
 	private String resolveChangeStatus(char indexStatus, char workingTreeStatus) {
@@ -567,6 +724,101 @@ public class ProjectGitService {
 			case 'U' -> "UNMERGED";
 			default -> "UNKNOWN";
 		};
+	}
+
+	private String toStatusValue(char status) {
+		return status == ' ' ? null : String.valueOf(status);
+	}
+
+	private String resolveDisplayStatus(String changeType, boolean staged, boolean unstaged) {
+		if ("UNTRACKED".equals(changeType)) {
+			return "UNTRACKED";
+		}
+		if (staged && unstaged) {
+			return "STAGED_AND_UNSTAGED_" + changeType;
+		}
+		if (staged) {
+			return "STAGED_" + changeType;
+		}
+		if (unstaged) {
+			return "UNSTAGED_" + changeType;
+		}
+		return changeType;
+	}
+
+	private String getCurrentBranch(Path repositoryPath) {
+		String branchName;
+		try {
+			branchName = runGitCommand(repositoryPath, List.of("branch", "--show-current")).trim();
+			if (!branchName.isBlank()) {
+				return branchName;
+			}
+		} catch (GitCommandException exception) {
+			log.debug("Failed to read current git branch by branch --show-current.", exception);
+		}
+
+		return runChangeGitCommandWithOutput(
+			repositoryPath,
+			List.of("rev-parse", "--abbrev-ref", "HEAD"),
+			ErrorCode.GIT_COMMAND_EXECUTION_FAILED
+		).trim();
+	}
+
+	private List<String> getStagedFilePaths(Path repositoryPath) {
+		String output = runChangeGitCommandWithOutput(
+			repositoryPath,
+			List.of("diff", "--cached", "--name-only"),
+			ErrorCode.GIT_COMMAND_EXECUTION_FAILED
+		);
+		if (output.isBlank()) {
+			return List.of();
+		}
+		return output.lines()
+			.map(String::trim)
+			.filter(line -> !line.isBlank())
+			.map(line -> line.replace('\\', '/'))
+			.toList();
+	}
+
+	private DiffStats countDiffStats(String diffContent) {
+		if (diffContent == null || diffContent.isBlank()) {
+			return new DiffStats(0L, 0L);
+		}
+
+		long additions = 0L;
+		long deletions = 0L;
+		for (String line : diffContent.split("\\R")) {
+			if (line.startsWith("+++") || line.startsWith("---")) {
+				continue;
+			}
+			if (line.startsWith("+")) {
+				additions += 1;
+				continue;
+			}
+			if (line.startsWith("-")) {
+				deletions += 1;
+			}
+		}
+		return new DiffStats(additions, deletions);
+	}
+
+	private String validateCommitMessage(String rawMessage) {
+		String message = trimToNull(rawMessage);
+		if (message == null) {
+			throw new ApiException(ErrorCode.GIT_COMMIT_MESSAGE_REQUIRED);
+		}
+		if (message.length() > 200) {
+			throw new ApiException(ErrorCode.GIT_COMMIT_MESSAGE_TOO_LONG);
+		}
+		return message;
+	}
+
+	private String validateCommitDescription(String rawDescription) {
+		String description = trimToNull(rawDescription);
+		if (description != null && description.length() > 1000) {
+			throw new ApiException(ErrorCode.GIT_COMMIT_DESCRIPTION_TOO_LONG);
+		}
+		return description;
 	}
 
 	private String runRepositoryGitCommand(Path repositoryPath, List<String> arguments) {
@@ -596,8 +848,12 @@ public class ProjectGitService {
 	}
 
 	private void runChangeGitCommand(Path repositoryPath, List<String> arguments, ErrorCode failureCode) {
+		runChangeGitCommandWithOutput(repositoryPath, arguments, failureCode);
+	}
+
+	private String runChangeGitCommandWithOutput(Path repositoryPath, List<String> arguments, ErrorCode failureCode) {
 		try {
-			runGitCommand(repositoryPath, arguments);
+			return runGitCommand(repositoryPath, arguments);
 		} catch (GitCommandException exception) {
 			throw new ApiException(failureCode, "Failed to execute git command: " + exception.getOutput());
 		} catch (ApiException exception) {
@@ -640,7 +896,6 @@ public class ProjectGitService {
 		Process process;
 		try {
 			process = new ProcessBuilder(command)
-				.redirectErrorStream(true)
 				.start();
 		} catch (IOException exception) {
 			throw new ApiException(
@@ -649,27 +904,65 @@ public class ProjectGitService {
 			);
 		}
 
-		String output;
+		CompletableFuture<String> stdoutFuture = CompletableFuture.supplyAsync(() -> readProcessOutput(process.getInputStream()));
+		CompletableFuture<String> stderrFuture = CompletableFuture.supplyAsync(() -> readProcessOutput(process.getErrorStream()));
 		try {
 			boolean finished = process.waitFor(GIT_COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 			if (!finished) {
 				process.destroyForcibly();
+				stdoutFuture.cancel(true);
+				stderrFuture.cancel(true);
 				throw new ApiException(ErrorCode.PROJECT_GIT_COMMAND_FAILED, "The git command timed out.");
 			}
-
-			output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-		} catch (IOException exception) {
-			throw new ApiException(ErrorCode.PROJECT_GIT_COMMAND_FAILED, "Failed to read the git command output.");
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
+			stdoutFuture.cancel(true);
+			stderrFuture.cancel(true);
 			throw new ApiException(ErrorCode.PROJECT_GIT_COMMAND_FAILED, "The git command was interrupted.");
 		}
 
+		String stdout = joinProcessOutput(stdoutFuture);
+		String stderr = joinProcessOutput(stderrFuture);
 		if (process.exitValue() != 0) {
-			throw new GitCommandException(process.exitValue(), output);
+			throw new GitCommandException(process.exitValue(), combineCommandOutput(stdout, stderr));
 		}
 
-		return output;
+		if (!stderr.isBlank()) {
+			log.debug("Git command completed with stderr output. command={}, stderr={}", command, stderr.trim());
+		}
+
+		return stdout;
+	}
+
+	private String readProcessOutput(InputStream inputStream) {
+		try {
+			return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+		} catch (IOException exception) {
+			throw new UncheckedIOException(exception);
+		}
+	}
+
+	private String joinProcessOutput(CompletableFuture<String> outputFuture) {
+		try {
+			return outputFuture.join();
+		} catch (CompletionException exception) {
+			if (exception.getCause() instanceof UncheckedIOException) {
+				throw new ApiException(ErrorCode.PROJECT_GIT_COMMAND_FAILED, "Failed to read the git command output.");
+			}
+			throw exception;
+		}
+	}
+
+	private String combineCommandOutput(String stdout, String stderr) {
+		String normalizedStdout = stdout == null ? "" : stdout.trim();
+		String normalizedStderr = stderr == null ? "" : stderr.trim();
+		if (normalizedStdout.isBlank()) {
+			return normalizedStderr;
+		}
+		if (normalizedStderr.isBlank()) {
+			return normalizedStdout;
+		}
+		return normalizedStdout + "\n" + normalizedStderr;
 	}
 
 	private boolean isMissingCommitError(String output, String commitHash) {
@@ -703,6 +996,35 @@ public class ProjectGitService {
 		} catch (RuntimeException exception) {
 			return LocalDateTime.parse(rawValue.trim());
 		}
+	}
+
+	private String trimToNull(String value) {
+		if (value == null) {
+			return null;
+		}
+
+		String trimmed = value.trim();
+		return trimmed.isEmpty() ? null : trimmed;
+	}
+
+	private record GitChangedFile(
+		String filePath,
+		String fileName,
+		String extension,
+		String changeType,
+		boolean staged,
+		boolean unstaged,
+		String stagedStatus,
+		String unstagedStatus,
+		String displayStatus
+	) {
+
+		private boolean untracked() {
+			return "UNTRACKED".equals(changeType);
+		}
+	}
+
+	private record DiffStats(long additions, long deletions) {
 	}
 
 	private record GitCommitSummary(
