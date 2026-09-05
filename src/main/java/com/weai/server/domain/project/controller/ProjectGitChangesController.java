@@ -1,7 +1,11 @@
 package com.weai.server.domain.project.controller;
 
+import com.weai.server.domain.project.request.ProjectGitCommitRequest;
 import com.weai.server.domain.project.request.ProjectGitFilePathsRequest;
+import com.weai.server.domain.project.response.ProjectChangedFileListResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse;
+import com.weai.server.domain.project.response.ProjectGitCommitCreateResponse;
+import com.weai.server.domain.project.response.ProjectGitFileDiffResponse;
 import com.weai.server.domain.project.service.ProjectGitService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
@@ -11,10 +15,12 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @SecurityRequirement(name = "bearerAuth")
@@ -25,6 +31,93 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectGitChangesController {
 
 	private final ProjectGitService projectGitService;
+
+	@Operation(
+		summary = "변경 파일 목록 조회",
+		description = "프로젝트 Git 저장소의 변경 파일 목록을 조회합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.GIT_REPOSITORY_PATH_NOT_FOUND,
+		ErrorCode.GIT_REPOSITORY_NOT_FOUND,
+		ErrorCode.GIT_COMMAND_EXECUTION_FAILED
+	})
+	@GetMapping("/files")
+	public ApiResponse<ProjectChangedFileListResponse> getChangedFiles(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		return ApiResponse.success(
+			"GIT_CHANGED_FILE_LIST_SUCCESS",
+			"변경 파일 목록 조회에 성공했습니다.",
+			projectGitService.getChangedFiles(authentication.getName(), projectId)
+		);
+	}
+
+	@Operation(
+		summary = "변경 파일 Diff 조회",
+		description = "선택한 변경 파일의 Diff 내용을 조회합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.GIT_REPOSITORY_PATH_NOT_FOUND,
+		ErrorCode.GIT_REPOSITORY_NOT_FOUND,
+		ErrorCode.GIT_FILE_PATH_REQUIRED,
+		ErrorCode.INVALID_GIT_FILE_PATH,
+		ErrorCode.GIT_CHANGED_FILE_NOT_FOUND,
+		ErrorCode.GIT_DIFF_FAILED,
+		ErrorCode.GIT_COMMAND_EXECUTION_FAILED
+	})
+	@GetMapping("/diff")
+	public ApiResponse<ProjectGitFileDiffResponse> getChangedFileDiff(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@RequestParam(required = false) String filePath,
+		@RequestParam(defaultValue = "false") boolean staged
+	) {
+		return ApiResponse.success(
+			"GIT_FILE_DIFF_SUCCESS",
+			"변경 파일 Diff 조회에 성공했습니다.",
+			projectGitService.getChangedFileDiff(authentication.getName(), projectId, filePath, staged)
+		);
+	}
+
+	@Operation(
+		summary = "커밋 생성",
+		description = "현재 staged 파일들을 Git 커밋으로 생성합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.GIT_REPOSITORY_PATH_NOT_FOUND,
+		ErrorCode.GIT_REPOSITORY_NOT_FOUND,
+		ErrorCode.GIT_COMMIT_MESSAGE_REQUIRED,
+		ErrorCode.GIT_COMMIT_MESSAGE_TOO_LONG,
+		ErrorCode.GIT_COMMIT_DESCRIPTION_TOO_LONG,
+		ErrorCode.GIT_NO_STAGED_FILES,
+		ErrorCode.GIT_COMMIT_FAILED,
+		ErrorCode.GIT_COMMAND_EXECUTION_FAILED
+	})
+	@PostMapping("/commit")
+	public ApiResponse<ProjectGitCommitCreateResponse> createCommit(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@RequestBody(required = false) ProjectGitCommitRequest request
+	) {
+		return ApiResponse.success(
+			"GIT_COMMIT_CREATE_SUCCESS",
+			"커밋 생성에 성공했습니다.",
+			projectGitService.createCommit(authentication.getName(), projectId, request)
+		);
+	}
 
 	@Operation(
 		summary = "파일 스테이징",

@@ -20,6 +20,7 @@ import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -895,7 +896,6 @@ public class ProjectGitService {
 		Process process;
 		try {
 			process = new ProcessBuilder(command)
-				.redirectErrorStream(true)
 				.start();
 		} catch (IOException exception) {
 			throw new ApiException(
@@ -904,31 +904,39 @@ public class ProjectGitService {
 			);
 		}
 
-		CompletableFuture<String> outputFuture = CompletableFuture.supplyAsync(() -> readProcessOutput(process));
+		CompletableFuture<String> stdoutFuture = CompletableFuture.supplyAsync(() -> readProcessOutput(process.getInputStream()));
+		CompletableFuture<String> stderrFuture = CompletableFuture.supplyAsync(() -> readProcessOutput(process.getErrorStream()));
 		try {
 			boolean finished = process.waitFor(GIT_COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 			if (!finished) {
 				process.destroyForcibly();
-				outputFuture.cancel(true);
+				stdoutFuture.cancel(true);
+				stderrFuture.cancel(true);
 				throw new ApiException(ErrorCode.PROJECT_GIT_COMMAND_FAILED, "The git command timed out.");
 			}
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
-			outputFuture.cancel(true);
+			stdoutFuture.cancel(true);
+			stderrFuture.cancel(true);
 			throw new ApiException(ErrorCode.PROJECT_GIT_COMMAND_FAILED, "The git command was interrupted.");
 		}
 
-		String output = joinProcessOutput(outputFuture);
+		String stdout = joinProcessOutput(stdoutFuture);
+		String stderr = joinProcessOutput(stderrFuture);
 		if (process.exitValue() != 0) {
-			throw new GitCommandException(process.exitValue(), output);
+			throw new GitCommandException(process.exitValue(), combineCommandOutput(stdout, stderr));
 		}
 
-		return output;
+		if (!stderr.isBlank()) {
+			log.debug("Git command completed with stderr output. command={}, stderr={}", command, stderr.trim());
+		}
+
+		return stdout;
 	}
 
-	private String readProcessOutput(Process process) {
+	private String readProcessOutput(InputStream inputStream) {
 		try {
-			return new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+			return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
 		} catch (IOException exception) {
 			throw new UncheckedIOException(exception);
 		}
@@ -943,6 +951,18 @@ public class ProjectGitService {
 			}
 			throw exception;
 		}
+	}
+
+	private String combineCommandOutput(String stdout, String stderr) {
+		String normalizedStdout = stdout == null ? "" : stdout.trim();
+		String normalizedStderr = stderr == null ? "" : stderr.trim();
+		if (normalizedStdout.isBlank()) {
+			return normalizedStderr;
+		}
+		if (normalizedStderr.isBlank()) {
+			return normalizedStdout;
+		}
+		return normalizedStdout + "\n" + normalizedStderr;
 	}
 
 	private boolean isMissingCommitError(String output, String commitHash) {

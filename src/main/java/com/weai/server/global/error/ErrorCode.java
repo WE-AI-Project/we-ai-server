@@ -93,6 +93,17 @@ public enum ErrorCode {
 	GIT_STAGE_ALL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_3", "Failed to stage all files."),
 	GIT_UNSTAGE_ALL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_4", "Failed to unstage all files."),
 	GIT_COMMAND_EXECUTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_5", "Failed to execute the git command."),
+	GIT_CHANGED_FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "GIT_404_1", "The requested changed file could not be found."),
+	GIT_DIFF_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_6", "Failed to read the requested file diff."),
+	GIT_COMMIT_MESSAGE_REQUIRED(HttpStatus.BAD_REQUEST, "GIT_400_5", "Git commit message is required."),
+	GIT_COMMIT_MESSAGE_TOO_LONG(HttpStatus.BAD_REQUEST, "GIT_400_6", "Git commit message must be 200 characters or fewer."),
+	GIT_COMMIT_DESCRIPTION_TOO_LONG(
+		HttpStatus.BAD_REQUEST,
+		"GIT_400_7",
+		"Git commit description must be 1000 characters or fewer."
+	),
+	GIT_NO_STAGED_FILES(HttpStatus.BAD_REQUEST, "GIT_400_8", "There are no staged files to commit."),
+	GIT_COMMIT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_7", "Failed to create the git commit."),
 
 	// QA Query Errors
 	INVALID_QA_REPORT_STATUS(HttpStatus.BAD_REQUEST, "QA_400_1", "QA report status is invalid."),

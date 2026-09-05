@@ -8,7 +8,11 @@ import static org.mockito.Mockito.when;
 import com.weai.server.domain.project.config.ProjectGitProperties;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectStatus;
+import com.weai.server.domain.project.request.ProjectGitCommitRequest;
+import com.weai.server.domain.project.response.ProjectChangedFileListResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse;
+import com.weai.server.domain.project.response.ProjectGitCommitCreateResponse;
+import com.weai.server.domain.project.response.ProjectGitFileDiffResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.service.UserService;
@@ -67,6 +71,153 @@ class ProjectGitServiceTest {
 		when(projectService.validateProjectAccess(PROJECT_ID, USER_ID)).thenReturn(project(repositoryRoot));
 
 		initRepository(repositoryRoot);
+	}
+
+	@Test
+	void getChangedFilesReturnsEmptyListWhenThereAreNoChanges() {
+		ProjectChangedFileListResponse response = projectGitService.getChangedFiles(USER_EMAIL, PROJECT_ID);
+
+		assertThat(response.totalChangedCount()).isZero();
+		assertThat(response.stagedCount()).isZero();
+		assertThat(response.unstagedCount()).isZero();
+		assertThat(response.untrackedCount()).isZero();
+		assertThat(response.files()).isEmpty();
+		assertThat(response.branchName()).isNotBlank();
+	}
+
+	@Test
+	void getChangedFilesParsesStagedUnstagedAndUntrackedFiles() throws IOException, InterruptedException {
+		commitFile(repositoryRoot, "modified.txt", "before");
+		Files.writeString(repositoryRoot.resolve("modified.txt"), "after");
+		Files.writeString(repositoryRoot.resolve("untracked.txt"), "new");
+		Files.writeString(repositoryRoot.resolve("staged.txt"), "new");
+		runGit(repositoryRoot, "add", "--", "staged.txt");
+
+		ProjectChangedFileListResponse response = projectGitService.getChangedFiles(USER_EMAIL, PROJECT_ID);
+
+		assertThat(response.totalChangedCount()).isEqualTo(3);
+		assertThat(response.stagedCount()).isEqualTo(1);
+		assertThat(response.unstagedCount()).isEqualTo(2);
+		assertThat(response.untrackedCount()).isEqualTo(1);
+		assertThat(response.files()).extracting(ProjectChangedFileListResponse.ChangedFileResponse::filePath)
+			.containsExactlyInAnyOrder("modified.txt", "staged.txt", "untracked.txt");
+		assertThat(response.files()).anySatisfy(file -> {
+			assertThat(file.filePath()).isEqualTo("staged.txt");
+			assertThat(file.changeType()).isEqualTo("ADDED");
+			assertThat(file.staged()).isTrue();
+			assertThat(file.displayStatus()).isEqualTo("STAGED_ADDED");
+		});
+		assertThat(response.files()).anySatisfy(file -> {
+			assertThat(file.filePath()).isEqualTo("untracked.txt");
+			assertThat(file.changeType()).isEqualTo("UNTRACKED");
+			assertThat(file.unstagedStatus()).isEqualTo("?");
+			assertThat(file.displayStatus()).isEqualTo("UNTRACKED");
+		});
+	}
+
+	@Test
+	void getChangedFileDiffReturnsDiffAndStats() throws IOException, InterruptedException {
+		commitFile(repositoryRoot, "a.txt", "one\n");
+		Files.writeString(repositoryRoot.resolve("a.txt"), "one\ntwo\n");
+
+		ProjectGitFileDiffResponse response = projectGitService.getChangedFileDiff(USER_EMAIL, PROJECT_ID, "a.txt", false);
+
+		assertThat(response.filePath()).isEqualTo("a.txt");
+		assertThat(response.staged()).isFalse();
+		assertThat(response.changeType()).isEqualTo("MODIFIED");
+		assertThat(response.additions()).isEqualTo(1);
+		assertThat(response.deletions()).isZero();
+		assertThat(response.diffContent()).contains("+two");
+	}
+
+	@Test
+	void getChangedFileDiffReturnsLargeDiffWithoutTimingOut() throws IOException, InterruptedException {
+		commitFile(repositoryRoot, "large.txt", "before\n");
+		Files.writeString(repositoryRoot.resolve("large.txt"), "after\n" + "line\n".repeat(30000));
+
+		ProjectGitFileDiffResponse response = projectGitService.getChangedFileDiff(USER_EMAIL, PROJECT_ID, "large.txt", false);
+
+		assertThat(response.additions()).isEqualTo(30001);
+		assertThat(response.deletions()).isEqualTo(1);
+		assertThat(response.diffContent()).contains("+after");
+	}
+
+	@Test
+	void getChangedFileDiffFailsWhenFilePathIsMissing() {
+		assertThatThrownBy(() -> projectGitService.getChangedFileDiff(USER_EMAIL, PROJECT_ID, " ", false))
+			.isInstanceOfSatisfying(ApiException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.GIT_FILE_PATH_REQUIRED));
+	}
+
+	@Test
+	void getChangedFileDiffFailsWhenFilePathEscapesRepository() {
+		assertThatThrownBy(() -> projectGitService.getChangedFileDiff(USER_EMAIL, PROJECT_ID, "../outside.txt", false))
+			.isInstanceOfSatisfying(ApiException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_GIT_FILE_PATH));
+	}
+
+	@Test
+	void getChangedFileDiffFailsWhenFileIsNotChanged() throws IOException {
+		Files.writeString(repositoryRoot.resolve("a.txt"), "new");
+
+		assertThatThrownBy(() -> projectGitService.getChangedFileDiff(USER_EMAIL, PROJECT_ID, "missing.txt", false))
+			.isInstanceOfSatisfying(ApiException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.GIT_CHANGED_FILE_NOT_FOUND));
+	}
+
+	@Test
+	void createCommitCreatesCommitFromStagedFiles() throws IOException, InterruptedException {
+		Files.writeString(repositoryRoot.resolve("a.txt"), "hello");
+		runGit(repositoryRoot, "add", "--", "a.txt");
+
+		ProjectGitCommitCreateResponse response = projectGitService.createCommit(
+			USER_EMAIL,
+			PROJECT_ID,
+			new ProjectGitCommitRequest("feat: add a file", "commit detail")
+		);
+
+		assertThat(response.commitHash()).isNotBlank();
+		assertThat(response.shortCommitHash()).hasSize(7);
+		assertThat(response.message()).isEqualTo("feat: add a file");
+		assertThat(response.committedFileCount()).isEqualTo(1);
+		assertThat(response.committedFiles()).containsExactly("a.txt");
+		assertThat(cachedFileNames(repositoryRoot)).isEmpty();
+		assertThat(runGit(repositoryRoot, "log", "-1", "--pretty=%B")).contains("feat: add a file", "commit detail");
+	}
+
+	@Test
+	void createCommitFailsWhenMessageIsMissing() throws IOException, InterruptedException {
+		Files.writeString(repositoryRoot.resolve("a.txt"), "hello");
+		runGit(repositoryRoot, "add", "--", "a.txt");
+
+		assertThatThrownBy(() -> projectGitService.createCommit(
+			USER_EMAIL,
+			PROJECT_ID,
+			new ProjectGitCommitRequest(" ", null)
+		))
+			.isInstanceOfSatisfying(ApiException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.GIT_COMMIT_MESSAGE_REQUIRED));
+	}
+
+	@Test
+	void createCommitFailsWhenThereAreNoStagedFiles() {
+		assertThatThrownBy(() -> projectGitService.createCommit(
+			USER_EMAIL,
+			PROJECT_ID,
+			new ProjectGitCommitRequest("feat: empty commit", null)
+		))
+			.isInstanceOfSatisfying(ApiException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.GIT_NO_STAGED_FILES));
+	}
+
+	@Test
+	void getChangedFilesFailsWhenProjectPathIsNotGitRepository() throws IOException {
+		Path nonGitDirectory = Files.createDirectory(repositoryRoot.resolve("not-git"));
+		when(projectService.validateProjectAccess(PROJECT_ID, USER_ID)).thenReturn(project(nonGitDirectory));
+
+		assertThatThrownBy(() -> projectGitService.getChangedFiles(USER_EMAIL, PROJECT_ID))
+			.isInstanceOfSatisfying(ApiException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.GIT_REPOSITORY_NOT_FOUND));
 	}
 
 	@Test
