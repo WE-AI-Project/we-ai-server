@@ -2,6 +2,7 @@ package com.weai.server.domain.smartcommit;
 
 import com.weai.server.domain.ai.rag.ProjectRagContext;
 import com.weai.server.domain.ai.rag.ProjectRagContextService;
+import com.weai.server.global.logging.ProjectLogContext;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -61,7 +62,7 @@ public class AutoAgentCommitScheduler {
 	}
 
 	private void createAutoAgentCommit(PendingDiffStore.PendingCommitBatch batch) {
-		try {
+		try (ProjectLogContext.Scope ignored = ProjectLogContext.open(batch.projectId(), "AGENT")) {
 			String aiResult = generateCommitAnalysis(batch.projectId(), batch.combinedDiff());
 			PendingDiffStore.AutoAgentCommit commit = new PendingDiffStore.AutoAgentCommit(
 				AUTO_AGENT_COMMIT,

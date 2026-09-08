@@ -26,7 +26,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
-import org.springframework.web.util.ContentCachingResponseWrapper;
 
 @Slf4j
 @Component
@@ -46,6 +45,7 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 	private static final Pattern SENSITIVE_FIELDS = Pattern.compile(
 		"(?i)\"(password|token|accessToken|refreshToken|secret)\"\\s*:\\s*\"(.*?)\""
 	);
+	private static final Pattern PROJECT_API_PATH = Pattern.compile("^/api/v1/projects/(?<projectId>\\d+)(?:/.*)?$");
 	private static final List<String> EXCLUDED_PATH_PREFIXES = List.of(
 		"/swagger-ui",
 		"/v3/api-docs",
@@ -56,7 +56,8 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
 		String requestUri = request.getRequestURI();
-		return EXCLUDED_PATH_PREFIXES.stream().anyMatch(requestUri::startsWith);
+		return EXCLUDED_PATH_PREFIXES.stream().anyMatch(requestUri::startsWith)
+			|| requestUri.matches("/api/v1/projects/[^/]+/server-logs/stream");
 	}
 
 	@Override
@@ -66,26 +67,35 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 		FilterChain filterChain
 	) throws ServletException, IOException {
 		ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request, REQUEST_CACHE_LIMIT);
-		ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
 
 		String requestId = UUID.randomUUID().toString().substring(0, 8);
+		String projectId = extractProjectId(requestWrapper.getRequestURI());
 		long startTime = System.currentTimeMillis();
 
 		requestWrapper.setAttribute(REQUEST_ID_ATTRIBUTE, requestId);
-		responseWrapper.setHeader("X-Request-Id", requestId);
+		response.setHeader("X-Request-Id", requestId);
 
-		try (MDC.MDCCloseable ignored = MDC.putCloseable("requestId", requestId)) {
-			filterChain.doFilter(requestWrapper, responseWrapper);
-		} finally {
-			logExchange(requestWrapper, responseWrapper, requestId, System.currentTimeMillis() - startTime);
-			responseWrapper.copyBodyToResponse();
-			MDC.remove("requestId");
+		MDC.put(ProjectLogContext.REQUEST_ID_KEY, requestId);
+		if (projectId != null) {
+			MDC.put(ProjectLogContext.PROJECT_ID_KEY, projectId);
 		}
+		try {
+			filterChain.doFilter(requestWrapper, response);
+		} finally {
+			logExchange(requestWrapper, response, requestId, System.currentTimeMillis() - startTime);
+			MDC.remove(ProjectLogContext.REQUEST_ID_KEY);
+			MDC.remove(ProjectLogContext.PROJECT_ID_KEY);
+		}
+	}
+
+	private String extractProjectId(String requestUri) {
+		java.util.regex.Matcher matcher = PROJECT_API_PATH.matcher(requestUri);
+		return matcher.matches() ? matcher.group("projectId") : null;
 	}
 
 	private void logExchange(
 		ContentCachingRequestWrapper request,
-		ContentCachingResponseWrapper response,
+		HttpServletResponse response,
 		String requestId,
 		long durationMs
 	) {
@@ -93,9 +103,8 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 		String requestHeaders = formatRequestHeaders(request);
 		String requestBody = extractRequestBody(request);
 		String responseHeaders = formatResponseHeaders(response);
-		String responseBody = extractResponseBody(response);
 
-		String logMessage = "[%s] %s %s status=%d durationMs=%d requestHeaders=%s requestBody=%s responseHeaders=%s responseBody=%s"
+		String logMessage = "[%s] %s %s status=%d durationMs=%d requestHeaders=%s requestBody=%s responseHeaders=%s"
 			.formatted(
 				requestId,
 				request.getMethod(),
@@ -104,8 +113,7 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 				durationMs,
 				requestHeaders,
 				requestBody,
-				responseHeaders,
-				responseBody
+				responseHeaders
 			);
 
 		if (response.getStatus() >= 500) {
@@ -137,7 +145,7 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 		return headers.toString();
 	}
 
-	private String formatResponseHeaders(ContentCachingResponseWrapper response) {
+	private String formatResponseHeaders(HttpServletResponse response) {
 		Map<String, String> headers = new LinkedHashMap<>();
 		for (String headerName : response.getHeaderNames()) {
 			String headerValue = String.join(", ", response.getHeaders(headerName));
@@ -159,14 +167,6 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 			return "<empty>";
 		}
 		return formatBody(content, request.getContentType(), request.getCharacterEncoding());
-	}
-
-	private String extractResponseBody(ContentCachingResponseWrapper response) {
-		byte[] content = response.getContentAsByteArray();
-		if (content.length == 0) {
-			return "<empty>";
-		}
-		return formatBody(content, response.getContentType(), response.getCharacterEncoding());
 	}
 
 	private String formatBody(byte[] content, String contentType, String encoding) {
