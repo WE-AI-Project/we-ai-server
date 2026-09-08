@@ -19,11 +19,17 @@ public record ProjectDepartmentListResponse(
 		@Schema(description = "부서", example = "BACKEND")
 		ProjectDepartment department,
 
+		@Schema(description = "드롭다운에 표시할 부서명", example = "백엔드")
+		String displayName,
+
 		@Schema(description = "해당 부서의 활성 멤버 수", example = "2")
 		long memberCount,
 
 		@Schema(description = "해당 부서의 활성 채팅방 존재 여부", example = "true")
-		boolean chatRoomExists
+		boolean chatRoomExists,
+
+		@Schema(description = "부서 채팅방 생성 시 선택 가능 여부", example = "false")
+		boolean selectable
 	) {
 	}
 }

@@ -26,6 +26,9 @@ public record ChatRoomCreateResponse(
 	@Schema(description = "프로젝트 기본 채팅방 여부", example = "false")
 	boolean isDefault,
 
+	@Schema(description = "비공개 여부", example = "true")
+	boolean isPrivate,
+
 	@Schema(description = "활성 채팅방 멤버 수", example = "3")
 	long memberCount,
 
@@ -44,6 +47,7 @@ public record ChatRoomCreateResponse(
 			chatRoom.getType(),
 			chatRoom.getDepartment(),
 			chatRoom.isDefault(),
+			chatRoom.isPrivate(),
 			memberCount,
 			chatRoom.getCreatedBy().getId(),
 			chatRoom.getCreatedAt()
