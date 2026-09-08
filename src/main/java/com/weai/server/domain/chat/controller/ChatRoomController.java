@@ -7,6 +7,8 @@ import com.weai.server.domain.chat.response.ChatMessageListResponse;
 import com.weai.server.domain.chat.response.ChatMessageSendResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
 import com.weai.server.domain.chat.response.ChatRoomCreateResponse;
+import com.weai.server.domain.chat.response.ChatRoomLeaveResponse;
+import com.weai.server.domain.chat.response.ProjectDepartmentListResponse;
 import com.weai.server.domain.chat.service.ChatRoomService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
@@ -35,7 +37,7 @@ public class ChatRoomController {
 
 	private final ChatRoomService chatRoomService;
 
-	@Operation(summary = "채팅방 생성", description = "프로젝트에 일반 또는 부서 채팅방을 생성합니다.")
+	@Operation(summary = "채팅방 생성", description = "프로젝트에 일반 또는 부서 채팅방을 생성합니다. 부서 채팅방은 isPrivate으로 공개/비공개를 선택합니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
 		ErrorCode.PROJECT_NOT_FOUND,
@@ -62,6 +64,28 @@ public class ChatRoomController {
 			"CHAT_ROOM_CREATE_SUCCESS",
 			"채팅방이 생성되었습니다.",
 			chatRoomService.createChatRoom(authentication.getName(), projectId, request)
+		);
+	}
+
+	@Operation(
+		summary = "채팅용 프로젝트 부서 목록 조회",
+		description = "부서 채팅방 생성 화면을 위한 프로젝트의 활성 부서 목록을 조회합니다. /departments와 동일한 응답을 반환합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED
+	})
+	@GetMapping("/departments")
+	public ApiResponse<ProjectDepartmentListResponse> getChatProjectDepartments(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		return ApiResponse.success(
+			"PROJECT_DEPARTMENT_LIST_SUCCESS",
+			"프로젝트 부서 목록 조회에 성공했습니다.",
+			chatRoomService.getProjectDepartments(authentication.getName(), projectId)
 		);
 	}
 
@@ -151,6 +175,29 @@ public class ChatRoomController {
 			"CHAT_MESSAGE_SEND_SUCCESS",
 			"채팅 메시지가 전송되었습니다.",
 			chatRoomService.sendChatMessage(authentication.getName(), projectId, chatRoomId, request)
+		);
+	}
+
+	@Operation(summary = "채팅방 나가기", description = "로그인 사용자를 채팅방에서 나간 상태로 변경합니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.CHAT_ROOM_NOT_FOUND,
+		ErrorCode.CHAT_ROOM_ACCESS_DENIED,
+		ErrorCode.CHAT_ROOM_NOT_ACTIVE
+	})
+	@PostMapping("/rooms/{chatRoomId}/leave")
+	public ApiResponse<ChatRoomLeaveResponse> leaveChatRoom(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long chatRoomId
+	) {
+		return ApiResponse.success(
+			"CHAT_ROOM_LEAVE_SUCCESS",
+			"채팅방에서 나갔습니다.",
+			chatRoomService.leaveChatRoom(authentication.getName(), projectId, chatRoomId)
 		);
 	}
 

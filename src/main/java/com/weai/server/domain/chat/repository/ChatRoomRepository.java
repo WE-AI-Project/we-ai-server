@@ -59,7 +59,16 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 			  and (:department is null or cr.department = :department)
 			  and (:keyword is null or lower(cr.name) like lower(concat('%', :keyword, '%')))
 			  and (
-			    cr.isPrivate = false
+			    (
+			      cr.isPrivate = false
+			      and not exists (
+			        select 1
+			        from ChatRoomMember crm
+			        where crm.chatRoom = cr
+			          and crm.user.id = :userId
+			          and crm.status <> com.weai.server.domain.chat.domain.ChatRoomMemberStatus.ACTIVE
+			      )
+			    )
 			    or exists (
 			      select 1
 			      from ChatRoomMember crm
@@ -87,7 +96,16 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 			  and (:department is null or cr.department = :department)
 			  and (:keyword is null or lower(cr.name) like lower(concat('%', :keyword, '%')))
 			  and (
-			    cr.isPrivate = false
+			    (
+			      cr.isPrivate = false
+			      and not exists (
+			        select 1
+			        from ChatRoomMember crm
+			        where crm.chatRoom = cr
+			          and crm.user.id = :userId
+			          and crm.status <> com.weai.server.domain.chat.domain.ChatRoomMemberStatus.ACTIVE
+			      )
+			    )
 			    or exists (
 			      select 1
 			      from ChatRoomMember crm

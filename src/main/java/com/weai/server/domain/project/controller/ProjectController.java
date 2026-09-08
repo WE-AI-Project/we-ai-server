@@ -416,6 +416,34 @@ public class ProjectController {
 		);
 	}
 
+	@Operation(
+		summary = "프로젝트 멤버 추방 (호환 경로)",
+		description = "기존 클라이언트 호환용 경로입니다. 새 클라이언트는 /members/{memberId}/kick 경로를 사용하세요."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY,
+		ErrorCode.PROJECT_MEMBER_NOT_FOUND,
+		ErrorCode.PROJECT_MEMBER_NOT_ACTIVE,
+		ErrorCode.CANNOT_KICK_SELF,
+		ErrorCode.PROJECT_LEADER_REQUIRED
+	})
+	@PatchMapping("/{projectId}/members/{memberId}")
+	public ApiResponse<ProjectMemberKickResponse> kickProjectMemberCompatibility(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long memberId
+	) {
+		return ApiResponse.success(
+			"PROJECT_MEMBER_KICK_SUCCESS",
+			"프로젝트 멤버가 추방되었습니다.",
+			projectService.kickProjectMember(authentication.getName(), projectId, memberId)
+		);
+	}
+
 	@Operation(summary = "프로젝트 멤버 역할 변경", description = "프로젝트 멤버의 역할을 변경합니다. 프로젝트 리더만 변경할 수 있습니다.")
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
