@@ -42,6 +42,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -69,6 +70,7 @@ public class ChatRoomService {
 	private final ProjectMemberRepository projectMemberRepository;
 	private final ProjectService projectService;
 	private final UserService userService;
+	private final SimpMessagingTemplate simpMessagingTemplate;
 
 	public ProjectDepartmentListResponse getProjectDepartments(String userEmail, Long projectId) {
 		User user = userService.getUserEntityByEmail(userEmail);
@@ -217,6 +219,7 @@ public class ChatRoomService {
 
 		ChatMessage savedMessage = chatMessageRepository.save(ChatMessage.text(chatRoom, user, content));
 		chatRoomRepository.touchUpdatedAt(chatRoom.getId(), LocalDateTime.now());
+		broadcastNewMessage(projectId, chatRoomId, savedMessage);
 		return ChatMessageSendResponse.from(savedMessage);
 	}
 
@@ -245,7 +248,15 @@ public class ChatRoomService {
 			storedFile.fileContentType()
 		));
 		chatRoomRepository.touchUpdatedAt(chatRoom.getId(), LocalDateTime.now());
+		broadcastNewMessage(projectId, chatRoomId, savedMessage);
 		return ChatFileUploadResponse.from(savedMessage);
+	}
+
+	private void broadcastNewMessage(Long projectId, Long chatRoomId, ChatMessage message) {
+		simpMessagingTemplate.convertAndSend(
+			"/topic/projects/" + projectId + "/chat-rooms/" + chatRoomId,
+			ChatMessageListResponse.ChatMessageResponse.from(message, null)
+		);
 	}
 
 	private ChatRoomResponse toChatRoomResponse(ChatRoom chatRoom, Long userId) {
@@ -386,7 +397,7 @@ public class ChatRoomService {
 		);
 	}
 
-	private ChatRoom validateChatRoomAccess(Long projectId, Long chatRoomId, Long userId) {
+	public ChatRoom validateChatRoomAccess(Long projectId, Long chatRoomId, Long userId) {
 		projectService.validateProjectAccess(projectId, userId);
 		ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
 			.orElseThrow(() -> new ApiException(ErrorCode.CHAT_ROOM_NOT_FOUND));
