@@ -19,7 +19,7 @@ logging:
   level:
     org.hibernate.SQL: debug
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [req:%X{requestId:-}] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [req:%X{requestId:-}] [project:%X{projectId:-}] %-5level %logger{36} - %msg%n"
 
 management:
   health:

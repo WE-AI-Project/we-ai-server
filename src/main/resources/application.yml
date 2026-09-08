@@ -43,6 +43,15 @@ smart-commit:
   scheduler:
     fixed-delay-ms: ${SMART_COMMIT_SCHEDULER_FIXED_DELAY_MS:60000}
 
+server-log:
+  capture:
+    enabled: ${SERVER_LOG_CAPTURE_ENABLED:true}
+    queue-capacity: ${SERVER_LOG_CAPTURE_QUEUE_CAPACITY:10000}
+  retention:
+    days: ${SERVER_LOG_RETENTION_DAYS:30}
+    cleanup-cron: ${SERVER_LOG_RETENTION_CLEANUP_CRON:0 0 3 * * *}
+    cleanup-zone: ${SERVER_LOG_RETENTION_CLEANUP_ZONE:Asia/Seoul}
+
 project:
   git:
     default-backend-local-path: ${PROJECT_GIT_BACKEND_LOCAL_PATH:${user.dir}}
@@ -113,7 +122,7 @@ management:
 
 logging:
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId:-}] [%thread] %logger{36} : %msg%n%wEx"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [req:%X{requestId:-}] [project:%X{projectId:-}] [%thread] %logger{36} : %msg%n%wEx"
 
 springdoc:
   api-docs:
