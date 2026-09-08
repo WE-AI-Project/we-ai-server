@@ -675,7 +675,13 @@ public class ProjectService {
 				summary.inProgressCount(),
 				summary.completedScheduleCount(),
 				summary.holdCount(),
-				summary.progressRate()
+				summary.progressRate(),
+				ProjectDepartmentStatusResponse.DepartmentStatusItem.resolveStatus(
+					summary.scheduleCount(),
+					summary.progressRate(),
+					summary.hasDelayed()
+				),
+				summary.scheduleCount()
 			))
 			.toList();
 
@@ -735,10 +741,14 @@ public class ProjectService {
 		Map<ProjectDepartment, List<ProjectSchedule>> schedulesByDepartment = schedules.stream()
 			.collect(Collectors.groupingBy(ProjectSchedule::getDepartment, LinkedHashMap::new, Collectors.toList()));
 
+		LocalDate today = LocalDate.now();
+
 		return java.util.Arrays.stream(ProjectDepartment.values())
 			.map(department -> {
 				List<ProjectSchedule> departmentSchedules = schedulesByDepartment.getOrDefault(department, List.of());
 				ProjectProgressSummary summary = buildProgressSummary(departmentSchedules);
+				boolean hasDelayed = departmentSchedules.stream()
+					.anyMatch(s -> !isCompleted(s) && s.getEndDate() != null && s.getEndDate().isBefore(today));
 				return new ProjectDepartmentSummary(
 					department,
 					memberCountByDepartment.getOrDefault(department, 0L),
@@ -747,7 +757,8 @@ public class ProjectService {
 					summary.inProgressCount(),
 					summary.completedWorkCount(),
 					summary.holdCount(),
-					summary.progressRate()
+					summary.progressRate(),
+					hasDelayed
 				);
 			})
 			.toList();
@@ -1423,7 +1434,8 @@ public class ProjectService {
 		long inProgressCount,
 		long completedScheduleCount,
 		long holdCount,
-		int progressRate
+		int progressRate,
+		boolean hasDelayed
 	) {
 	}
 
