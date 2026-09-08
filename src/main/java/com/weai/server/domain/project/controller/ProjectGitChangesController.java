@@ -1,9 +1,12 @@
 package com.weai.server.domain.project.controller;
 
 import com.weai.server.domain.project.request.ProjectGitCommitRequest;
+import com.weai.server.domain.project.request.ProjectGitCommitConventionCheckRequest;
 import com.weai.server.domain.project.request.ProjectGitFilePathsRequest;
+import com.weai.server.domain.project.response.ProjectGitBranchGraphResponse;
 import com.weai.server.domain.project.response.ProjectChangedFileListResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse;
+import com.weai.server.domain.project.response.ProjectGitCommitConventionCheckResponse;
 import com.weai.server.domain.project.response.ProjectGitCommitCreateResponse;
 import com.weai.server.domain.project.response.ProjectGitFileDiffResponse;
 import com.weai.server.domain.project.service.ProjectGitService;
@@ -116,6 +119,64 @@ public class ProjectGitChangesController {
 			"GIT_COMMIT_CREATE_SUCCESS",
 			"커밋 생성에 성공했습니다.",
 			projectGitService.createCommit(authentication.getName(), projectId, request)
+		);
+	}
+
+	@Operation(
+		summary = "커밋 컨벤션 검사",
+		description = "입력한 커밋 메시지가 프로젝트 커밋 컨벤션에 맞는지 검사합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.GIT_COMMIT_MESSAGE_REQUIRED,
+		ErrorCode.GIT_COMMIT_MESSAGE_TOO_LONG,
+		ErrorCode.GIT_COMMIT_DESCRIPTION_TOO_LONG
+	})
+	@PostMapping("/commit-convention/check")
+	public ApiResponse<ProjectGitCommitConventionCheckResponse> checkCommitConvention(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@RequestBody(required = false) ProjectGitCommitConventionCheckRequest request
+	) {
+		return ApiResponse.success(
+			"GIT_COMMIT_CONVENTION_CHECK_SUCCESS",
+			"커밋 컨벤션 검사에 성공했습니다.",
+			projectGitService.checkCommitConvention(authentication.getName(), projectId, request)
+		);
+	}
+
+	@Operation(
+		summary = "브랜치 그래프 조회",
+		description = "프로젝트 Git 저장소의 브랜치와 커밋 관계를 그래프 형태로 조회합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.GIT_REPOSITORY_PATH_NOT_FOUND,
+		ErrorCode.GIT_REPOSITORY_NOT_FOUND,
+		ErrorCode.INVALID_GIT_BRANCH_NAME,
+		ErrorCode.GIT_BRANCH_NOT_FOUND,
+		ErrorCode.INVALID_GIT_GRAPH_LIMIT,
+		ErrorCode.GIT_BRANCH_GRAPH_FAILED,
+		ErrorCode.GIT_COMMAND_EXECUTION_FAILED
+	})
+	@GetMapping("/branches/graph")
+	public ApiResponse<ProjectGitBranchGraphResponse> getBranchGraph(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@RequestParam(required = false) String branch,
+		@RequestParam(required = false) Integer maxCount,
+		@RequestParam(defaultValue = "true") boolean includeRemote
+	) {
+		return ApiResponse.success(
+			"GIT_BRANCH_GRAPH_SUCCESS",
+			"브랜치 그래프 조회에 성공했습니다.",
+			projectGitService.getBranchGraph(authentication.getName(), projectId, branch, maxCount, includeRemote)
 		);
 	}
 
