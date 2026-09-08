@@ -16,6 +16,7 @@ import com.weai.server.domain.chat.response.ChatFileUploadResponse;
 import com.weai.server.domain.chat.response.ChatMessageListResponse;
 import com.weai.server.domain.chat.response.ChatMessageSendResponse;
 import com.weai.server.domain.chat.response.ChatRoomCreateResponse;
+import com.weai.server.domain.chat.response.ChatRoomLeaveResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse.ChatRoomResponse;
 import com.weai.server.domain.chat.response.ProjectDepartmentListResponse;
@@ -95,9 +96,10 @@ public class ChatRoomService {
 	) {
 		User creator = userService.getUserEntityByEmail(userEmail);
 		Project project = projectService.validateProjectAccess(projectId, creator.getId());
-		String name = validateChatRoomName(request == null ? null : request.name());
 		ChatRoomType type = parseCreatableChatRoomType(request == null ? null : request.type());
 		ProjectDepartment department = validateCreateDepartment(type, request == null ? null : request.department());
+		String name = resolveChatRoomName(request == null ? null : request.name(), type, department);
+		boolean isPrivate = resolveChatRoomPrivacy(type, request == null ? null : request.isPrivate());
 
 		List<User> members = resolveChatRoomMembers(projectId, type, department, creator);
 		validateGeneralChatRoomNameDuplicate(projectId, type, name);
@@ -110,7 +112,7 @@ public class ChatRoomService {
 				null,
 				type,
 				department,
-				type == ChatRoomType.DEPARTMENT,
+				isPrivate,
 				creator
 			));
 			chatRoomMemberRepository.saveAll(members.stream()
@@ -268,15 +270,48 @@ public class ChatRoomService {
 		return ChatRoomResponse.from(chatRoom, memberCount, unreadCount, lastMessage);
 	}
 
+	@Transactional
+	public ChatRoomLeaveResponse leaveChatRoom(String userEmail, Long projectId, Long chatRoomId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		ChatRoom chatRoom = validateChatRoomAccess(projectId, chatRoomId, user.getId());
+		ChatRoomMember member = chatRoomMemberRepository
+			.findByChatRoom_IdAndUser_Id(chatRoomId, user.getId())
+			.orElseGet(() -> chatRoomMemberRepository.save(ChatRoomMember.active(chatRoom, user)));
+		member.leave();
+		return ChatRoomLeaveResponse.from(member);
+	}
+
 	private ProjectDepartmentListResponse.DepartmentItem toDepartmentItem(
 		ProjectDepartmentCountProjection projection,
 		Set<ProjectDepartment> departmentsWithRoom
 	) {
 		return new ProjectDepartmentListResponse.DepartmentItem(
 			projection.getDepartment(),
+			getDepartmentDisplayName(projection.getDepartment()),
 			projection.getMemberCount(),
-			departmentsWithRoom.contains(projection.getDepartment())
+			departmentsWithRoom.contains(projection.getDepartment()),
+			!departmentsWithRoom.contains(projection.getDepartment())
 		);
+	}
+
+	private boolean resolveChatRoomPrivacy(ChatRoomType type, Boolean isPrivate) {
+		if (type == ChatRoomType.GENERAL) {
+			return false;
+		}
+		return isPrivate == null || isPrivate;
+	}
+
+	private String getDepartmentDisplayName(ProjectDepartment department) {
+		return switch (department) {
+			case BACKEND -> "백엔드";
+			case FRONTEND -> "프론트엔드";
+			case QA -> "QA";
+			case DEVOPS -> "DevOps";
+			case AI -> "AI";
+			case DATABASE -> "데이터베이스";
+			case DESIGN -> "디자인";
+			case PM -> "기획";
+		};
 	}
 
 	private String validateChatRoomName(String name) {
@@ -288,6 +323,13 @@ public class ChatRoomService {
 			throw new ApiException(ErrorCode.CHAT_ROOM_NAME_TOO_LONG);
 		}
 		return normalizedName;
+	}
+
+	private String resolveChatRoomName(String name, ChatRoomType type, ProjectDepartment department) {
+		if (type == ChatRoomType.DEPARTMENT && trimToNull(name) == null) {
+			return getDepartmentDisplayName(department) + " 채팅방";
+		}
+		return validateChatRoomName(name);
 	}
 
 	private ChatRoomType parseCreatableChatRoomType(String type) {
@@ -408,10 +450,13 @@ public class ChatRoomService {
 		if (!chatRoom.isActive()) {
 			throw new ApiException(ErrorCode.CHAT_ROOM_NOT_ACTIVE);
 		}
-		if (chatRoom.isPrivate()
-			&& chatRoomMemberRepository
-			.findByChatRoom_IdAndUser_IdAndStatus(chatRoomId, userId, ChatRoomMemberStatus.ACTIVE)
-			.isEmpty()) {
+		ChatRoomMember roomMember = chatRoomMemberRepository
+			.findByChatRoom_IdAndUser_Id(chatRoomId, userId)
+			.orElse(null);
+		if (roomMember != null && roomMember.getStatus() != ChatRoomMemberStatus.ACTIVE) {
+			throw new ApiException(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
+		}
+		if (chatRoom.isPrivate() && roomMember == null) {
 			throw new ApiException(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
 		}
 		return chatRoom;

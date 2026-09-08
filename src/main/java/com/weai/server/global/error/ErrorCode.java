@@ -108,6 +108,14 @@ public enum ErrorCode {
 	GIT_BRANCH_NOT_FOUND(HttpStatus.NOT_FOUND, "GIT_404_2", "The requested git branch could not be found."),
 	INVALID_GIT_GRAPH_LIMIT(HttpStatus.BAD_REQUEST, "GIT_400_10", "Git graph limit must be between 1 and 200."),
 	GIT_BRANCH_GRAPH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_8", "Failed to retrieve the git branch graph."),
+	INVALID_SERVER_LOG_LEVEL(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_1", "Server log level is invalid."),
+	INVALID_SERVER_LOG_SOURCE(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_2", "Server log source is invalid."),
+	INVALID_LOG_DATE_RANGE(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_3", "Server log start date must be before end date."),
+	LOG_KEYWORD_TOO_LONG(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_4", "Server log keyword must be 100 characters or fewer."),
+	SERVER_LOG_NOT_FOUND(HttpStatus.NOT_FOUND, "SERVER_LOG_404_1", "The requested server log could not be found."),
+	SERVER_LOG_FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "SERVER_LOG_404_2", "Server log file could not be found."),
+	SERVER_LOG_STREAM_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SERVER_LOG_500_1", "Failed to create the server log stream."),
+	SERVER_LOG_CLEAR_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SERVER_LOG_500_2", "Failed to clear server logs."),
 
 	// QA Query Errors
 	INVALID_QA_REPORT_STATUS(HttpStatus.BAD_REQUEST, "QA_400_1", "QA report status is invalid."),

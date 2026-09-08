@@ -598,6 +598,43 @@ class ChatRoomServiceTest {
 	}
 
 	@Test
+	void createDepartmentChatRoomCanBePublic() {
+		TestFixture fixture = createFixture();
+
+		ChatRoomCreateResponse response = chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("공개 백엔드 채팅방", "DEPARTMENT", "BACKEND", false)
+		);
+
+		ChatRoom room = chatRoomRepository.findById(response.chatRoomId()).orElseThrow();
+		assertThat(room.isPrivate()).isFalse();
+		assertThat(response.isPrivate()).isFalse();
+		assertThat(chatRoomService.getChatRooms(
+			fixture.member().getEmail(),
+			fixture.project().getId(),
+			null,
+			null,
+			null,
+			0,
+			20
+		).chatRooms()).extracting(ChatRoomResponse::chatRoomId).contains(response.chatRoomId());
+	}
+
+	@Test
+	void createDepartmentChatRoomUsesDepartmentNameWhenNameIsOmitted() {
+		TestFixture fixture = createFixture();
+
+		ChatRoomCreateResponse response = chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest(null, "DEPARTMENT", "BACKEND", true)
+		);
+
+		assertThat(response.name()).isEqualTo("백엔드 채팅방");
+	}
+
+	@Test
 	void createDepartmentChatRoomValidatesDepartmentAndProjectMembership() {
 		TestFixture fixture = createFixture();
 
@@ -627,6 +664,73 @@ class ChatRoomServiceTest {
 			.isInstanceOf(ApiException.class)
 			.extracting("errorCode")
 			.isEqualTo(ErrorCode.PROJECT_ACCESS_DENIED);
+	}
+
+	@Test
+	void leaveChatRoomMarksPrivateRoomMembershipAsLeft() {
+		TestFixture fixture = createFixture();
+		ChatRoomCreateResponse created = chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("백엔드 채팅방", "DEPARTMENT", "BACKEND")
+		);
+
+		var response = chatRoomService.leaveChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			created.chatRoomId()
+		);
+
+		assertThat(response.status()).isEqualTo(ChatRoomMemberStatus.LEFT);
+		assertThat(chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(
+			created.chatRoomId(),
+			fixture.leader().getId()
+		).orElseThrow().getStatus()).isEqualTo(ChatRoomMemberStatus.LEFT);
+		assertThatThrownBy(() -> chatRoomService.getChatMessages(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			created.chatRoomId(),
+			null,
+			null,
+			null
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
+	}
+
+	@Test
+	void leaveChatRoomHidesProjectWideRoomAndDeniesMessageAccess() {
+		TestFixture fixture = createFixture();
+		ChatRoom defaultRoom = chatRoomProjectLifecycleService.createDefaultChatRoom(fixture.project());
+
+		var response = chatRoomService.leaveChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			defaultRoom.getId()
+		);
+
+		assertThat(response.status()).isEqualTo(ChatRoomMemberStatus.LEFT);
+		assertThat(chatRoomService.getChatRooms(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			null,
+			null,
+			null,
+			0,
+			20
+		).chatRooms()).extracting(ChatRoomResponse::chatRoomId).doesNotContain(defaultRoom.getId());
+		assertThatThrownBy(() -> chatRoomService.getChatMessages(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			defaultRoom.getId(),
+			null,
+			null,
+			null
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
 	}
 
 	@Test
