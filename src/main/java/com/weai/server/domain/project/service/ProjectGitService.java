@@ -3,7 +3,9 @@ package com.weai.server.domain.project.service;
 import com.weai.server.domain.project.config.ProjectGitProperties;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectRepositoryType;
+import com.weai.server.domain.project.request.ProjectGitCommitConventionCheckRequest;
 import com.weai.server.domain.project.request.ProjectGitCommitRequest;
+import com.weai.server.domain.project.response.ProjectGitBranchGraphResponse;
 import com.weai.server.domain.project.response.ProjectChangedFileListResponse;
 import com.weai.server.domain.project.response.ProjectChangedFileListResponse.ChangedFileResponse;
 import com.weai.server.domain.project.response.ProjectCommitDetailResponse;
@@ -14,6 +16,7 @@ import com.weai.server.domain.project.response.ProjectGitChangeResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse.GitChangeFileResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse.GitChangeStatus;
 import com.weai.server.domain.project.response.ProjectGitCommitCreateResponse;
+import com.weai.server.domain.project.response.ProjectGitCommitConventionCheckResponse;
 import com.weai.server.domain.project.response.ProjectGitFileDiffResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
@@ -39,6 +42,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -53,6 +58,14 @@ public class ProjectGitService {
 	private static final String COMMIT_MARKER = "__WEAI_COMMIT__";
 	private static final String FIELD_SEPARATOR = "\u001f";
 	private static final long GIT_COMMAND_TIMEOUT_SECONDS = 20L;
+	private static final int DEFAULT_BRANCH_GRAPH_LIMIT = 50;
+	private static final int MAX_BRANCH_GRAPH_LIMIT = 200;
+	private static final Set<String> COMMIT_TYPES = Set.of(
+		"feat", "fix", "docs", "style", "refactor", "test", "chore", "build", "ci", "perf", "revert"
+	);
+	private static final Pattern CONVENTIONAL_COMMIT_PATTERN = Pattern.compile(
+		"^(?<type>[a-zA-Z]+)(?:\\((?<scope>[^()\\s]+)\\))?(?<breaking>!)?:\\s*(?<subject>.*)$"
+	);
 
 	private final ProjectService projectService;
 	private final UserService userService;
@@ -348,6 +361,117 @@ public class ProjectGitService {
 		return ProjectGitChangeResponse.unstageAll(projectId, readWorkingTreeStatus(repositoryPath));
 	}
 
+	public ProjectGitCommitConventionCheckResponse checkCommitConvention(
+		String userEmail,
+		Long projectId,
+		ProjectGitCommitConventionCheckRequest request
+	) {
+		getAccessibleProject(userEmail, projectId);
+		String message = validateCommitMessage(request == null ? null : request.message());
+		validateCommitDescription(request == null ? null : request.description());
+
+		Matcher matcher = CONVENTIONAL_COMMIT_PATTERN.matcher(message);
+		List<ProjectGitCommitConventionCheckResponse.ConventionIssue> errors = new ArrayList<>();
+		List<ProjectGitCommitConventionCheckResponse.ConventionIssue> warnings = new ArrayList<>();
+		String type = null;
+		String scope = null;
+		String subject = null;
+		String normalizedMessage = null;
+
+		if (!matcher.matches()) {
+			errors.add(conventionIssue(
+				"INVALID_COMMIT_MESSAGE_FORMAT",
+				"커밋 메시지는 'type: subject' 형식이어야 합니다."
+			));
+		} else {
+			type = matcher.group("type").toLowerCase(Locale.ROOT);
+			scope = trimToNull(matcher.group("scope"));
+			subject = trimToNull(matcher.group("subject"));
+			boolean breaking = matcher.group("breaking") != null;
+
+			if (!COMMIT_TYPES.contains(type)) {
+				errors.add(conventionIssue("UNSUPPORTED_COMMIT_TYPE", "허용되지 않은 커밋 타입입니다."));
+			}
+			if (subject == null) {
+				errors.add(conventionIssue("COMMIT_SUBJECT_REQUIRED", "콜론(:) 뒤에 커밋 제목을 입력해주세요."));
+			} else {
+				if (subject.length() > 72) {
+					warnings.add(conventionIssue("COMMIT_SUBJECT_TOO_LONG", "커밋 제목은 72자 이하를 권장합니다."));
+				}
+				if (subject.endsWith(".")) {
+					warnings.add(conventionIssue("COMMIT_SUBJECT_ENDS_WITH_PERIOD", "커밋 제목 끝의 마침표는 생략하는 것을 권장합니다."));
+				}
+			}
+
+			if (errors.isEmpty()) {
+				normalizedMessage = type
+					+ (scope == null ? "" : "(" + scope + ")")
+					+ (breaking ? "!" : "")
+					+ ": " + subject;
+			}
+		}
+
+		List<String> suggestions = errors.isEmpty()
+			? List.of("좋은 커밋 메시지입니다.")
+			: List.of("예: feat: 채팅방 생성 API 구현", "예: fix(auth): 토큰 재발급 오류 수정");
+		return new ProjectGitCommitConventionCheckResponse(
+			errors.isEmpty(), type, scope, subject, normalizedMessage, errors, warnings, suggestions
+		);
+	}
+
+	public ProjectGitBranchGraphResponse getBranchGraph(
+		String userEmail,
+		Long projectId,
+		String rawBranch,
+		Integer rawMaxCount,
+		boolean includeRemote
+	) {
+		Project project = getAccessibleProject(userEmail, projectId);
+		int maxCount = normalizeBranchGraphLimit(rawMaxCount);
+		String branch = validateBranchName(rawBranch);
+		Path repositoryPath = resolveStagingRepositoryPath(project);
+		String currentBranch = getCurrentBranch(repositoryPath);
+		List<GitBranch> allBranches = readBranches(repositoryPath, includeRemote);
+		if (branch != null && allBranches.stream().noneMatch(candidate -> candidate.name().equals(branch))) {
+			throw new ApiException(ErrorCode.GIT_BRANCH_NOT_FOUND);
+		}
+
+		List<GitGraphCommit> commits = readGraphCommits(repositoryPath, branch, maxCount);
+		Set<String> nodeHashes = commits.stream().map(GitGraphCommit::commitHash).collect(java.util.stream.Collectors.toSet());
+		List<ProjectGitBranchGraphResponse.CommitNodeResponse> nodes = new ArrayList<>();
+		for (int index = 0; index < commits.size(); index++) {
+			GitGraphCommit commit = commits.get(index);
+			nodes.add(new ProjectGitBranchGraphResponse.CommitNodeResponse(
+				commit.commitHash(),
+				commit.shortCommitHash(),
+				commit.message(),
+				commit.authorName(),
+				commit.authorEmail(),
+				commit.committedAt(),
+				readContainingBranchNames(repositoryPath, commit.commitHash(), includeRemote),
+				null,
+				index
+			));
+		}
+
+		List<ProjectGitBranchGraphResponse.CommitEdgeResponse> edges = commits.stream()
+			.flatMap(commit -> commit.parentHashes().stream()
+				.filter(nodeHashes::contains)
+				.map(parentHash -> new ProjectGitBranchGraphResponse.CommitEdgeResponse(parentHash, commit.commitHash(), "PARENT")))
+			.toList();
+		List<ProjectGitBranchGraphResponse.BranchResponse> branches = allBranches.stream()
+			.map(candidate -> new ProjectGitBranchGraphResponse.BranchResponse(
+				candidate.name(),
+				candidate.name().equals(currentBranch),
+				candidate.remote(),
+				candidate.lastCommitHash(),
+				candidate.lastCommitMessage()
+			))
+			.toList();
+
+		return new ProjectGitBranchGraphResponse(projectId, currentBranch, branches, nodes, edges);
+	}
+
 	private Project getAccessibleProject(String userEmail, Long projectId) {
 		User user = userService.getUserEntityByEmail(userEmail);
 		return projectService.validateProjectAccess(projectId, user.getId());
@@ -365,6 +489,148 @@ public class ProjectGitService {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "limit must be greater than 0.");
 		}
 		return Math.min(limit, maxLimit);
+	}
+
+	private int normalizeBranchGraphLimit(Integer rawMaxCount) {
+		int maxCount = rawMaxCount == null ? DEFAULT_BRANCH_GRAPH_LIMIT : rawMaxCount;
+		if (maxCount < 1 || maxCount > MAX_BRANCH_GRAPH_LIMIT) {
+			throw new ApiException(ErrorCode.INVALID_GIT_GRAPH_LIMIT);
+		}
+		return maxCount;
+	}
+
+	private String validateBranchName(String rawBranch) {
+		String branch = trimToNull(rawBranch);
+		if (branch == null) {
+			return null;
+		}
+		if (!branch.matches("[\\p{L}\\p{N}._/-]+")
+			|| branch.startsWith("-")
+			|| branch.contains("..")
+			|| branch.contains("//")
+			|| branch.contains("/../")
+			|| branch.endsWith("/")
+			|| branch.endsWith(".")
+			|| branch.endsWith(".lock")) {
+			throw new ApiException(ErrorCode.INVALID_GIT_BRANCH_NAME);
+		}
+		return branch;
+	}
+
+	private List<GitBranch> readBranches(Path repositoryPath, boolean includeRemote) {
+		String output = runBranchGraphGitCommand(
+			repositoryPath,
+			List.of(
+				"for-each-ref",
+				"--format=%(refname:short)" + FIELD_SEPARATOR + "%(refname)" + FIELD_SEPARATOR
+					+ "%(objectname)" + FIELD_SEPARATOR + "%(subject)",
+				"refs/heads",
+				"refs/remotes"
+			)
+		);
+		if (output.isBlank()) {
+			return List.of();
+		}
+
+		List<GitBranch> branches = new ArrayList<>();
+		for (String line : output.split("\\R")) {
+			String[] parts = line.split(FIELD_SEPARATOR, 4);
+			if (parts.length < 4 || parts[0].isBlank() || parts[1].endsWith("/HEAD")) {
+				continue;
+			}
+			boolean remote = parts[1].startsWith("refs/remotes/");
+			if (includeRemote || !remote) {
+				branches.add(new GitBranch(parts[0], remote, emptyToNull(parts[2]), emptyToNull(parts[3])));
+			}
+		}
+		return branches;
+	}
+
+	private List<GitGraphCommit> readGraphCommits(Path repositoryPath, String branch, int maxCount) {
+		List<String> arguments = new ArrayList<>();
+		arguments.add("log");
+		if (branch == null) {
+			arguments.add("--all");
+		}
+		arguments.add("--date=iso-strict");
+		arguments.add("--pretty=format:%H" + FIELD_SEPARATOR + "%h" + FIELD_SEPARATOR + "%P" + FIELD_SEPARATOR
+			+ "%an" + FIELD_SEPARATOR + "%ae" + FIELD_SEPARATOR + "%ad" + FIELD_SEPARATOR + "%s");
+		arguments.add("-n");
+		arguments.add(String.valueOf(maxCount));
+		if (branch != null) {
+			arguments.add("--end-of-options");
+			arguments.add(branch);
+		}
+
+		String output = runBranchGraphGitCommand(repositoryPath, arguments);
+		if (output.isBlank()) {
+			return List.of();
+		}
+
+		List<GitGraphCommit> commits = new ArrayList<>();
+		for (String line : output.split("\\R")) {
+			String[] parts = line.split(FIELD_SEPARATOR, 7);
+			if (parts.length < 7) {
+				throw new ApiException(ErrorCode.GIT_BRANCH_GRAPH_FAILED, "Failed to parse the git branch graph.");
+			}
+			List<String> parents = parts[2].isBlank() ? List.of() : List.of(parts[2].split("\\s+"));
+			commits.add(new GitGraphCommit(
+				parts[0], parts[1], parents, parts[3], parts[4], parseGitDateTime(parts[5]), parts[6]
+			));
+		}
+		return commits;
+	}
+
+	private List<String> readContainingBranchNames(Path repositoryPath, String commitHash, boolean includeRemote) {
+		String output = runBranchGraphGitCommand(
+			repositoryPath,
+			List.of(
+				"for-each-ref",
+				"--contains=" + commitHash,
+				"--format=%(refname:short)" + FIELD_SEPARATOR + "%(refname)",
+				"refs/heads",
+				"refs/remotes"
+			)
+		);
+		if (output.isBlank()) {
+			return List.of();
+		}
+		return output.lines()
+			.map(line -> line.split(FIELD_SEPARATOR, 2))
+			.filter(parts -> parts.length == 2 && !parts[0].isBlank() && !parts[1].endsWith("/HEAD"))
+			.filter(parts -> includeRemote || !parts[1].startsWith("refs/remotes/"))
+			.map(parts -> parts[0])
+			.toList();
+	}
+
+	private String runBranchGraphGitCommand(Path repositoryPath, List<String> arguments) {
+		try {
+			return runGitCommand(repositoryPath, arguments);
+		} catch (GitCommandException exception) {
+			if (isEmptyRepositoryError(exception.getOutput())) {
+				return "";
+			}
+			throw new ApiException(ErrorCode.GIT_BRANCH_GRAPH_FAILED, "Failed to execute git graph command: " + exception.getOutput());
+		} catch (ApiException exception) {
+			if (exception.getErrorCode() == ErrorCode.PROJECT_GIT_COMMAND_FAILED) {
+				throw new ApiException(ErrorCode.GIT_COMMAND_EXECUTION_FAILED, exception.getMessage());
+			}
+			throw exception;
+		}
+	}
+
+	private boolean isEmptyRepositoryError(String output) {
+		String normalized = output == null ? "" : output.toLowerCase(Locale.ROOT);
+		return normalized.contains("does not have any commits yet") || normalized.contains("your current branch")
+			&& normalized.contains("does not have any commits");
+	}
+
+	private String emptyToNull(String value) {
+		return value == null || value.isBlank() ? null : value;
+	}
+
+	private ProjectGitCommitConventionCheckResponse.ConventionIssue conventionIssue(String code, String message) {
+		return new ProjectGitCommitConventionCheckResponse.ConventionIssue("message", code, message);
 	}
 
 	private Path resolveRepositoryPath(Project project, ProjectRepositoryType repositoryType) {
@@ -1022,6 +1288,25 @@ public class ProjectGitService {
 		private boolean untracked() {
 			return "UNTRACKED".equals(changeType);
 		}
+	}
+
+	private record GitBranch(
+		String name,
+		boolean remote,
+		String lastCommitHash,
+		String lastCommitMessage
+	) {
+	}
+
+	private record GitGraphCommit(
+		String commitHash,
+		String shortCommitHash,
+		List<String> parentHashes,
+		String authorName,
+		String authorEmail,
+		LocalDateTime committedAt,
+		String message
+	) {
 	}
 
 	private record DiffStats(long additions, long deletions) {

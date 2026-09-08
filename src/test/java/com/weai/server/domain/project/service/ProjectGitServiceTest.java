@@ -8,8 +8,11 @@ import static org.mockito.Mockito.when;
 import com.weai.server.domain.project.config.ProjectGitProperties;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectStatus;
+import com.weai.server.domain.project.request.ProjectGitCommitConventionCheckRequest;
 import com.weai.server.domain.project.request.ProjectGitCommitRequest;
+import com.weai.server.domain.project.response.ProjectGitBranchGraphResponse;
 import com.weai.server.domain.project.response.ProjectChangedFileListResponse;
+import com.weai.server.domain.project.response.ProjectGitCommitConventionCheckResponse;
 import com.weai.server.domain.project.response.ProjectGitChangeResponse;
 import com.weai.server.domain.project.response.ProjectGitCommitCreateResponse;
 import com.weai.server.domain.project.response.ProjectGitFileDiffResponse;
@@ -337,6 +340,59 @@ class ProjectGitServiceTest {
 		assertThatThrownBy(() -> projectGitService.stageAll(USER_EMAIL, PROJECT_ID))
 			.isInstanceOfSatisfying(ApiException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PROJECT_NOT_FOUND));
+	}
+
+	@Test
+	void checkCommitConventionAcceptsConventionalCommitMessages() {
+		ProjectGitCommitConventionCheckResponse response = projectGitService.checkCommitConvention(
+			USER_EMAIL,
+			PROJECT_ID,
+			new ProjectGitCommitConventionCheckRequest("feat(chat): 채팅방 생성 API 구현", "상세 설명")
+		);
+
+		assertThat(response.valid()).isTrue();
+		assertThat(response.type()).isEqualTo("feat");
+		assertThat(response.scope()).isEqualTo("chat");
+		assertThat(response.subject()).isEqualTo("채팅방 생성 API 구현");
+		assertThat(response.normalizedMessage()).isEqualTo("feat(chat): 채팅방 생성 API 구현");
+	}
+
+	@Test
+	void checkCommitConventionReturnsInvalidResultForUnsupportedType() {
+		ProjectGitCommitConventionCheckResponse response = projectGitService.checkCommitConvention(
+			USER_EMAIL,
+			PROJECT_ID,
+			new ProjectGitCommitConventionCheckRequest("feature: 새 기능", null)
+		);
+
+		assertThat(response.valid()).isFalse();
+		assertThat(response.errors()).extracting(ProjectGitCommitConventionCheckResponse.ConventionIssue::code)
+			.contains("UNSUPPORTED_COMMIT_TYPE");
+	}
+
+	@Test
+	void getBranchGraphReturnsCommitNodesAndParentEdges() throws IOException, InterruptedException {
+		commitFile(repositoryRoot, "first.txt", "first");
+		commitFile(repositoryRoot, "second.txt", "second");
+
+		ProjectGitBranchGraphResponse response = projectGitService.getBranchGraph(
+			USER_EMAIL, PROJECT_ID, null, 50, true
+		);
+
+		assertThat(response.currentBranch()).isNotBlank();
+		assertThat(response.nodes()).hasSize(2);
+		assertThat(response.edges()).hasSize(1);
+		assertThat(response.nodes().get(0).branchNames()).isNotEmpty();
+	}
+
+	@Test
+	void getBranchGraphRejectsInvalidLimitAndDangerousBranchName() {
+		assertThatThrownBy(() -> projectGitService.getBranchGraph(USER_EMAIL, PROJECT_ID, null, 201, true))
+			.isInstanceOfSatisfying(ApiException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_GIT_GRAPH_LIMIT));
+		assertThatThrownBy(() -> projectGitService.getBranchGraph(USER_EMAIL, PROJECT_ID, "main;whoami", 50, true))
+			.isInstanceOfSatisfying(ApiException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_GIT_BRANCH_NAME));
 	}
 
 	private Project project(Path localPath) {

@@ -104,6 +104,10 @@ public enum ErrorCode {
 	),
 	GIT_NO_STAGED_FILES(HttpStatus.BAD_REQUEST, "GIT_400_8", "There are no staged files to commit."),
 	GIT_COMMIT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_7", "Failed to create the git commit."),
+	INVALID_GIT_BRANCH_NAME(HttpStatus.BAD_REQUEST, "GIT_400_9", "Git branch name is invalid."),
+	GIT_BRANCH_NOT_FOUND(HttpStatus.NOT_FOUND, "GIT_404_2", "The requested git branch could not be found."),
+	INVALID_GIT_GRAPH_LIMIT(HttpStatus.BAD_REQUEST, "GIT_400_10", "Git graph limit must be between 1 and 200."),
+	GIT_BRANCH_GRAPH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_8", "Failed to retrieve the git branch graph."),
 
 	// QA Query Errors
 	INVALID_QA_REPORT_STATUS(HttpStatus.BAD_REQUEST, "QA_400_1", "QA report status is invalid."),
