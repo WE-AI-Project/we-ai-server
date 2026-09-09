@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "AI Debate", description = "Dynamic four-agent debate API powered by Ollama qwen2.5-coder and llama3.1.")
@@ -32,11 +33,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiController {
 
 	private final AiDebateService aiDebateService;
+	private final AgentMetricsService agentMetricsService;
 	private final UserService userService;
 	private final ProjectService projectService;
 
-	public AiController(@Lazy AiDebateService aiDebateService, UserService userService, ProjectService projectService) {
+	public AiController(
+		@Lazy AiDebateService aiDebateService,
+		AgentMetricsService agentMetricsService,
+		UserService userService,
+		ProjectService projectService
+	) {
 		this.aiDebateService = aiDebateService;
+		this.agentMetricsService = agentMetricsService;
 		this.userService = userService;
 		this.projectService = projectService;
 	}
@@ -53,6 +61,38 @@ public class AiController {
 			Arrays.stream(AiAgentType.values())
 				.map(AiAgentResponse::from)
 				.toList()
+		);
+	}
+
+	@Operation(
+		summary = "Get real agent invocation metrics",
+		description = "Returns each agent's actual invocation count, success/failure count, average latency, and last-invoked time, "
+			+ "recorded from real debate/single-agent calls. Agents are LLM personas, not OS processes, so CPU/memory/uptime are not applicable."
+	)
+	@GetMapping("/agents/metrics")
+	public ApiResponse<List<AgentMetricsResponse>> agentMetrics() {
+		return ApiResponse.success(
+			"AI_AGENT_METRICS_SUCCESS",
+			"Agent invocation metrics loaded successfully.",
+			agentMetricsService.getMetrics()
+		);
+	}
+
+	@Operation(
+		summary = "Get an agent's recent invocation history",
+		description = "Returns the most recent real invocation records (project, success, latency, error) for one agent."
+	)
+	@GetMapping("/agents/{agent}/invocations")
+	public ApiResponse<List<AgentInvocationResponse>> agentInvocations(
+		@Parameter(description = "Agent key: ORACLE, BACKEND, FRONTEND, or INSPECTOR")
+		@PathVariable AiAgentType agent,
+		@Parameter(description = "Maximum number of records to return (1-100)")
+		@RequestParam(defaultValue = "20") int limit
+	) {
+		return ApiResponse.success(
+			"AI_AGENT_INVOCATIONS_SUCCESS",
+			"Agent invocation history loaded successfully.",
+			agentMetricsService.getRecentInvocations(agent, limit)
 		);
 	}
 

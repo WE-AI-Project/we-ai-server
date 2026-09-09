@@ -27,6 +27,7 @@ public class AiDebateService {
 	private final FrontendAi frontendAi;
 	private final InspectorAi inspectorAi;
 	private final ProjectRagRetriever projectRagRetriever;
+	private final AgentMetricsService agentMetricsService;
 	private final int maxRounds;
 
 	public AiDebateService(
@@ -35,6 +36,7 @@ public class AiDebateService {
 		FrontendAi frontendAi,
 		InspectorAi inspectorAi,
 		@Lazy ProjectRagRetriever projectRagRetriever,
+		AgentMetricsService agentMetricsService,
 		@Value("${ai.debate.max-rounds:10}") int maxRounds
 	) {
 		this.oracleAi = oracleAi;
@@ -42,6 +44,7 @@ public class AiDebateService {
 		this.frontendAi = frontendAi;
 		this.inspectorAi = inspectorAi;
 		this.projectRagRetriever = projectRagRetriever;
+		this.agentMetricsService = agentMetricsService;
 		this.maxRounds = Math.max(1, maxRounds);
 	}
 
@@ -298,12 +301,20 @@ public class AiDebateService {
 		int round,
 		StringBuilder debateHistory
 	) {
-		return switch (agent) {
-			case ORACLE -> callOracle(context, projectId, ragContext, round, debateHistory);
-			case BACKEND -> callBackend(context, projectId, ragContext, round, debateHistory);
-			case FRONTEND -> callFrontend(context, projectId, ragContext, round, debateHistory);
-			case INSPECTOR -> callInspector(context, projectId, ragContext, round, debateHistory);
-		};
+		long startedAt = System.currentTimeMillis();
+		try {
+			String opinion = switch (agent) {
+				case ORACLE -> callOracle(context, projectId, ragContext, round, debateHistory);
+				case BACKEND -> callBackend(context, projectId, ragContext, round, debateHistory);
+				case FRONTEND -> callFrontend(context, projectId, ragContext, round, debateHistory);
+				case INSPECTOR -> callInspector(context, projectId, ragContext, round, debateHistory);
+			};
+			agentMetricsService.record(agent, projectId, true, System.currentTimeMillis() - startedAt, null);
+			return opinion;
+		} catch (RuntimeException exception) {
+			agentMetricsService.record(agent, projectId, false, System.currentTimeMillis() - startedAt, exception.getMessage());
+			throw exception;
+		}
 	}
 
 	private void appendTurn(
