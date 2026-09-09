@@ -1523,10 +1523,6 @@ public class ProjectGitService {
 			this.output = output == null ? "" : output.trim();
 		}
 
-		private int getExitCode() {
-			return exitCode;
-		}
-
 		private String getOutput() {
 			return output;
 		}

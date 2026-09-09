@@ -244,7 +244,7 @@ public class ProjectStackDetectionService {
 
 	private void collectPackages(JsonNode node, Map<String, String> packages) {
 		if (node.isObject()) {
-			node.fields().forEachRemaining(entry -> packages.put(entry.getKey(), cleanVersion(entry.getValue().asText())));
+			node.properties().forEach(entry -> packages.put(entry.getKey(), cleanVersion(entry.getValue().asText())));
 		}
 	}
 

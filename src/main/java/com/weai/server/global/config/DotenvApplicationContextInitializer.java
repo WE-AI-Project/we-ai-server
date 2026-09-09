@@ -21,7 +21,6 @@ public class DotenvApplicationContextInitializer
 	private static final String BASE_DOTENV_FILE_NAME = ".env";
 	private static final String PROFILE_DOTENV_FILE_PREFIX = ".env.";
 	private static final String APP_PROFILE_PROPERTY_NAME = "APP_PROFILE";
-	private static final String SPRING_ACTIVE_PROFILE_ENV_NAME = "SPRING_PROFILES_ACTIVE";
 
 	@Override
 	public void initialize(ConfigurableApplicationContext applicationContext) {

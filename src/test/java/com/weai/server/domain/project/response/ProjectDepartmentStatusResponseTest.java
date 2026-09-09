@@ -3,7 +3,6 @@ package com.weai.server.domain.project.response;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.weai.server.domain.project.domain.ProjectDepartment;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
