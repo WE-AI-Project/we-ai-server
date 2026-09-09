@@ -196,7 +196,16 @@ public enum ErrorCode {
 	MEETING_ALREADY_IN_PROGRESS(HttpStatus.CONFLICT, "CHAT_MEETING_409_1", "A meeting is already in progress."),
 	MEETING_PARTICIPANT_NOT_PROJECT_MEMBER(HttpStatus.BAD_REQUEST, "CHAT_MEETING_400_4", "Meeting participant is not an active project member."),
 	DOCUMENT_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_DOCUMENT_500_1", "Failed to upload the document."),
-	DOCUMENT_BRIEFING_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_DOCUMENT_500_2", "Failed to create the document briefing.");
+	DOCUMENT_BRIEFING_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_DOCUMENT_500_2", "Failed to create the document briefing."),
+
+	// Project Shared Library Errors
+	LIBRARY_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "LIBRARY_400_1", "Library resource file is required."),
+	LIBRARY_FILE_EMPTY(HttpStatus.BAD_REQUEST, "LIBRARY_400_2", "Library resource file is empty."),
+	LIBRARY_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "LIBRARY_400_3", "Library resource file size exceeded."),
+	LIBRARY_FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "LIBRARY_400_4", "Library resource file type is not allowed."),
+	LIBRARY_TITLE_REQUIRED(HttpStatus.BAD_REQUEST, "LIBRARY_400_5", "Library resource title is required."),
+	LIBRARY_RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "LIBRARY_404_1", "The requested library resource could not be found."),
+	LIBRARY_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "LIBRARY_500_1", "Failed to upload the library resource.");
 
 	private final HttpStatus status;
 	private final String code;
