@@ -19,9 +19,50 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 	@Override
 	public void registerStompEndpoints(StompEndpointRegistry registry) {
+		String[] allowedPatterns = resolveAllowedOriginPatterns();
+
 		registry.addEndpoint("/ws")
-			.setAllowedOriginPatterns(appWebProperties.getCors().getAllowedOriginPatterns().toArray(new String[0]))
+			.setAllowedOriginPatterns(allowedPatterns);
+
+		registry.addEndpoint("/ws")
+			.setAllowedOriginPatterns(allowedPatterns)
 			.withSockJS();
+	}
+
+	public String[] resolveAllowedOriginPatterns() {
+		java.util.Set<String> patterns = new java.util.LinkedHashSet<>();
+		AppWebProperties.Cors cors = appWebProperties.getCors();
+
+		if (cors != null) {
+			java.util.List<String> origins = cors.getAllowedOrigins();
+			if (origins != null) {
+				for (String origin : origins) {
+					if (org.springframework.util.StringUtils.hasText(origin)) {
+						patterns.add(origin.trim());
+					}
+				}
+			}
+
+			java.util.List<String> originPatterns = cors.getAllowedOriginPatterns();
+			if (originPatterns != null) {
+				for (String pattern : originPatterns) {
+					if (org.springframework.util.StringUtils.hasText(pattern)) {
+						patterns.add(pattern.trim());
+					}
+				}
+			}
+		}
+
+		if (org.springframework.util.StringUtils.hasText(appWebProperties.getFrontendBaseUrl())) {
+			patterns.add(appWebProperties.getFrontendBaseUrl().trim());
+		}
+
+		// 기본 패턴 보장: 로컬 개발 환경 및 Vercel 배포 도메인
+		patterns.add("http://localhost:*");
+		patterns.add("http://127.0.0.1:*");
+		patterns.add("https://*.vercel.app");
+
+		return patterns.toArray(new String[0]);
 	}
 
 	@Override

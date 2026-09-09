@@ -85,6 +85,7 @@ class UserControllerIntegrationTest {
 		String username = "member-" + UUID.randomUUID().toString().substring(0, 8);
 		String signupRequest = createSignupRequestBody(username);
 
+		verifyEmailForSignup(username + "@example.com");
 		HttpResponse<String> signUpResponse = httpClient.send(
 			HttpRequest.newBuilder()
 				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
@@ -134,6 +135,7 @@ class UserControllerIntegrationTest {
 		String email = username + "@example.com";
 		String signupRequest = createSignupRequestBody(username);
 
+		verifyEmailForSignup(email);
 		HttpResponse<String> signUpResponse = httpClient.send(
 			HttpRequest.newBuilder()
 				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
@@ -231,6 +233,44 @@ class UserControllerIntegrationTest {
 
 		assertThat(response.statusCode()).isEqualTo(200);
 		return extractAccessToken(response.body());
+	}
+
+	private void verifyEmailForSignup(String email) throws Exception {
+		HttpResponse<String> sendResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verification-code".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s"
+					}
+					""".formatted(email)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(sendResponse.statusCode()).isEqualTo(200);
+
+		String tokenMarker = "\"debugCode\":\"";
+		int startIndex = sendResponse.body().indexOf(tokenMarker);
+		assertThat(startIndex).isGreaterThanOrEqualTo(0);
+		int valueStart = startIndex + tokenMarker.length();
+		int valueEnd = sendResponse.body().indexOf('"', valueStart);
+		String debugCode = sendResponse.body().substring(valueStart, valueEnd);
+
+		HttpResponse<String> verifyResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verify".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s",
+					  "verificationCode": "%s"
+					}
+					""".formatted(email, debugCode)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(verifyResponse.statusCode()).isEqualTo(200);
 	}
 
 	private String createSignupRequestBody(String username) {

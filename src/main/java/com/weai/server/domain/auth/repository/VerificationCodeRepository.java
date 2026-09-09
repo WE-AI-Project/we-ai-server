@@ -11,4 +11,9 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
 		String email,
 		VerificationCodePurpose purpose
 	);
+
+	Optional<VerificationCode> findTopByEmailAndPurposeAndUsedAtIsNotNullOrderByUsedAtDesc(
+		String email,
+		VerificationCodePurpose purpose
+	);
 }

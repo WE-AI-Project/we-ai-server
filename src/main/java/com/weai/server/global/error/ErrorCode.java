@@ -24,6 +24,7 @@ public enum ErrorCode {
 	INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "AUTH_401_1", "The password does not match."),
 	INVALID_VERIFICATION_CODE(HttpStatus.BAD_REQUEST, "AUTH_400_1", "The verification code is invalid."),
 	EXPIRED_VERIFICATION_CODE(HttpStatus.BAD_REQUEST, "AUTH_400_2", "The verification code has expired."),
+	EMAIL_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "AUTH_400_3", "The email address has not been verified."),
 	VERIFICATION_DELIVERY_FAILED(
 		HttpStatus.INTERNAL_SERVER_ERROR,
 		"AUTH_500_1",

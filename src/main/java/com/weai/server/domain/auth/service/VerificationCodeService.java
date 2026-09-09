@@ -5,6 +5,7 @@ import com.weai.server.domain.auth.domain.VerificationCodePurpose;
 import com.weai.server.domain.auth.domain.VerificationDeliveryChannel;
 import com.weai.server.domain.auth.repository.VerificationCodeRepository;
 import com.weai.server.domain.auth.request.EmailLoginCodeSendRequest;
+import com.weai.server.domain.auth.request.SignupVerificationCodeSendRequest;
 import com.weai.server.domain.auth.response.VerificationCodeDispatchResponse;
 import com.weai.server.global.config.AppWebProperties;
 import com.weai.server.global.error.ErrorCode;
@@ -39,6 +40,7 @@ import org.springframework.web.client.RestClientException;
 public class VerificationCodeService {
 
    private static final VerificationCodePurpose EMAIL_LOGIN = VerificationCodePurpose.EMAIL_LOGIN;
+   private static final VerificationCodePurpose SIGNUP = VerificationCodePurpose.SIGNUP;
    private static final SecureRandom RANDOM = new SecureRandom();
 
    private final VerificationCodeRepository verificationCodeRepository;
@@ -102,6 +104,76 @@ public class VerificationCodeService {
       }
 
       verificationCode.markUsed(now);
+   }
+
+   @Transactional
+   public VerificationCodeDispatchResponse sendSignupVerificationCode(SignupVerificationCodeSendRequest request) {
+      String rawCode = generateVerificationCode();
+      LocalDateTime expiresAt = LocalDateTime.now().plus(authVerificationProperties.getExpiration());
+
+      VerificationCode verificationCode = verificationCodeRepository.save(VerificationCode.issue(
+         request.email(),
+         SIGNUP,
+         VerificationDeliveryChannel.EMAIL,
+         request.email(),
+         hashVerificationCode(rawCode),
+         expiresAt
+      ));
+
+      if (authVerificationProperties.isMockEnabled()) {
+         log.info(
+            "Simulated signup verification code delivery. email={}, code={}, expiresAt={}",
+            request.email(),
+            rawCode,
+            expiresAt
+         );
+      } else {
+         sendEmail(request.email(), rawCode, expiresAt);
+      }
+
+      return new VerificationCodeDispatchResponse(
+         verificationCode.getPurpose(),
+         verificationCode.getDeliveryChannel(),
+         verificationCode.getDeliveryTarget(),
+         authVerificationProperties.isMockEnabled() ? "SIMULATED" : "SENT",
+         expiresAt,
+         authVerificationProperties.isExposeCodeInResponse() ? rawCode : null
+      );
+   }
+
+   @Transactional
+   public void verifySignupVerificationCode(String email, String rawCode) {
+      VerificationCode verificationCode = verificationCodeRepository
+         .findTopByEmailAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc(email, SIGNUP)
+         .orElseThrow(() -> new ApiException(
+            ErrorCode.INVALID_VERIFICATION_CODE,
+            "No active verification code was found for '%s'.".formatted(email)
+         ));
+
+      LocalDateTime now = LocalDateTime.now();
+      if (verificationCode.isExpired(now)) {
+         verificationCode.markUsed(now);
+         throw new ApiException(ErrorCode.EXPIRED_VERIFICATION_CODE, "Verification code has expired.");
+      }
+
+      if (!verificationCode.matches(hashVerificationCode(rawCode))) {
+         throw new ApiException(ErrorCode.INVALID_VERIFICATION_CODE, "Verification code does not match.");
+      }
+
+      verificationCode.markUsed(now);
+   }
+
+   /**
+    * Sign-up may finish well after the OTP screen closes, so this checks that some SIGNUP code for
+    * this email was successfully verified (markUsed) within the last {@code expiration} window,
+    * rather than requiring the verify-and-signup calls to happen in the same request.
+    */
+   @Transactional(readOnly = true)
+   public boolean isEmailVerifiedForSignup(String email) {
+      return verificationCodeRepository
+         .findTopByEmailAndPurposeAndUsedAtIsNotNullOrderByUsedAtDesc(email, SIGNUP)
+         .filter(code -> code.getUsedAt().isAfter(LocalDateTime.now().minus(authVerificationProperties.getExpiration())))
+         .isPresent();
    }
 
    private void validateDeliveryRequest(EmailLoginCodeSendRequest request) {

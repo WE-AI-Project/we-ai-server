@@ -5,6 +5,8 @@ import com.weai.server.domain.auth.dto.naver.NaverUserResponse;
 import com.weai.server.domain.auth.request.EmailCodeLoginRequest;
 import com.weai.server.domain.auth.request.EmailLoginCodeSendRequest;
 import com.weai.server.domain.auth.request.LoginRequest;
+import com.weai.server.domain.auth.request.SignupVerificationCodeSendRequest;
+import com.weai.server.domain.auth.request.SignupVerificationCodeVerifyRequest;
 import com.weai.server.domain.auth.response.TokenResponse;
 import com.weai.server.domain.auth.response.VerificationCodeDispatchResponse;
 import com.weai.server.domain.user.domain.User;
@@ -57,6 +59,29 @@ public class AuthService {
         verificationCodeService.verifyEmailLoginCode(request.email(), request.verificationCode());
         markLogin(user);
         return tokenService.issueTokens(user);
+    }
+
+    @Transactional
+    public VerificationCodeDispatchResponse sendSignupVerificationCode(SignupVerificationCodeSendRequest request) {
+        if (userRepository.existsByEmail(request.email())) {
+            throw new ApiException(ErrorCode.DUPLICATE_EMAIL, "Email '%s' is already in use.".formatted(request.email()));
+        }
+        return verificationCodeService.sendSignupVerificationCode(request);
+    }
+
+    @Transactional
+    public void verifySignupVerificationCode(SignupVerificationCodeVerifyRequest request) {
+        verificationCodeService.verifySignupVerificationCode(request.email(), request.verificationCode());
+    }
+
+    @Transactional(readOnly = true)
+    public void ensureEmailVerifiedForSignup(String email) {
+        if (!verificationCodeService.isEmailVerifiedForSignup(email)) {
+            throw new ApiException(
+                ErrorCode.EMAIL_NOT_VERIFIED,
+                "Email '%s' must be verified before signing up.".formatted(email)
+            );
+        }
     }
 
     @Transactional

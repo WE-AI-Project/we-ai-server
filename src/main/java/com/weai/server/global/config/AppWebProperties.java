@@ -45,7 +45,8 @@ public class AppWebProperties {
 
 		private List<@NotBlank String> allowedOriginPatterns = new ArrayList<>(List.of(
 			"http://localhost:*",
-			"http://127.0.0.1:*"
+			"http://127.0.0.1:*",
+			"https://*.vercel.app"
 		));
 
 		@NotEmpty

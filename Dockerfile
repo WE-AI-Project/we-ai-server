@@ -32,7 +32,7 @@ FROM eclipse-temurin:17-jre AS runtime
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/build/libs/*.jar /app/app.jar

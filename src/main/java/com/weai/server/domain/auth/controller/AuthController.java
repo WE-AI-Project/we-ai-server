@@ -8,6 +8,8 @@ import com.weai.server.domain.auth.request.NaverSocialCodeLoginRequest;
 import com.weai.server.domain.auth.request.PasswordFindRequest;
 import com.weai.server.domain.auth.request.RefreshTokenRequest;
 import com.weai.server.domain.auth.request.SignUpRequest;
+import com.weai.server.domain.auth.request.SignupVerificationCodeSendRequest;
+import com.weai.server.domain.auth.request.SignupVerificationCodeVerifyRequest;
 import com.weai.server.domain.auth.request.SocialCodeLoginRequest;
 import com.weai.server.domain.auth.response.PasswordFindResponse;
 import com.weai.server.domain.auth.response.SocialAuthorizationUrlResponse;
@@ -50,13 +52,54 @@ public class AuthController {
 	private final GoogleOAuthService googleOAuthService;
 	private final PasswordRecoveryService passwordRecoveryService;
 
-	@Operation(summary = "Sign up", description = "Creates a local account with email and password.")
-	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.CONFLICT})
+	@Operation(
+		summary = "Sign up",
+		description = "Creates a local account with email and password. The email must have already been "
+			+ "verified via /signup/verification-code and /signup/verify."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.CONFLICT,
+		ErrorCode.DUPLICATE_EMAIL,
+		ErrorCode.EMAIL_NOT_VERIFIED
+	})
 	@PostMapping("/signup")
 	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<Void> signUp(@Valid @RequestBody SignUpRequest request) {
+		authService.ensureEmailVerifiedForSignup(request.email());
 		userService.registerUser(request);
 		return ApiResponse.successMessage("Sign-up completed successfully.");
+	}
+
+	@Operation(
+		summary = "Send sign-up email verification code",
+		description = "Sends a six-digit code to the given email to prove ownership before creating an account."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.DUPLICATE_EMAIL,
+		ErrorCode.VERIFICATION_DELIVERY_FAILED
+	})
+	@PostMapping("/signup/verification-code")
+	public ApiResponse<VerificationCodeDispatchResponse> sendSignupVerificationCode(
+		@Valid @RequestBody SignupVerificationCodeSendRequest request
+	) {
+		return ApiResponse.success(authService.sendSignupVerificationCode(request));
+	}
+
+	@Operation(
+		summary = "Verify sign-up email verification code",
+		description = "Verifies the six-digit code sent to the given email. Must succeed before /signup."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.INVALID_INPUT,
+		ErrorCode.INVALID_VERIFICATION_CODE,
+		ErrorCode.EXPIRED_VERIFICATION_CODE
+	})
+	@PostMapping("/signup/verify")
+	public ApiResponse<Void> verifySignupVerificationCode(@Valid @RequestBody SignupVerificationCodeVerifyRequest request) {
+		authService.verifySignupVerificationCode(request);
+		return ApiResponse.successMessage("Email verified successfully.");
 	}
 
 	@Operation(summary = "Password login", description = "Issues JWT tokens with email and password.")

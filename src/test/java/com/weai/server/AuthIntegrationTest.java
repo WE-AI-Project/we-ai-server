@@ -55,6 +55,7 @@ class AuthIntegrationTest {
 			}
 			""".formatted(username, email);
 
+		verifyEmailForSignup(email);
 		HttpResponse<String> signUpResponse = httpClient.send(
 			HttpRequest.newBuilder()
 				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
@@ -163,6 +164,7 @@ class AuthIntegrationTest {
 			}
 			""".formatted(username, email);
 
+		verifyEmailForSignup(email);
 		httpClient.send(
 			HttpRequest.newBuilder()
 				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
@@ -201,6 +203,7 @@ class AuthIntegrationTest {
 			}
 			""".formatted(email);
 
+		verifyEmailForSignup(email);
 		HttpResponse<String> signUpResponse = httpClient.send(
 			HttpRequest.newBuilder()
 				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
@@ -241,6 +244,7 @@ class AuthIntegrationTest {
 			}
 			""".formatted(username, email);
 
+		verifyEmailForSignup(email);
 		HttpResponse<String> signUpResponse = httpClient.send(
 			HttpRequest.newBuilder()
 				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
@@ -304,6 +308,121 @@ class AuthIntegrationTest {
 
 		assertThat(reuseCodeResponse.statusCode()).isEqualTo(400);
 		assertThat(reuseCodeResponse.body()).contains("\"code\":\"AUTH_400_1\"");
+	}
+
+	@Test
+	void signUpIsRejectedWithoutEmailVerificationAndSucceedsAfterCorrectCode() throws Exception {
+		String username = "verify-" + UUID.randomUUID().toString().substring(0, 8);
+		String email = username + "@example.com";
+		String signUpRequestBody = """
+			{
+			  "username": "%s",
+			  "name": "Verify Flow",
+			  "email": "%s",
+			  "password": "password1234!"
+			}
+			""".formatted(username, email);
+
+		HttpResponse<String> unverifiedSignUpResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString(signUpRequestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(unverifiedSignUpResponse.statusCode()).isEqualTo(400);
+		assertThat(unverifiedSignUpResponse.body()).contains("\"code\":\"AUTH_400_3\"");
+
+		HttpResponse<String> sendCodeResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verification-code".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s"
+					}
+					""".formatted(email)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(sendCodeResponse.statusCode()).isEqualTo(200);
+		assertThat(sendCodeResponse.body()).contains("\"purpose\":\"SIGNUP\"");
+
+		HttpResponse<String> wrongCodeResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verify".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s",
+					  "verificationCode": "000000"
+					}
+					""".formatted(email)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(wrongCodeResponse.statusCode()).isEqualTo(400);
+		assertThat(wrongCodeResponse.body()).contains("\"code\":\"AUTH_400_1\"");
+
+		verifyEmailForSignup(email);
+
+		HttpResponse<String> verifiedSignUpResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString(signUpRequestBody))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(verifiedSignUpResponse.statusCode()).isEqualTo(201);
+
+		HttpResponse<String> duplicateSendCodeResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verification-code".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s"
+					}
+					""".formatted(email)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(duplicateSendCodeResponse.statusCode()).isEqualTo(409);
+		assertThat(duplicateSendCodeResponse.body()).contains("\"code\":\"AUTH_409_1\"");
+	}
+
+	private void verifyEmailForSignup(String email) throws Exception {
+		HttpResponse<String> sendResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verification-code".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s"
+					}
+					""".formatted(email)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(sendResponse.statusCode()).isEqualTo(200);
+		String debugCode = extractToken(sendResponse.body(), DEBUG_CODE_PATTERN);
+
+		HttpResponse<String> verifyResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verify".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s",
+					  "verificationCode": "%s"
+					}
+					""".formatted(email, debugCode)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(verifyResponse.statusCode()).isEqualTo(200);
 	}
 
 	private TokenPair login(String email, String password) throws Exception {

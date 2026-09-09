@@ -52,7 +52,7 @@ public class SecurityConfig {
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 				.requestMatchers(HttpMethod.GET, "/uploads/projects/**").permitAll()
-				.requestMatchers("/ws/**").permitAll()
+				.requestMatchers("/ws", "/ws/**").permitAll()
 				.requestMatchers(
 					"/error",
 					"/swagger-ui.html",
@@ -67,6 +67,8 @@ public class SecurityConfig {
 					"/api/v1/auth/email-login",
 					"/api/v1/auth/email-login/code",
 					"/api/v1/auth/signup",
+					"/api/v1/auth/signup/verification-code",
+					"/api/v1/auth/signup/verify",
 					"/api/v1/auth/refresh",
 					"/api/v1/auth/logout",
 					"/api/v1/auth/kakao/url",

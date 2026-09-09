@@ -29,6 +29,7 @@ class ProjectIntegrationTest {
 	private static final Pattern SCHEDULE_ID_PATTERN = Pattern.compile("\"scheduleId\":(\\d+)");
 	private static final Pattern TECH_STACK_ID_PATTERN = Pattern.compile("\"techStackId\":(\\d+)");
 	private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\":(\\d+)");
+	private static final Pattern DEBUG_CODE_PATTERN = Pattern.compile("\"debugCode\":\"([^\"]+)\"");
 
 	private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -1150,6 +1151,7 @@ class ProjectIntegrationTest {
 		String username = prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
 		String email = username + "@example.com";
 
+		verifyEmailForSignup(email);
 		HttpResponse<String> signUpResponse = httpClient.send(
 			HttpRequest.newBuilder()
 				.uri(URI.create("http://localhost:%d/api/v1/auth/signup".formatted(port)))
@@ -1598,6 +1600,38 @@ class ProjectIntegrationTest {
 				.build(),
 			HttpResponse.BodyHandlers.ofString()
 		);
+	}
+
+	private void verifyEmailForSignup(String email) throws Exception {
+		HttpResponse<String> sendResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verification-code".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s"
+					}
+					""".formatted(email)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(sendResponse.statusCode()).isEqualTo(200);
+		String debugCode = extractValue(sendResponse.body(), DEBUG_CODE_PATTERN);
+
+		HttpResponse<String> verifyResponse = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/signup/verify".formatted(port)))
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString("""
+					{
+					  "email": "%s",
+					  "verificationCode": "%s"
+					}
+					""".formatted(email, debugCode)))
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+		assertThat(verifyResponse.statusCode()).isEqualTo(200);
 	}
 
 	private String extractValue(String responseBody, Pattern pattern) {
