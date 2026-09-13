@@ -63,6 +63,7 @@ public class ProjectBuildRunService {
 	private final ProjectMemberRepository projectMemberRepository;
 	private final BuildRunRepository buildRunRepository;
 	private final BuildRunExecutionWorker buildRunExecutionWorker;
+	private final ProjectEnvironmentService projectEnvironmentService;
 	@Qualifier("buildTaskExecutor")
 	private final TaskExecutor buildTaskExecutor;
 
@@ -73,7 +74,7 @@ public class ProjectBuildRunService {
 		validateLeader(projectId, requester.getId());
 
 		String taskName = validateTaskName(request == null ? null : request.taskName());
-		String profile = validateProfile(request == null ? null : request.profile());
+		String profile = resolveProfile(projectId, request == null ? null : request.profile());
 		Path projectPath = validateProjectLocalPath(project);
 		Path gradleWrapper = resolveGradleWrapper(projectPath);
 		if (buildRunRepository.existsByProject_IdAndStatusIn(projectId, ACTIVE_BUILD_STATUSES)) {
@@ -205,6 +206,14 @@ public class ProjectBuildRunService {
 			throw new ApiException(ErrorCode.INVALID_SPRING_PROFILE);
 		}
 		return normalized;
+	}
+
+	private String resolveProfile(Long projectId, String rawProfile) {
+		String requestedProfile = validateProfile(rawProfile);
+		if (requestedProfile != null) {
+			return requestedProfile;
+		}
+		return projectEnvironmentService.findStoredActiveProfile(projectId).orElse(null);
 	}
 
 	private BuildRunStatus parseStatus(String rawStatus) {

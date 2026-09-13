@@ -28,6 +28,7 @@ public class ProjectRuntimeQueryService {
 	private final ProjectService projectService;
 	private final UserService userService;
 	private final ProjectTechStackRepository projectTechStackRepository;
+	private final ProjectEnvironmentService projectEnvironmentService;
 
 	public BuildTaskListResponse getBuildTasks(String userEmail, Long projectId) {
 		Project project = getAccessibleProject(userEmail, projectId);
@@ -47,15 +48,19 @@ public class ProjectRuntimeQueryService {
 	) {
 		Project project = getAccessibleProject(userEmail, projectId);
 		String buildTool = resolveBuildTool(project.getId());
-		String profile = normalizeProfile(rawProfile);
-		List<String> profiles = profile == null ? List.of("local", "dev", "test", "prod") : List.of(profile);
+		String activeProfile = normalizeProfile(rawProfile)
+			.or(() -> projectEnvironmentService.findStoredActiveProfile(project.getId()))
+			.orElse("dev");
+		List<String> profiles = rawProfile == null || rawProfile.isBlank()
+			? List.of("local", "dev", "test", "prod")
+			: List.of(activeProfile);
 
 		return new ProfileRunCommandListResponse(
 			project.getId(),
 			buildTool,
 			resolveOsType(),
 			profiles.stream()
-				.map(candidate -> buildRunCommand(buildTool, candidate, profile == null || candidate.equals(profile)))
+				.map(candidate -> buildRunCommand(buildTool, candidate, candidate.equals(activeProfile)))
 				.toList()
 		);
 	}
@@ -118,15 +123,15 @@ public class ProjectRuntimeQueryService {
 		return new ProfileRunCommandResponse(profile, description, windowsCommand, unixCommand, active);
 	}
 
-	private String normalizeProfile(String rawProfile) {
+	private java.util.Optional<String> normalizeProfile(String rawProfile) {
 		if (rawProfile == null || rawProfile.isBlank()) {
-			return null;
+			return java.util.Optional.empty();
 		}
 		String profile = rawProfile.trim().toLowerCase(Locale.ROOT);
 		if (!SUPPORTED_PROFILES.contains(profile)) {
 			throw new ApiException(ErrorCode.INVALID_SPRING_PROFILE);
 		}
-		return profile;
+		return java.util.Optional.of(profile);
 	}
 
 	private String resolveOsType() {

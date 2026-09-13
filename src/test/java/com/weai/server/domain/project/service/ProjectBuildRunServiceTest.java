@@ -58,6 +58,7 @@ class ProjectBuildRunServiceTest {
 	private ProjectMemberRepository projectMemberRepository;
 	private BuildRunRepository buildRunRepository;
 	private BuildRunExecutionWorker buildRunExecutionWorker;
+	private ProjectEnvironmentService projectEnvironmentService;
 	private ProjectBuildRunService service;
 	private User user;
 	private Project project;
@@ -86,6 +87,7 @@ class ProjectBuildRunServiceTest {
 		projectMemberRepository = mock(ProjectMemberRepository.class);
 		buildRunRepository = mock(BuildRunRepository.class);
 		buildRunExecutionWorker = mock(BuildRunExecutionWorker.class);
+		projectEnvironmentService = mock(ProjectEnvironmentService.class);
 		TaskExecutor directExecutor = Runnable::run;
 
 		service = new ProjectBuildRunService(
@@ -94,6 +96,7 @@ class ProjectBuildRunServiceTest {
 			projectMemberRepository,
 			buildRunRepository,
 			buildRunExecutionWorker,
+			projectEnvironmentService,
 			directExecutor
 		);
 
