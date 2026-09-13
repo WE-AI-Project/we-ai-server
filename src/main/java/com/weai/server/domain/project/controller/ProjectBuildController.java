@@ -1,9 +1,14 @@
 package com.weai.server.domain.project.controller;
 
 import com.weai.server.domain.project.request.ExecuteBuildTaskRequest;
+import com.weai.server.domain.project.request.BuildTaskRunRequest;
+import com.weai.server.domain.project.response.BuildRunHistoryResponse;
+import com.weai.server.domain.project.response.BuildRunResultResponse;
 import com.weai.server.domain.project.response.BuildTaskExecutionResponse;
 import com.weai.server.domain.project.response.BuildTaskListResponse;
+import com.weai.server.domain.project.response.BuildTaskRunResponse;
 import com.weai.server.domain.project.service.ProjectBuildExecutionService;
+import com.weai.server.domain.project.service.ProjectBuildRunService;
 import com.weai.server.domain.project.service.ProjectRuntimeQueryService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
@@ -14,12 +19,15 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Build", description = "프로젝트 빌드 태스크 조회 및 실행 API")
@@ -31,6 +39,7 @@ public class ProjectBuildController {
 
 	private final ProjectRuntimeQueryService projectRuntimeQueryService;
 	private final ProjectBuildExecutionService projectBuildExecutionService;
+	private final ProjectBuildRunService projectBuildRunService;
 
 	@Operation(
 		summary = "프로젝트 빌드 태스크 목록 조회",
@@ -75,6 +84,92 @@ public class ProjectBuildController {
 			"BUILD_TASK_EXECUTION_SUCCESS",
 			"빌드 태스크가 성공적으로 실행되었습니다.",
 			projectBuildExecutionService.executeTask(authentication.getName(), projectId, request.taskName())
+		);
+	}
+
+	@Operation(
+		summary = "빌드 태스크 실행",
+		description = "프로젝트의 허용된 Gradle 빌드 태스크를 비동기로 실행합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY,
+		ErrorCode.PROJECT_LOCAL_PATH_NOT_FOUND,
+		ErrorCode.GRADLE_WRAPPER_NOT_FOUND,
+		ErrorCode.BUILD_TASK_NAME_REQUIRED,
+		ErrorCode.INVALID_BUILD_TASK_NAME,
+		ErrorCode.INVALID_SPRING_PROFILE,
+		ErrorCode.BUILD_ALREADY_RUNNING,
+		ErrorCode.BUILD_TASK_RUN_FAILED
+	})
+	@PostMapping("/projects/{projectId}/build/tasks/run")
+	@ResponseStatus(HttpStatus.ACCEPTED)
+	public ApiResponse<BuildTaskRunResponse> runBuildTask(
+		Authentication authentication,
+		@Parameter(description = "프로젝트 ID") @PathVariable Long projectId,
+		@RequestBody(required = false) BuildTaskRunRequest request
+	) {
+		return ApiResponse.success(
+			"BUILD_TASK_RUN_SUCCESS",
+			"빌드 태스크 실행이 시작되었습니다.",
+			projectBuildRunService.runBuildTask(authentication.getName(), projectId, request)
+		);
+	}
+
+	@Operation(
+		summary = "빌드 실행 결과 조회",
+		description = "특정 빌드 실행 건의 결과를 조회합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.BUILD_RUN_NOT_FOUND
+	})
+	@GetMapping("/projects/{projectId}/build/runs/{buildRunId}")
+	public ApiResponse<BuildRunResultResponse> getBuildRunResult(
+		Authentication authentication,
+		@Parameter(description = "프로젝트 ID") @PathVariable Long projectId,
+		@Parameter(description = "빌드 실행 ID") @PathVariable Long buildRunId
+	) {
+		return ApiResponse.success(
+			"BUILD_RUN_RESULT_SUCCESS",
+			"빌드 실행 결과 조회에 성공했습니다.",
+			projectBuildRunService.getBuildRunResult(authentication.getName(), projectId, buildRunId)
+		);
+	}
+
+	@Operation(
+		summary = "빌드 히스토리 조회",
+		description = "프로젝트의 빌드 실행 히스토리를 조회합니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.INVALID_BUILD_RUN_STATUS,
+		ErrorCode.INVALID_BUILD_TASK_NAME,
+		ErrorCode.INVALID_SPRING_PROFILE
+	})
+	@GetMapping("/projects/{projectId}/build/runs")
+	public ApiResponse<BuildRunHistoryResponse> getBuildRunHistory(
+		Authentication authentication,
+		@Parameter(description = "프로젝트 ID") @PathVariable Long projectId,
+		@RequestParam(defaultValue = "0") Integer page,
+		@RequestParam(defaultValue = "20") Integer size,
+		@RequestParam(required = false) String status,
+		@RequestParam(required = false) String taskName,
+		@RequestParam(required = false) String profile
+	) {
+		return ApiResponse.success(
+			"BUILD_RUN_HISTORY_SUCCESS",
+			"빌드 히스토리 조회에 성공했습니다.",
+			projectBuildRunService.getBuildRunHistory(authentication.getName(), projectId, page, size, status, taskName, profile)
 		);
 	}
 
