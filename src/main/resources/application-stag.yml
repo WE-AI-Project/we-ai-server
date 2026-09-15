@@ -17,6 +17,12 @@ logging:
 server:
   forward-headers-strategy: framework
 
+ai:
+  chat:
+    chroma:
+      # See application-prod.yml for why this can't stay on the base localhost:8000 default.
+      base-url: ${CHROMA_BASE_URL:http://chroma:8000}
+
 springdoc:
   api-docs:
     enabled: ${SWAGGER_ENABLED:true}

@@ -17,6 +17,15 @@ logging:
 server:
   forward-headers-strategy: framework
 
+ai:
+  chat:
+    chroma:
+      # application.yml's fallback default (localhost:8000) only works if Chroma runs on the same
+      # host as this app, which is never true for this containerized deployment - default instead
+      # to the compose service name (see compose.prod.local.yaml). The real deployment's .env
+      # already sets CHROMA_BASE_URL explicitly; this is a safety net for anyone who forgets to.
+      base-url: ${CHROMA_BASE_URL:http://chroma:8000}
+
 management:
   health:
     mail:
