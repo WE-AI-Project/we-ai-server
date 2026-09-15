@@ -64,6 +64,7 @@ public class ProjectBuildRunService {
 	private final BuildRunRepository buildRunRepository;
 	private final BuildRunExecutionWorker buildRunExecutionWorker;
 	private final ProjectEnvironmentService projectEnvironmentService;
+	private final ProjectEnvironmentVariableService projectEnvironmentVariableService;
 	@Qualifier("buildTaskExecutor")
 	private final TaskExecutor buildTaskExecutor;
 
@@ -81,7 +82,7 @@ public class ProjectBuildRunService {
 			throw new ApiException(ErrorCode.BUILD_ALREADY_RUNNING);
 		}
 
-		BuildCommand command = buildCommand(projectPath, gradleWrapper, taskName, profile);
+		BuildCommand command = buildCommand(projectId, projectPath, gradleWrapper, taskName, profile);
 		BuildRun buildRun = buildRunRepository.saveAndFlush(BuildRun.start(
 			project,
 			requester,
@@ -167,7 +168,7 @@ public class ProjectBuildRunService {
 		return wrapper;
 	}
 
-	private BuildCommand buildCommand(Path projectPath, Path gradleWrapper, String taskName, String profile) {
+	private BuildCommand buildCommand(Long projectId, Path projectPath, Path gradleWrapper, String taskName, String profile) {
 		List<String> arguments = new ArrayList<>();
 		arguments.add(gradleWrapper.toString());
 		arguments.add(taskName);
@@ -181,7 +182,10 @@ public class ProjectBuildRunService {
 		if (profile != null) {
 			displayArguments.add("-Dspring.profiles.active=" + profile);
 		}
-		return new BuildCommand(projectPath.toFile(), arguments, String.join(" ", displayArguments));
+		Map<String, String> environmentVariables = profile == null
+			? Map.of()
+			: projectEnvironmentVariableService.getEnvironmentVariables(projectId, profile);
+		return new BuildCommand(projectPath.toFile(), arguments, String.join(" ", displayArguments), environmentVariables);
 	}
 
 	private String validateTaskName(String rawTaskName) {

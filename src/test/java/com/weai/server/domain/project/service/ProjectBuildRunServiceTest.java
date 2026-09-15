@@ -59,6 +59,7 @@ class ProjectBuildRunServiceTest {
 	private BuildRunRepository buildRunRepository;
 	private BuildRunExecutionWorker buildRunExecutionWorker;
 	private ProjectEnvironmentService projectEnvironmentService;
+	private ProjectEnvironmentVariableService projectEnvironmentVariableService;
 	private ProjectBuildRunService service;
 	private User user;
 	private Project project;
@@ -88,6 +89,7 @@ class ProjectBuildRunServiceTest {
 		buildRunRepository = mock(BuildRunRepository.class);
 		buildRunExecutionWorker = mock(BuildRunExecutionWorker.class);
 		projectEnvironmentService = mock(ProjectEnvironmentService.class);
+		projectEnvironmentVariableService = mock(ProjectEnvironmentVariableService.class);
 		TaskExecutor directExecutor = Runnable::run;
 
 		service = new ProjectBuildRunService(
@@ -97,6 +99,7 @@ class ProjectBuildRunServiceTest {
 			buildRunRepository,
 			buildRunExecutionWorker,
 			projectEnvironmentService,
+			projectEnvironmentVariableService,
 			directExecutor
 		);
 
@@ -106,6 +109,7 @@ class ProjectBuildRunServiceTest {
 			.thenReturn(Optional.of(projectMember(ProjectMemberRole.LEADER)));
 		when(buildRunRepository.existsByProject_IdAndStatusIn(eq(PROJECT_ID), any())).thenReturn(false);
 		when(buildRunRepository.saveAndFlush(any(BuildRun.class))).thenReturn(runningBuildRun());
+		when(projectEnvironmentVariableService.getEnvironmentVariables(eq(PROJECT_ID), eq("dev"))).thenReturn(java.util.Map.of());
 
 		createGradleWrapper(projectRoot);
 	}

@@ -10,10 +10,8 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-@Slf4j
 @Component
 public class DefaultBuildCommandExecutor implements BuildCommandExecutor {
 
@@ -24,9 +22,10 @@ public class DefaultBuildCommandExecutor implements BuildCommandExecutor {
 	public BuildCommandResult execute(BuildCommand command) {
 		Process process;
 		try {
-			process = new ProcessBuilder(command.arguments())
-				.directory(command.workingDirectory())
-				.start();
+			ProcessBuilder processBuilder = new ProcessBuilder(command.arguments())
+				.directory(command.workingDirectory());
+			processBuilder.environment().putAll(command.environmentVariables());
+			process = processBuilder.start();
 		} catch (IOException exception) {
 			throw new ApiException(ErrorCode.BUILD_COMMAND_EXECUTION_FAILED, "Failed to start the build command.");
 		}
@@ -51,9 +50,6 @@ public class DefaultBuildCommandExecutor implements BuildCommandExecutor {
 
 		String output = truncate(joinOutput(outputFuture));
 		String errorOutput = truncate(joinOutput(errorFuture));
-		if (!errorOutput.isBlank()) {
-			log.debug("Build command completed with stderr output. command={}, stderr={}", command.display(), errorOutput);
-		}
 		return new BuildCommandResult(process.exitValue(), output, errorOutput);
 	}
 
