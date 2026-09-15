@@ -1,0 +1,57 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  docker:
+    compose:
+      enabled: false
+
+logging:
+  level:
+    root: info
+    com.weai.server: info
+    org.springframework.security: info
+    org.hibernate.SQL: info
+    org.hibernate.orm.jdbc.bind: warn
+
+server:
+  forward-headers-strategy: framework
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+
+app:
+  web:
+    base-url: ${APP_BASE_URL:https://api-stag.example.com}
+    frontend-base-url: ${APP_FRONTEND_BASE_URL:https://we-ai-client.vercel.app}
+    external-domains:
+      api-domain: ${APP_API_DOMAIN:api-stag.example.com}
+      frontend-domain: ${APP_FRONTEND_DOMAIN:we-ai-client.vercel.app}
+      storage-console-domain: ${APP_STORAGE_CONSOLE_DOMAIN:minio-stag.example.com}
+    cors:
+      allowed-origins:
+        - ${APP_FRONTEND_BASE_URL:https://we-ai-client.vercel.app}
+        - ${APP_VITE_FRONTEND_BASE_URL:http://localhost:5173}
+      allowed-origin-patterns:
+        - ${APP_LOCALHOST_FRONTEND_PATTERN:http://localhost:*}
+        - ${APP_LOCALHOST_LOOPBACK_PATTERN:http://127.0.0.1:*}
+        - ${APP_VERCEL_FRONTEND_PATTERN:https://*.vercel.app}
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - Authorization
+        - Content-Type
+        - X-Requested-With
+        - X-Request-Id
+      exposed-headers:
+        - X-Request-Id
+      allow-credentials: true
+      max-age: 30m

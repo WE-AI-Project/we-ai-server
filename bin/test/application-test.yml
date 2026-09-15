@@ -1,0 +1,84 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:weai;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  flyway:
+    enabled: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+  docker:
+    compose:
+      enabled: false
+  jwt:
+    secret: test-secret-key-that-is-at-least-32-bytes-long
+    issuer: we-ai-server-test
+    accessTokenExpiration: PT30M
+    refreshTokenExpiration: PT12H
+
+oauth:
+  kakao:
+    client-id: test-kakao-client-id
+    redirect-uri: http://localhost/test/kakao/callback
+  naver:
+    client-id: test-naver-client-id
+    client-secret: test-naver-client-secret
+    redirect-uri: http://localhost/test/naver/callback
+  google:
+    client-id: test-google-client-id
+    client-secret: test-google-client-secret
+    redirect-uri: http://localhost/test/google/callback
+
+auth:
+  verification:
+    mock-enabled: true
+    expose-code-in-response: true
+
+management:
+  endpoints:
+    enabled-by-default: false
+
+app:
+  auth:
+    username: test-admin
+    password: test-admin1234!
+  web:
+    base-url: http://localhost:8080
+    frontend-base-url: http://localhost:3000
+    external-domains:
+      api-domain: localhost
+      frontend-domain: localhost
+      storage-console-domain: localhost
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - Authorization
+        - Content-Type
+        - X-Requested-With
+        - X-Request-Id
+      exposed-headers:
+        - X-Request-Id
+      allow-credentials: true
+      max-age: 1h
+
+ai:
+  chat:
+    chroma:
+      enabled: false
+
+chat:
+  file:
+    upload-root: build/test-uploads/chat
+  document:
+    upload-root: build/test-uploads/projects

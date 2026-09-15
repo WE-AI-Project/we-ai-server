@@ -1,0 +1,72 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3307}/${DB_NAME:we_ai}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+  output:
+    ansi:
+      enabled: always
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+  docker:
+    compose:
+      enabled: true
+      file: compose.dev.yaml
+      lifecycle-management: start_only
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [req:%X{requestId:-}] [project:%X{projectId:-}] %-5level %logger{36} - %msg%n"
+
+management:
+  health:
+    mail:
+      enabled: false
+
+oauth:
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID:temp-kakao-client-id}
+    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/api/v1/auth/kakao/callback}
+
+  naver:
+    client-id: ${NAVER_CLIENT_ID:temp-naver-client-id}
+    client-secret: ${NAVER_CLIENT_SECRET:temp-naver-client-secret}
+    redirect-uri: ${NAVER_REDIRECT_URI:http://localhost:8080/api/v1/auth/naver/callback}
+
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:temp-google-client-id}
+    client-secret: ${GOOGLE_CLIENT_SECRET:temp-google-client-secret}
+    redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/v1/auth/google/callback}
+
+auth:
+  verification:
+    mock-enabled: ${AUTH_VERIFICATION_MOCK_ENABLED:true}
+    expose-code-in-response: ${AUTH_VERIFICATION_EXPOSE_CODE_IN_RESPONSE:true}
+
+storage:
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9100}
+
+app:
+  auth:
+    username: ${APP_AUTH_USERNAME:dev-admin}
+    password: ${APP_AUTH_PASSWORD:change-me-dev-admin-password}
+  web:
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - http://127.0.0.1:3000
+        - http://localhost:5173
+        - http://localhost:5174
+      allowed-origin-patterns:
+        - http://localhost:*
+        - http://127.0.0.1:*
+    base-url: ${APP_BASE_URL:http://localhost:8080}
+    frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:3000}
+    external-domains:
+      api-domain: ${APP_API_DOMAIN:localhost}
+      frontend-domain: ${APP_FRONTEND_DOMAIN:localhost}
+      storage-console-domain: ${APP_STORAGE_CONSOLE_DOMAIN:localhost}
