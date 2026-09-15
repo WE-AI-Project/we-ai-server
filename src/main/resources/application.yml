@@ -59,6 +59,10 @@ project:
     default-commit-limit: ${PROJECT_GIT_DEFAULT_COMMIT_LIMIT:20}
     max-commit-limit: ${PROJECT_GIT_MAX_COMMIT_LIMIT:100}
 
+synaipse:
+  environment:
+    master-key: ${SYNAIPSE_ENV_MASTER_KEY:}
+
 spring:
   application:
     name: we-ai-server
