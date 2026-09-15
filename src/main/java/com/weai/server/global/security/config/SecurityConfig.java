@@ -50,8 +50,9 @@ public class SecurityConfig {
 				.accessDeniedHandler(jwtAccessDeniedHandler))
 			.authorizeHttpRequests(authorize -> authorize
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-				.requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
-				.requestMatchers(HttpMethod.GET, "/uploads/projects/**").permitAll()
+				// Chat/document/library files are no longer served from a public static path; they
+				// go through authenticated, project-membership-checked download endpoints instead
+				// (see ChatRoomController/ChatDocumentController/ProjectLibraryController).
 				.requestMatchers("/ws", "/ws/**").permitAll()
 				.requestMatchers(
 					"/error",
@@ -83,6 +84,9 @@ public class SecurityConfig {
 					"/api/v1/auth/google/callback"
 				).permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+				// System-wide (non-project-scoped) build endpoints run commands against the
+				// server's own source tree with no project association — ADMIN only.
+				.requestMatchers("/api/v1/build/**").hasRole("ADMIN")
 				.requestMatchers("/api/v1/users/**").hasAnyRole("USER", "ADMIN")
 				.anyRequest().authenticated())
 			.authenticationProvider(authenticationProvider)

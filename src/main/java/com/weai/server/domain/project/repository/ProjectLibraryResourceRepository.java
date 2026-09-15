@@ -16,6 +16,8 @@ public interface ProjectLibraryResourceRepository extends JpaRepository<ProjectL
 
 	Optional<ProjectLibraryResource> findByIdAndProject_IdAndDeletedAtIsNull(Long id, Long projectId);
 
+	Optional<ProjectLibraryResource> findByProject_IdAndStoredFileNameAndDeletedAtIsNull(Long projectId, String storedFileName);
+
 	long countByProject_IdAndDeletedAtIsNull(Long projectId);
 
 	long countByProject_IdAndCategoryAndDeletedAtIsNull(Long projectId, LibraryResourceCategory category);

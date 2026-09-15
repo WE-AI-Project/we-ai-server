@@ -1,6 +1,9 @@
 package com.weai.server.domain.project.service;
 
 import com.weai.server.domain.chat.service.ChatRoomProjectLifecycleService;
+import com.weai.server.domain.notification.domain.NotificationTargetType;
+import com.weai.server.domain.notification.domain.NotificationType;
+import com.weai.server.domain.notification.event.NotificationRequestedEvent;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectDashboardActivityType;
 import com.weai.server.domain.project.domain.ProjectDepartment;
@@ -79,6 +82,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -107,6 +111,7 @@ public class ProjectService {
 	private final UserRepository userRepository;
 	private final UserService userService;
 	private final ChatRoomProjectLifecycleService chatRoomProjectLifecycleService;
+	private final ApplicationEventPublisher eventPublisher;
 	private final SecureRandom secureRandom = new SecureRandom();
 
 	@Transactional
@@ -217,12 +222,30 @@ public class ProjectService {
 
 			existingMember.reactivate(request.department());
 			chatRoomProjectLifecycleService.addToDefaultChatRoom(project, user);
+			notifyProjectMembers(
+				project.getId(),
+				user.getId(),
+				NotificationType.MEMBER,
+				"새 멤버 합류",
+				user.getName() + "님이 프로젝트에 합류했습니다.",
+				NotificationTargetType.MEMBER,
+				existingMember.getId()
+			);
 			return ProjectJoinResponse.from(existingMember);
 		}
 
 		try {
 			ProjectMember joinedMember = projectMemberRepository.save(ProjectMember.member(project, user, request.department()));
 			chatRoomProjectLifecycleService.addToDefaultChatRoom(project, user);
+			notifyProjectMembers(
+				project.getId(),
+				user.getId(),
+				NotificationType.MEMBER,
+				"새 멤버 합류",
+				user.getName() + "님이 프로젝트에 합류했습니다.",
+				NotificationTargetType.MEMBER,
+				joinedMember.getId()
+			);
 			return ProjectJoinResponse.from(joinedMember);
 		} catch (DataIntegrityViolationException exception) {
 			throw new ApiException(ErrorCode.PROJECT_JOIN_FAILED, "Failed to join the project.");
@@ -261,7 +284,17 @@ public class ProjectService {
 		validateProjectDateRange(startDate, targetDate);
 
 		project.update(projectName, description, repositoryUrl, localPath, status, startDate, targetDate);
-		return ProjectUpdateResponse.from(projectRepository.saveAndFlush(project));
+		ProjectUpdateResponse response = ProjectUpdateResponse.from(projectRepository.saveAndFlush(project));
+		notifyProjectMembers(
+			projectId,
+			user.getId(),
+			NotificationType.PROJECT,
+			"프로젝트 정보 변경",
+			"프로젝트 정보가 변경되었습니다: " + projectName,
+			NotificationTargetType.PROJECT,
+			projectId
+		);
+		return response;
 	}
 
 	public ProjectMemberListResponse getProjectMembers(String userEmail, Long projectId) {
@@ -420,6 +453,15 @@ public class ProjectService {
 				request.priorityOrDefault(),
 				request.statusOrDefault()
 			));
+			notifyProjectMembers(
+				projectId,
+				currentUser.getId(),
+				NotificationType.SCHEDULE,
+				"새 일정 등록",
+				"새 일정이 등록되었습니다: " + normalizedTitle,
+				NotificationTargetType.SCHEDULE,
+				savedSchedule.getId()
+			);
 			return ProjectScheduleCreateResponse.from(savedSchedule);
 		} catch (DataIntegrityViolationException exception) {
 			throw new ApiException(ErrorCode.SCHEDULE_CREATE_FAILED, "Failed to persist the project schedule.");
@@ -457,6 +499,15 @@ public class ProjectService {
 
 		schedule.update(assignee, title, description, department, startDate, endDate, priority, status);
 		ProjectSchedule savedSchedule = projectScheduleRepository.saveAndFlush(schedule);
+		notifyProjectMembers(
+			projectId,
+			user.getId(),
+			NotificationType.SCHEDULE,
+			"일정 변경",
+			"일정이 변경되었습니다: " + savedSchedule.getTitle(),
+			NotificationTargetType.SCHEDULE,
+			savedSchedule.getId()
+		);
 		return ProjectScheduleDetailResponse.from(savedSchedule);
 	}
 
@@ -474,6 +525,15 @@ public class ProjectService {
 
 		schedule.changeStatus(status);
 		ProjectSchedule savedSchedule = projectScheduleRepository.saveAndFlush(schedule);
+		notifyProjectMembers(
+			projectId,
+			user.getId(),
+			NotificationType.SCHEDULE,
+			"일정 상태 변경",
+			"'" + savedSchedule.getTitle() + "' 일정 상태가 " + status + "(으)로 변경되었습니다.",
+			NotificationTargetType.SCHEDULE,
+			savedSchedule.getId()
+		);
 		return ProjectScheduleDetailResponse.from(savedSchedule);
 	}
 
@@ -482,8 +542,18 @@ public class ProjectService {
 		User user = userService.getUserEntityByEmail(userEmail);
 		validateProjectAccess(projectId, user.getId());
 		ProjectSchedule schedule = getProjectSchedule(projectId, scheduleId);
+		String scheduleTitle = schedule.getTitle();
 		projectScheduleRepository.delete(schedule);
-		return ProjectScheduleDeleteResponse.from(schedule.getId());
+		notifyProjectMembers(
+			projectId,
+			user.getId(),
+			NotificationType.SCHEDULE,
+			"일정 삭제",
+			"'" + scheduleTitle + "' 일정이 삭제되었습니다.",
+			NotificationTargetType.SCHEDULE,
+			scheduleId
+		);
+		return ProjectScheduleDeleteResponse.from(scheduleId);
 	}
 
 	@Transactional
@@ -503,6 +573,15 @@ public class ProjectService {
 		currentMember.leave();
 		ProjectMember savedMember = projectMemberRepository.saveAndFlush(currentMember);
 		chatRoomProjectLifecycleService.leaveProjectChatRooms(projectId, user.getId());
+		notifyProjectMembers(
+			projectId,
+			user.getId(),
+			NotificationType.MEMBER,
+			"멤버 탈퇴",
+			user.getName() + "님이 프로젝트를 떠났습니다.",
+			NotificationTargetType.MEMBER,
+			savedMember.getId()
+		);
 		return ProjectLeaveResponse.from(savedMember);
 	}
 
@@ -521,6 +600,15 @@ public class ProjectService {
 		targetMember.kick();
 		ProjectMember savedMember = projectMemberRepository.saveAndFlush(targetMember);
 		chatRoomProjectLifecycleService.kickFromProjectChatRooms(projectId, targetMember.getUser().getId());
+		notifyProjectMembers(
+			projectId,
+			user.getId(),
+			NotificationType.MEMBER,
+			"멤버 내보내기",
+			targetMember.getUser().getName() + "님이 프로젝트에서 제외되었습니다.",
+			NotificationTargetType.MEMBER,
+			savedMember.getId()
+		);
 		return ProjectMemberKickResponse.from(savedMember);
 	}
 
@@ -923,7 +1011,7 @@ public class ProjectService {
 		return project;
 	}
 
-	private Project validateProjectLeaderAccess(Long projectId, Long userId) {
+	public Project validateProjectLeaderAccess(Long projectId, Long userId) {
 		Project project = validateProjectAccess(projectId, userId);
 		ProjectMember projectMember = getActiveProjectMember(projectId, userId);
 		if (!projectMember.isLeader()) {
@@ -950,6 +1038,44 @@ public class ProjectService {
 	private ProjectMember getActiveProjectMember(Long projectId, Long userId) {
 		return projectMemberRepository.findByProject_IdAndUser_IdAndStatus(projectId, userId, ProjectMemberStatus.ACTIVE)
 			.orElseThrow(() -> new ApiException(ErrorCode.PROJECT_ACCESS_DENIED));
+	}
+
+	/**
+	 * Notifies every currently-active project member except {@code excludeUserId} (typically the
+	 * actor who triggered the event) by publishing a {@link NotificationRequestedEvent}.
+	 * {@code NotificationEventListener} persists the notification rows and pushes them over STOMP.
+	 */
+	private void notifyProjectMembers(
+		Long projectId,
+		Long excludeUserId,
+		NotificationType type,
+		String title,
+		String message,
+		NotificationTargetType targetType,
+		Long targetId
+	) {
+		List<Long> receiverUserIds = projectMemberRepository
+			.findByProjectIdAndStatusWithUser(projectId, ProjectMemberStatus.ACTIVE)
+			.stream()
+			.map(member -> member.getUser().getId())
+			.filter(userId -> !userId.equals(excludeUserId))
+			.distinct()
+			.toList();
+
+		if (receiverUserIds.isEmpty()) {
+			return;
+		}
+
+		eventPublisher.publishEvent(new NotificationRequestedEvent(
+			projectId,
+			receiverUserIds,
+			type,
+			title,
+			message,
+			targetType,
+			targetId,
+			null
+		));
 	}
 
 	private void validateNotLastActiveLeader(ProjectMember projectMember, ErrorCode errorCode) {

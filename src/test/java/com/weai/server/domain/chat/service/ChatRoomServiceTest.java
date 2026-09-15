@@ -31,6 +31,8 @@ import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import com.weai.server.global.web.FileDownloadSupport;
+import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -429,7 +431,8 @@ class ChatRoomServiceTest {
 
 		assertThat(response.messageId()).isNotNull();
 		assertThat(response.messageType()).isEqualTo(ChatMessageType.IMAGE);
-		assertThat(response.fileUrl()).contains("/uploads/chat/" + fixture.project().getId() + "/" + room.getId());
+		assertThat(response.fileUrl())
+			.contains("/api/v1/projects/" + fixture.project().getId() + "/chat/rooms/" + room.getId() + "/files/");
 		assertThat(response.originalFileName()).isEqualTo("sample.png");
 	}
 
@@ -465,6 +468,72 @@ class ChatRoomServiceTest {
 			.isInstanceOf(ApiException.class)
 			.extracting("errorCode")
 			.isEqualTo(ErrorCode.CHAT_FILE_TYPE_NOT_ALLOWED);
+	}
+
+	@Test
+	void downloadChatFileReturnsStoredFileForProjectMember() throws Exception {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+		MockMultipartFile file = new MockMultipartFile("file", "sample.png", "image/png", "image-bytes".getBytes());
+		ChatFileUploadResponse uploaded = chatRoomService.uploadChatFile(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			file,
+			null
+		);
+		String storedFileName = uploaded.fileUrl().substring(uploaded.fileUrl().lastIndexOf('/') + 1);
+
+		FileDownloadSupport.DownloadableFile downloaded = chatRoomService.downloadChatFile(
+			fixture.member().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			storedFileName
+		);
+
+		assertThat(downloaded.originalFileName()).isEqualTo("sample.png");
+		assertThat(Files.exists(downloaded.path())).isTrue();
+	}
+
+	@Test
+	void downloadChatFileRejectsNonProjectMember() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+		MockMultipartFile file = new MockMultipartFile("file", "sample.png", "image/png", "image-bytes".getBytes());
+		ChatFileUploadResponse uploaded = chatRoomService.uploadChatFile(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			file,
+			null
+		);
+		String storedFileName = uploaded.fileUrl().substring(uploaded.fileUrl().lastIndexOf('/') + 1);
+
+		assertThatThrownBy(() -> chatRoomService.downloadChatFile(
+			fixture.outsider().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			storedFileName
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.PROJECT_ACCESS_DENIED);
+	}
+
+	@Test
+	void downloadChatFileRejectsUnknownStoredFileName() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "전체 채팅", ChatRoomType.GENERAL, null, false);
+
+		assertThatThrownBy(() -> chatRoomService.downloadChatFile(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			"does-not-exist.png"
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
 	}
 
 	@Test

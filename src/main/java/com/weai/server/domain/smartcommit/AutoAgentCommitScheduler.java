@@ -1,55 +1,40 @@
 package com.weai.server.domain.smartcommit;
 
-import com.weai.server.domain.ai.rag.ProjectRagContext;
-import com.weai.server.domain.ai.rag.ProjectRagContextService;
+import com.weai.server.domain.smartcommit.domain.SynCommitType;
+import com.weai.server.domain.smartcommit.service.SynCommitAiService;
+import com.weai.server.domain.smartcommit.service.SynCommitService;
+import com.weai.server.domain.smartcommit.service.SynCommitService.PendingCommitBatch;
 import com.weai.server.global.logging.ProjectLogContext;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.ollama.OllamaChatModel;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
+/**
+ * Automatically folds a project's idle "syn add" batch into a "syn commit" once nobody has staged
+ * a new diff for {@code idleThreshold} and the previous syn commit is older than {@code commitCooldown}.
+ */
 @Component
 public class AutoAgentCommitScheduler {
 
 	private static final Logger log = LoggerFactory.getLogger(AutoAgentCommitScheduler.class);
-	private static final String AUTO_AGENT_COMMIT = "AUTO_AGENT_COMMIT";
 
-	private static final String SYSTEM_PROMPT = """
-		You are SYNAIPSE's no-git smart commit agent.
-		Read accumulated file diffs and create one useful auto commit.
-		Return a concise result in this exact shape:
-		Commit message: <semantic commit style message>
-		Summary: <what changed and why>
-		Do not invent files that are not in the diff.
-		""";
-
-	private final PendingDiffStore pendingDiffStore;
-	private final ProjectRagContextService projectRagContextService;
-	private final OllamaChatModel smartCommitModel;
+	private final SynCommitService synCommitService;
+	private final SynCommitAiService synCommitAiService;
 	private final Duration idleThreshold;
 	private final Duration commitCooldown;
 
 	public AutoAgentCommitScheduler(
-		PendingDiffStore pendingDiffStore,
-		ProjectRagContextService projectRagContextService,
-		@Qualifier("debateLlamaChatModel") OllamaChatModel smartCommitModel,
+		SynCommitService synCommitService,
+		SynCommitAiService synCommitAiService,
 		@Value("${smart-commit.idle-threshold:PT10M}") Duration idleThreshold,
 		@Value("${smart-commit.commit-cooldown:PT5M}") Duration commitCooldown
 	) {
-		this.pendingDiffStore = pendingDiffStore;
-		this.projectRagContextService = projectRagContextService;
-		this.smartCommitModel = smartCommitModel;
+		this.synCommitService = synCommitService;
+		this.synCommitAiService = synCommitAiService;
 		this.idleThreshold = idleThreshold;
 		this.commitCooldown = commitCooldown;
 	}
@@ -57,79 +42,29 @@ public class AutoAgentCommitScheduler {
 	@Scheduled(fixedDelayString = "${smart-commit.scheduler.fixed-delay-ms:60000}")
 	public void createAutoCommitWhenIdle() {
 		Instant now = Instant.now();
-		pendingDiffStore.drainAllReadyForAutoCommit(now, idleThreshold, commitCooldown)
+		synCommitService.drainAllReadyForAutoCommit(now, idleThreshold, commitCooldown)
 			.forEach(this::createAutoAgentCommit);
 	}
 
-	private void createAutoAgentCommit(PendingDiffStore.PendingCommitBatch batch) {
+	private void createAutoAgentCommit(PendingCommitBatch batch) {
 		try (ProjectLogContext.Scope ignored = ProjectLogContext.open(batch.projectId(), "AGENT")) {
-			String aiResult = generateCommitAnalysis(batch.projectId(), batch.combinedDiff());
-			PendingDiffStore.AutoAgentCommit commit = new PendingDiffStore.AutoAgentCommit(
-				AUTO_AGENT_COMMIT,
-				extractCommitMessage(aiResult),
-				aiResult,
-				batch.diffs().size(),
-				Instant.now()
+			SynCommitAiService.GeneratedSynCommit generated = synCommitAiService.generate(batch.projectId(), batch.combinedDiff());
+			var commit = synCommitService.recordSynCommit(
+				batch.projectId(),
+				SynCommitType.AUTO,
+				generated.commitMessage(),
+				generated.summary(),
+				batch.changes()
 			);
-			pendingDiffStore.recordAutoAgentCommit(batch.projectId(), commit);
 			log.info(
-				"Created {} with {} pending file(s): {}",
-				AUTO_AGENT_COMMIT,
+				"Created syn commit {} with {} staged file(s): {}",
+				commit.synCommitId(),
 				commit.changedFileCount(),
-				commit.message()
+				commit.commitMessage()
 			);
 		} catch (RuntimeException exception) {
-			pendingDiffStore.restore(batch);
-			log.warn("Failed to create auto agent commit. Restored pending diffs.", exception);
+			synCommitService.restorePendingChanges(batch.projectId(), batch.changes());
+			log.warn("Failed to create auto syn commit. Restored staged changes.", exception);
 		}
-	}
-
-	private String generateCommitAnalysis(Long projectId, String combinedDiff) {
-		ProjectRagContext ragContext = projectRagContextService.retrieve(projectId, buildRagQuery(combinedDiff));
-		if (ragContext.isEmpty()) {
-			throw new IllegalStateException("No project RAG context was found for smart commit projectId=" + projectId + ".");
-		}
-
-		List<ChatMessage> messages = new ArrayList<>();
-		messages.add(SystemMessage.from(SYSTEM_PROMPT));
-		messages.add(UserMessage.from("""
-			Project ID: %d
-
-			Project-isolated official document context:
-			%s
-
-			Create one AUTO_AGENT_COMMIT for the accumulated pending diffs below.
-			Use the project context above as the authority for conventions, architecture, and naming.
-
-			Diffs:
-			%s
-			""".formatted(projectId, ragContext.formatted(), combinedDiff)));
-
-		String response = smartCommitModel.chat(messages).aiMessage().text();
-		if (!StringUtils.hasText(response)) {
-			throw new IllegalStateException("The smart commit model returned an empty response.");
-		}
-		return response.trim();
-	}
-
-	private String buildRagQuery(String combinedDiff) {
-		return """
-			Smart commit generation request.
-
-			Diffs:
-			%s
-			""".formatted(combinedDiff);
-	}
-
-	private String extractCommitMessage(String aiResult) {
-		for (String line : aiResult.split("\\R")) {
-			if (line.toLowerCase().startsWith("commit message:")) {
-				String message = line.substring("commit message:".length()).trim();
-				if (StringUtils.hasText(message)) {
-					return message;
-				}
-			}
-		}
-		return "chore: auto commit pending workspace changes";
 	}
 }

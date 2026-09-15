@@ -7,12 +7,15 @@ import com.weai.server.domain.project.service.ProjectLibraryService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
+import com.weai.server.global.web.FileDownloadSupport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -120,5 +123,24 @@ public class ProjectLibraryController {
 	) {
 		projectLibraryService.delete(authentication.getName(), projectId, resourceId);
 		return ApiResponse.successMessage("LIBRARY_DELETE_SUCCESS", "공유 자료가 삭제되었습니다.");
+	}
+
+	@Operation(summary = "공유 자료 다운로드", description = "프로젝트 멤버만 공유 자료 원본 파일을 다운로드할 수 있습니다.")
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.LIBRARY_RESOURCE_NOT_FOUND
+	})
+	@GetMapping("/files/{storedFileName}")
+	public ResponseEntity<Resource> download(
+		Authentication authentication,
+		@Parameter(description = "프로젝트 ID") @PathVariable Long projectId,
+		@Parameter(description = "저장된 파일명") @PathVariable String storedFileName
+	) {
+		return FileDownloadSupport.asAttachment(
+			projectLibraryService.download(authentication.getName(), projectId, storedFileName)
+		);
 	}
 }

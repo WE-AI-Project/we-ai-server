@@ -54,7 +54,7 @@ public class ProjectLibraryFileStorageService {
 			throw new ApiException(ErrorCode.LIBRARY_UPLOAD_FAILED);
 		}
 
-		String fileUrl = "/uploads/projects/%d/library/%s".formatted(projectId, storedFileName);
+		String fileUrl = "/api/v1/projects/%d/library/files/%s".formatted(projectId, storedFileName);
 		return new StoredLibraryFile(
 			fileUrl,
 			originalFileName,
@@ -63,6 +63,17 @@ public class ProjectLibraryFileStorageService {
 			file.getContentType(),
 			extension == null ? "" : extension
 		);
+	}
+
+	/** Resolves a previously stored library file's path, guarding against path traversal and missing files. */
+	public Path resolveStoredFile(Long projectId, String storedFileName) {
+		Path libraryDirectory = uploadRoot.resolve(projectId.toString()).resolve("library").normalize();
+		Path targetPath = libraryDirectory.resolve(storedFileName).normalize();
+
+		if (!targetPath.startsWith(libraryDirectory) || !Files.isRegularFile(targetPath)) {
+			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested library file could not be found.");
+		}
+		return targetPath;
 	}
 
 	private void validateFile(MultipartFile file) {

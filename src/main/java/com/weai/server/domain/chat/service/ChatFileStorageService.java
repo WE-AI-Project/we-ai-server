@@ -69,7 +69,7 @@ public class ChatFileStorageService {
 			throw new ApiException(ErrorCode.CHAT_FILE_UPLOAD_FAILED);
 		}
 
-		String fileUrl = "/uploads/chat/%d/%d/%s".formatted(projectId, chatRoomId, storedFileName);
+		String fileUrl = "/api/v1/projects/%d/chat/rooms/%d/files/%s".formatted(projectId, chatRoomId, storedFileName);
 		return new StoredChatFile(
 			fileUrl,
 			originalFileName,
@@ -78,6 +78,17 @@ public class ChatFileStorageService {
 			file.getContentType(),
 			resolveMessageType(extension, file.getContentType())
 		);
+	}
+
+	/** Resolves a previously stored chat file's path, guarding against path traversal and missing files. */
+	public Path resolveStoredFile(Long projectId, Long chatRoomId, String storedFileName) {
+		Path roomDirectory = uploadRoot.resolve(projectId.toString()).resolve(chatRoomId.toString()).normalize();
+		Path targetPath = roomDirectory.resolve(storedFileName).normalize();
+
+		if (!targetPath.startsWith(roomDirectory) || !Files.isRegularFile(targetPath)) {
+			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested chat file could not be found.");
+		}
+		return targetPath;
 	}
 
 	private void validateFile(MultipartFile file) {

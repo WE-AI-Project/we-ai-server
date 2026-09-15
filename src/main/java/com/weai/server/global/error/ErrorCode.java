@@ -117,6 +117,11 @@ public enum ErrorCode {
 	SERVER_LOG_FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "SERVER_LOG_404_2", "Server log file could not be found."),
 	SERVER_LOG_STREAM_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SERVER_LOG_500_1", "Failed to create the server log stream."),
 	SERVER_LOG_CLEAR_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SERVER_LOG_500_2", "Failed to clear server logs."),
+	BUILD_LOCAL_PATH_NOT_FOUND(
+		HttpStatus.BAD_REQUEST,
+		"BUILD_400_1",
+		"The project's local path is not set or does not exist on this server. Configure a valid local path before running a build task."
+	),
 
 	// QA Query Errors
 	INVALID_QA_REPORT_STATUS(HttpStatus.BAD_REQUEST, "QA_400_1", "QA report status is invalid."),
@@ -205,7 +210,13 @@ public enum ErrorCode {
 	LIBRARY_FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "LIBRARY_400_4", "Library resource file type is not allowed."),
 	LIBRARY_TITLE_REQUIRED(HttpStatus.BAD_REQUEST, "LIBRARY_400_5", "Library resource title is required."),
 	LIBRARY_RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "LIBRARY_404_1", "The requested library resource could not be found."),
-	LIBRARY_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "LIBRARY_500_1", "Failed to upload the library resource.");
+	LIBRARY_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "LIBRARY_500_1", "Failed to upload the library resource."),
+
+	// Syn Commit (Smart Commit) Errors
+	SYN_COMMIT_NOTHING_PENDING(HttpStatus.BAD_REQUEST, "SYN_COMMIT_400_1", "There are no pending syn-add changes to commit."),
+	SYN_COMMIT_COOLDOWN_ACTIVE(HttpStatus.CONFLICT, "SYN_COMMIT_409_1", "A syn commit was created too recently. Please wait before committing again."),
+	SYN_COMMIT_NOT_FOUND(HttpStatus.NOT_FOUND, "SYN_COMMIT_404_1", "The requested syn commit could not be found."),
+	SYN_COMMIT_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SYN_COMMIT_500_1", "Failed to generate the syn commit.");
 
 	private final HttpStatus status;
 	private final String code;

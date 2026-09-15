@@ -1,5 +1,8 @@
 package com.weai.server.domain.ai.qa;
 
+import com.weai.server.domain.notification.domain.NotificationTargetType;
+import com.weai.server.domain.notification.domain.NotificationType;
+import com.weai.server.domain.notification.event.NotificationRequestedEvent;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
@@ -11,7 +14,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,6 +33,7 @@ public class AiQaController {
 	private final AiQaService aiQaService;
 	private final UserService userService;
 	private final ProjectService projectService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Operation(
 		summary = "Analyze code diff",
@@ -42,11 +48,27 @@ public class AiQaController {
 		User user = authenticatedUser(authentication);
 		projectService.validateProjectAccess(request.projectId(), user.getId());
 
+		QaResponse response = aiQaService.analyze(request.projectId(), request.diff());
+		notifyQaCompleted(request.projectId(), user.getId(), response);
+
 		return ApiResponse.success(
 			"AI_QA_SUCCESS",
 			"AI QA analysis completed successfully.",
-			aiQaService.analyze(request.projectId(), request.diff())
+			response
 		);
+	}
+
+	private void notifyQaCompleted(Long projectId, Long userId, QaResponse response) {
+		eventPublisher.publishEvent(new NotificationRequestedEvent(
+			projectId,
+			List.of(userId),
+			NotificationType.QA,
+			"AI QA 분석 완료",
+			response.commitMsg(),
+			NotificationTargetType.QA,
+			null,
+			null
+		));
 	}
 
 	private User authenticatedUser(Authentication authentication) {

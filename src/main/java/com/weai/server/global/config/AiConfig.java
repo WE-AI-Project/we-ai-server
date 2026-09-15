@@ -131,6 +131,23 @@ public class AiConfig {
 			.build();
 	}
 
+	@Bean("documentBriefingChatModel")
+	public OllamaChatModel documentBriefingChatModel(
+		@Value("${ai.briefing.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.yhy-server.com}}") String baseUrl,
+		@Value("${ai.briefing.model-name:${AI_BRIEFING_MODEL_NAME:llama3.1}}") String modelName,
+		@Value("${ai.briefing.timeout:${AI_BRIEFING_TIMEOUT:PT60S}}") Duration timeout,
+		@org.springframework.beans.factory.annotation.Qualifier("ollamaCustomHeaders") Map<String, String> customHeaders
+	) {
+		return OllamaChatModel.builder()
+			.baseUrl(baseUrl)
+			.modelName(modelName)
+			.temperature(0.1)
+			.timeout(timeout)
+			.responseFormat(ResponseFormat.JSON)
+			.customHeaders(customHeaders)
+			.build();
+	}
+
 	@Bean("oracleEmbeddingModel")
 	@Lazy
 	public EmbeddingModel oracleEmbeddingModel(

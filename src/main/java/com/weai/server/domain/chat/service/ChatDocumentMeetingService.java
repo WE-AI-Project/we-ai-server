@@ -36,6 +36,7 @@ import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import com.weai.server.global.web.FileDownloadSupport;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -45,14 +46,12 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -77,7 +76,6 @@ public class ChatDocumentMeetingService {
 	private static final int MAX_TITLE_LENGTH = 100;
 	private static final int MAX_DESCRIPTION_LENGTH = 500;
 	private static final int MAX_MINUTE_CONTENT_LENGTH = 10_000;
-	private static final Pattern SENTENCE_SPLIT_PATTERN = Pattern.compile("(?<=[.!?。！？])\\s+|\\R+");
 	private static final Set<String> ALLOWED_DOCUMENT_EXTENSIONS = Set.of("pdf", "txt", "md", "doc", "docx", "ppt", "pptx");
 	private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
 	};
@@ -94,6 +92,7 @@ public class ChatDocumentMeetingService {
 	private final MeetingParticipantRepository meetingParticipantRepository;
 	private final ObjectMapper objectMapper;
 	private final DocumentTextExtractor documentTextExtractor;
+	private final DocumentBriefingAiService documentBriefingAiService;
 
 	@Value("${chat.document.upload-root:uploads/projects}")
 	private String documentUploadRoot;
@@ -146,7 +145,7 @@ public class ChatDocumentMeetingService {
 			throw new ApiException(ErrorCode.DOCUMENT_TEXT_NOT_EXTRACTED);
 		}
 
-		BriefingDraft draft = createBriefingDraft(extractedText);
+		DocumentBriefingAiService.BriefingDraft draft = documentBriefingAiService.generate(extractedText);
 		try {
 			DocumentBriefing briefing = documentBriefingRepository.save(DocumentBriefing.builder()
 				.document(document)
@@ -326,11 +325,27 @@ public class ChatDocumentMeetingService {
 		return new StoredDocumentFile(
 			originalFileName,
 			storedFileName,
-			"/uploads/projects/%d/documents/%s".formatted(projectId, storedFileName),
+			"/api/v1/projects/%d/chat/documents/%s/download".formatted(projectId, storedFileName),
 			file.getSize(),
 			file.getContentType(),
 			extension
 		);
+	}
+
+	/** Resolves a previously stored document's path, guarding against path traversal and missing files. */
+	public Path resolveStoredDocumentFile(Long projectId, String storedFileName) {
+		Path projectDirectory = Paths.get(documentUploadRoot)
+			.toAbsolutePath()
+			.normalize()
+			.resolve(projectId.toString())
+			.resolve("documents")
+			.normalize();
+		Path targetPath = projectDirectory.resolve(storedFileName).normalize();
+
+		if (!targetPath.startsWith(projectDirectory) || !Files.isRegularFile(targetPath)) {
+			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested document file could not be found.");
+		}
+		return targetPath;
 	}
 
 	private void validateDocumentFile(MultipartFile file) {
@@ -347,6 +362,21 @@ public class ChatDocumentMeetingService {
 		if (extension == null || !ALLOWED_DOCUMENT_EXTENSIONS.contains(extension)) {
 			throw new ApiException(ErrorCode.DOCUMENT_FILE_TYPE_NOT_ALLOWED);
 		}
+	}
+
+	public FileDownloadSupport.DownloadableFile downloadDocument(String userEmail, Long projectId, String storedFileName) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		projectService.validateProjectAccess(projectId, user.getId());
+
+		ChatDocument document = chatDocumentRepository
+			.findByProject_IdAndStoredFileNameAndDeletedAtIsNull(projectId, storedFileName)
+			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested document file could not be found."));
+
+		return new FileDownloadSupport.DownloadableFile(
+			resolveStoredDocumentFile(projectId, storedFileName),
+			document.getOriginalFileName(),
+			document.getFileContentType()
+		);
 	}
 
 	private ChatDocument getDocument(Long projectId, Long documentId) {
@@ -384,75 +414,6 @@ public class ChatDocumentMeetingService {
 			}
 		}
 		return participantIds.stream().toList();
-	}
-
-	private BriefingDraft createBriefingDraft(String text) {
-		List<String> sentences = splitSentences(text);
-		List<String> keyPoints = sentences.stream().limit(5).toList();
-		String summary = sentences.isEmpty()
-			? shorten(text, 500)
-			: shorten(String.join(" ", sentences.stream().limit(3).toList()), 500);
-		List<String> actionItems = sentences.stream()
-			.filter(this::looksLikeActionItem)
-			.limit(5)
-			.toList();
-		List<String> risks = sentences.stream()
-			.filter(this::looksLikeRisk)
-			.limit(5)
-			.toList();
-		List<String> keywords = extractKeywords(text);
-		return new BriefingDraft(
-			summary,
-			keyPoints.isEmpty() ? List.of(shorten(text, 200)) : keyPoints,
-			actionItems,
-			risks,
-			keywords
-		);
-	}
-
-	private List<String> splitSentences(String text) {
-		List<String> sentences = new ArrayList<>();
-		for (String sentence : SENTENCE_SPLIT_PATTERN.split(text)) {
-			String normalizedSentence = trimToNull(sentence);
-			if (normalizedSentence != null) {
-				sentences.add(shorten(normalizedSentence, 300));
-			}
-		}
-		return sentences;
-	}
-
-	private boolean looksLikeActionItem(String sentence) {
-		String normalized = sentence.toLowerCase(Locale.ROOT);
-		return normalized.contains("todo")
-			|| normalized.contains("action")
-			|| normalized.contains("해야")
-			|| normalized.contains("구현")
-			|| normalized.contains("추가")
-			|| normalized.contains("확인");
-	}
-
-	private boolean looksLikeRisk(String sentence) {
-		String normalized = sentence.toLowerCase(Locale.ROOT);
-		return normalized.contains("risk")
-			|| normalized.contains("위험")
-			|| normalized.contains("제한")
-			|| normalized.contains("문제")
-			|| normalized.contains("오류")
-			|| normalized.contains("실패");
-	}
-
-	private List<String> extractKeywords(String text) {
-		LinkedHashSet<String> keywords = new LinkedHashSet<>();
-		for (String token : text.replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}\\p{IsHangul}]+", " ").split("\\s+")) {
-			String normalizedToken = trimToNull(token);
-			if (normalizedToken != null && normalizedToken.length() >= 2) {
-				keywords.add(shorten(normalizedToken, 30));
-			}
-			if (keywords.size() >= 8) {
-				break;
-			}
-		}
-		return keywords.stream().toList();
 	}
 
 	private DocumentBriefingResponse toBriefingResponse(DocumentBriefing briefing) {
@@ -596,12 +557,4 @@ public class ChatDocumentMeetingService {
 	) {
 	}
 
-	private record BriefingDraft(
-		String summary,
-		List<String> keyPoints,
-		List<String> actionItems,
-		List<String> risks,
-		List<String> keywords
-	) {
-	}
 }

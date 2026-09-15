@@ -43,7 +43,7 @@ public class ProjectBuildExecutionService {
 	private final ProjectTechStackRepository projectTechStackRepository;
 
 	public BuildTaskExecutionResponse executeTask(String userEmail, Long projectId, String rawTaskName) {
-		Project project = getAccessibleProject(userEmail, projectId);
+		Project project = getLeaderAccessibleProject(userEmail, projectId);
 		String buildTool = resolveBuildTool(project.getId());
 		File workingDir = resolveWorkingDirectory(project.getLocalPath());
 
@@ -158,9 +158,9 @@ public class ProjectBuildExecutionService {
 		return normalized;
 	}
 
-	private Project getAccessibleProject(String userEmail, Long projectId) {
+	private Project getLeaderAccessibleProject(String userEmail, Long projectId) {
 		User user = userService.getUserEntityByEmail(userEmail);
-		return projectService.validateProjectAccess(projectId, user.getId());
+		return projectService.validateProjectLeaderAccess(projectId, user.getId());
 	}
 
 	private String resolveBuildTool(Long projectId) {
@@ -179,12 +179,16 @@ public class ProjectBuildExecutionService {
 	}
 
 	private File resolveWorkingDirectory(String localPath) {
-		if (localPath != null && !localPath.isBlank()) {
-			File candidate = new File(localPath.trim());
-			if (candidate.exists() && candidate.isDirectory()) {
-				return candidate;
-			}
+		if (localPath == null || localPath.isBlank()) {
+			throw new ApiException(ErrorCode.BUILD_LOCAL_PATH_NOT_FOUND, "The project has no local path configured.");
 		}
-		return new File(System.getProperty("user.dir"));
+		File candidate = new File(localPath.trim());
+		if (!candidate.exists() || !candidate.isDirectory()) {
+			throw new ApiException(
+				ErrorCode.BUILD_LOCAL_PATH_NOT_FOUND,
+				"The project's local path does not exist on this server: " + localPath
+			);
+		}
+		return candidate;
 	}
 }

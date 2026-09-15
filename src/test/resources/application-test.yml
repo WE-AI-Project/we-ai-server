@@ -80,3 +80,5 @@ ai:
 chat:
   file:
     upload-root: build/test-uploads/chat
+  document:
+    upload-root: build/test-uploads/projects

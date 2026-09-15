@@ -160,6 +160,17 @@
 저장소에는 실제 비밀값 대신 [`.env.example`](C:/Users/0122k/IdeaProjects/we-ai-server/.env.example)만 커밋합니다.
 
 로컬 개발 기준 예시:
+
+```bash
+cp .env.example .env
+# .env를 열어 DB_PASSWORD, JWT_SECRET, 소셜 로그인 클라이언트 ID/시크릿, MAIL_*,
+# OLLAMA_*, CHROMA_BASE_URL 등 빈 값으로 남겨둔 항목을 채워 넣는다.
+```
+
+`APP_PROFILE=prod`(또는 `stag`)로 배포할 때는 `AUTH_VERIFICATION_MOCK_ENABLED`와
+`AUTH_VERIFICATION_EXPOSE_CODE_IN_RESPONSE`가 반드시 `false`여야 하며, 값이 `true`인
+채로 두면 애플리케이션이 기동 자체를 거부한다(`AuthVerificationSecurityGuard`).
+
 ## 7. 로컬 실행 방법
 
 ---

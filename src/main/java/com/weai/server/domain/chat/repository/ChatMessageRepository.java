@@ -12,6 +12,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
 	Optional<ChatMessage> findTopByChatRoom_IdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(Long chatRoomId);
 
+	Optional<ChatMessage> findByChatRoom_IdAndStoredFileNameAndDeletedAtIsNull(Long chatRoomId, String storedFileName);
+
 	long countByChatRoom_IdAndSender_IdNotAndDeletedAtIsNull(Long chatRoomId, Long senderId);
 
 	long countByChatRoom_IdAndIdGreaterThanAndSender_IdNotAndDeletedAtIsNull(

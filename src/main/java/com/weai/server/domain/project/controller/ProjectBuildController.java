@@ -56,14 +56,16 @@ public class ProjectBuildController {
 
 	@Operation(
 		summary = "프로젝트 빌드 태스크 실제 실행",
-		description = "프로젝트 작업 디렉터리에서 지정된 Gradle/Maven 태스크(build, test, clean 등)를 실제로 실행하고 전체 출력 로그를 반환합니다."
+		description = "프로젝트 작업 디렉터리에서 지정된 Gradle/Maven 태스크(build, test, clean 등)를 실제로 실행하고 전체 출력 로그를 반환합니다. 프로젝트 리더만 실행할 수 있습니다."
 	)
 	@SwaggerErrorResponses({
 		ErrorCode.UNAUTHORIZED,
 		ErrorCode.INVALID_INPUT,
 		ErrorCode.PROJECT_NOT_FOUND,
 		ErrorCode.PROJECT_NOT_ACTIVE,
-		ErrorCode.PROJECT_ACCESS_DENIED
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY,
+		ErrorCode.BUILD_LOCAL_PATH_NOT_FOUND
 	})
 	@PostMapping("/projects/{projectId}/build/execute")
 	public ApiResponse<BuildTaskExecutionResponse> executeBuildTask(
@@ -80,7 +82,7 @@ public class ProjectBuildController {
 
 	@Operation(
 		summary = "시스템 빌드 태스크 목록 조회",
-		description = "서버 루트 환경에서 실행 가능한 빌드 태스크 목록을 조회합니다."
+		description = "서버 루트 환경에서 실행 가능한 빌드 태스크 목록을 조회합니다. ADMIN 전용입니다."
 	)
 	@GetMapping("/build/tasks")
 	public ApiResponse<BuildTaskListResponse> getSystemBuildTasks() {
@@ -105,7 +107,7 @@ public class ProjectBuildController {
 
 	@Operation(
 		summary = "시스템 빌드 태스크 실제 실행",
-		description = "서버 환경에서 지정된 Gradle 태스크를 실제로 실행하고 출력 로그를 반환합니다."
+		description = "서버 환경(SynAIpse 서버 자신의 소스 트리)에서 지정된 Gradle 태스크를 실제로 실행하고 출력 로그를 반환합니다. ADMIN 전용입니다."
 	)
 	@PostMapping("/build/execute")
 	public ApiResponse<BuildTaskExecutionResponse> executeSystemBuildTask(

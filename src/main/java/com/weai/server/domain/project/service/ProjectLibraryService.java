@@ -10,6 +10,7 @@ import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import com.weai.server.global.web.FileDownloadSupport;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -106,6 +107,22 @@ public class ProjectLibraryService {
 
 		ProjectLibraryResource resource = getResource(projectId, resourceId);
 		resource.delete(LocalDateTime.now());
+	}
+
+	@Transactional(readOnly = true)
+	public FileDownloadSupport.DownloadableFile download(String userEmail, Long projectId, String storedFileName) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		projectService.validateProjectAccess(projectId, user.getId());
+
+		ProjectLibraryResource resource = projectLibraryResourceRepository
+			.findByProject_IdAndStoredFileNameAndDeletedAtIsNull(projectId, storedFileName)
+			.orElseThrow(() -> new ApiException(ErrorCode.LIBRARY_RESOURCE_NOT_FOUND));
+
+		return new FileDownloadSupport.DownloadableFile(
+			projectLibraryFileStorageService.resolveStoredFile(projectId, storedFileName),
+			resource.getOriginalFileName(),
+			resource.getFileContentType()
+		);
 	}
 
 	private ProjectLibraryResource getResource(Long projectId, Long resourceId) {

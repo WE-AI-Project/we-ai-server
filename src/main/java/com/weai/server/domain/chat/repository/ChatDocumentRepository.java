@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ChatDocumentRepository extends JpaRepository<ChatDocument, Long> {
 
 	Optional<ChatDocument> findByIdAndProject_IdAndDeletedAtIsNull(Long id, Long projectId);
+
+	Optional<ChatDocument> findByProject_IdAndStoredFileNameAndDeletedAtIsNull(Long projectId, String storedFileName);
 }

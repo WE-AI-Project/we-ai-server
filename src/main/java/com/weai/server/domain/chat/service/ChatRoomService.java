@@ -31,6 +31,7 @@ import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import com.weai.server.global.web.FileDownloadSupport;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -252,6 +253,26 @@ public class ChatRoomService {
 		chatRoomRepository.touchUpdatedAt(chatRoom.getId(), LocalDateTime.now());
 		broadcastNewMessage(projectId, chatRoomId, savedMessage);
 		return ChatFileUploadResponse.from(savedMessage);
+	}
+
+	public FileDownloadSupport.DownloadableFile downloadChatFile(
+		String userEmail,
+		Long projectId,
+		Long chatRoomId,
+		String storedFileName
+	) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateChatRoomAccess(projectId, chatRoomId, user.getId());
+
+		ChatMessage message = chatMessageRepository
+			.findByChatRoom_IdAndStoredFileNameAndDeletedAtIsNull(chatRoomId, storedFileName)
+			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested chat file could not be found."));
+
+		return new FileDownloadSupport.DownloadableFile(
+			chatFileStorageService.resolveStoredFile(projectId, chatRoomId, storedFileName),
+			message.getOriginalFileName(),
+			message.getFileContentType()
+		);
 	}
 
 	private void broadcastNewMessage(Long projectId, Long chatRoomId, ChatMessage message) {

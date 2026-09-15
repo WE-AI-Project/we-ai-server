@@ -13,11 +13,14 @@ import com.weai.server.domain.chat.service.ChatRoomService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
+import com.weai.server.global.web.FileDownloadSupport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -230,6 +233,31 @@ public class ChatRoomController {
 			"CHAT_FILE_UPLOAD_SUCCESS",
 			"채팅 파일이 업로드되었습니다.",
 			chatRoomService.uploadChatFile(authentication.getName(), projectId, chatRoomId, file, content)
+		);
+	}
+
+	@Operation(
+		summary = "채팅 파일 다운로드",
+		description = "채팅방에 접근 가능한 프로젝트 멤버만 첨부 파일을 다운로드할 수 있습니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.CHAT_ROOM_NOT_FOUND,
+		ErrorCode.CHAT_ROOM_ACCESS_DENIED,
+		ErrorCode.RESOURCE_NOT_FOUND
+	})
+	@GetMapping("/rooms/{chatRoomId}/files/{storedFileName}")
+	public ResponseEntity<Resource> downloadChatFile(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long chatRoomId,
+		@PathVariable String storedFileName
+	) {
+		return FileDownloadSupport.asAttachment(
+			chatRoomService.downloadChatFile(authentication.getName(), projectId, chatRoomId, storedFileName)
 		);
 	}
 }
