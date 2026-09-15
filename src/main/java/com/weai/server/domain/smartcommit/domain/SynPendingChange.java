@@ -11,7 +11,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -55,8 +54,7 @@ public class SynPendingChange extends BaseEntity {
 	@Column(name = "file_path", nullable = false, length = 500)
 	private String filePath;
 
-	@Lob
-	@Column(name = "diff_content", nullable = false)
+	@Column(name = "diff_content", nullable = false, columnDefinition = "LONGTEXT")
 	private String diffContent;
 
 	public static SynPendingChange create(Project project, User registeredBy, String filePath, String diffContent) {
