@@ -43,8 +43,8 @@ app:
     cors:
       allowed-origins:
         - ${APP_FRONTEND_BASE_URL:https://we-ai-client.vercel.app}
-        - ${APP_VITE_FRONTEND_BASE_URL:http://localhost:5173}
-        - ${APP_ADDITIONAL_LOCAL_FRONTEND_BASE_URL:http://127.0.0.1:5173}
+        - ${APP_VITE_FRONTEND_BASE_URL:http://localhost:5183}
+        - ${APP_ADDITIONAL_LOCAL_FRONTEND_BASE_URL:http://127.0.0.1:5183}
       # 와일드카드 패턴은 prod에서 기본으로 열어주지 않는다 — 실제 필요한 origin은 위
       # allowed-origins에 정확한 값으로 이미 등록되어 있다. 정말 패턴 매칭이 필요하면
       # 운영자가 아래 env var를 명시적으로 설정해야 한다 (예: 특정 프리뷰 서브도메인만).

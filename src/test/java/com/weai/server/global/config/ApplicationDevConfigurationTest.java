@@ -10,7 +10,7 @@ import org.springframework.core.io.ClassPathResource;
 class ApplicationDevConfigurationTest {
 
 	@Test
-	void devProfileCorsAllowsViteFallbackPort() {
+	void devProfileCorsAllowsActualViteDevServerPort() {
 		YamlPropertiesFactoryBean factory = new YamlPropertiesFactoryBean();
 		factory.setResources(
 			new ClassPathResource("application.yml"),
@@ -24,9 +24,10 @@ class ApplicationDevConfigurationTest {
 			.isEqualTo("http://localhost:3000");
 		assertThat(properties.getProperty("app.web.cors.allowed-origins[1]"))
 			.isEqualTo("http://127.0.0.1:3000");
+		// we-ai-client's vite.config.ts pins port 5183 with strictPort: true (no auto-fallback
+		// to another port), so there is exactly one real dev-server origin to allow here.
 		assertThat(properties.getProperty("app.web.cors.allowed-origins[2]"))
-			.isEqualTo("http://localhost:5173");
-		assertThat(properties.getProperty("app.web.cors.allowed-origins[3]"))
-			.isEqualTo("http://localhost:5174");
+			.isEqualTo("http://localhost:5183");
+		assertThat(properties.getProperty("app.web.cors.allowed-origins[3]")).isNull();
 	}
 }
