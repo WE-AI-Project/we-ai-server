@@ -122,10 +122,30 @@ public enum ErrorCode {
 		"BUILD_400_1",
 		"The project's local path is not set or does not exist on this server. Configure a valid local path before running a build task."
 	),
+	PROJECT_LOCAL_PATH_NOT_FOUND(HttpStatus.BAD_REQUEST, "BUILD_400_1", "Project localPath could not be found."),
+	GRADLE_WRAPPER_NOT_FOUND(HttpStatus.BAD_REQUEST, "BUILD_400_2", "Gradle wrapper could not be found."),
+	BUILD_TASK_NAME_REQUIRED(HttpStatus.BAD_REQUEST, "BUILD_400_3", "Build task name is required."),
+	INVALID_BUILD_TASK_NAME(HttpStatus.BAD_REQUEST, "BUILD_400_4", "Build task name is invalid."),
+	INVALID_BUILD_RUN_STATUS(HttpStatus.BAD_REQUEST, "BUILD_400_5", "Build run status is invalid."),
+	BUILD_ALREADY_RUNNING(HttpStatus.CONFLICT, "BUILD_409_1", "A build is already running for this project."),
+	BUILD_RUN_NOT_FOUND(HttpStatus.NOT_FOUND, "BUILD_404_1", "The requested build run could not be found."),
+	BUILD_TASK_RUN_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "BUILD_500_1", "Failed to start the build task."),
+	BUILD_COMMAND_EXECUTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "BUILD_500_2", "Failed to execute the build command."),
 
 	// QA Query Errors
 	INVALID_QA_REPORT_STATUS(HttpStatus.BAD_REQUEST, "QA_400_1", "QA report status is invalid."),
+	SPRING_PROFILE_REQUIRED(HttpStatus.BAD_REQUEST, "ENVIRONMENT_400_2", "Spring profile is required."),
 	INVALID_SPRING_PROFILE(HttpStatus.BAD_REQUEST, "ENVIRONMENT_400_1", "Spring profile is invalid."),
+	ACTIVE_PROFILE_UPDATE_FAILED(
+		HttpStatus.INTERNAL_SERVER_ERROR,
+		"ENVIRONMENT_500_1",
+		"Failed to update the active Spring profile."
+	),
+	RUNTIME_ENVIRONMENT_READ_FAILED(
+		HttpStatus.INTERNAL_SERVER_ERROR,
+		"ENVIRONMENT_500_2",
+		"Failed to read runtime environment information."
+	),
 	QA_RUN_NOT_FOUND(HttpStatus.NOT_FOUND, "QA_404_1", "The requested QA run could not be found."),
 	QA_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "QA_404_2", "The requested QA report could not be found."),
 	COMMIT_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMIT_404_1", "The requested commit could not be found."),
