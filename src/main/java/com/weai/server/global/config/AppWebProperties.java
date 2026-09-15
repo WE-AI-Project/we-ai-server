@@ -43,7 +43,10 @@ public class AppWebProperties {
 			"http://127.0.0.1:3000"
 		));
 
-		private List<@NotBlank String> allowedOriginPatterns = new ArrayList<>(List.of(
+		// 개별 원소에 @NotBlank를 걸지 않는다: prod/stag의 allowed-origin-patterns 항목들은
+		// env var가 안 설정되면 빈 문자열로 resolve되도록 일부러 설계했고(패턴을 opt-in으로 만들기
+		// 위함), WebSocketConfig/SecurityConfig 쪽에서 소비할 때 빈 값을 걸러낸다.
+		private List<String> allowedOriginPatterns = new ArrayList<>(List.of(
 			"http://localhost:*",
 			"http://127.0.0.1:*",
 			"https://*.vercel.app"
