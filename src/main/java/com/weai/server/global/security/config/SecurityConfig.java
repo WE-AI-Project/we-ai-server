@@ -122,7 +122,7 @@ public class SecurityConfig {
 
 		CorsConfiguration configuration = new CorsConfiguration();
 		configuration.setAllowedOrigins(cors.getAllowedOrigins());
-		configuration.setAllowedOriginPatterns(cors.getAllowedOriginPatterns());
+		configuration.setAllowedOriginPatterns(blankFilteredOriginPatterns(cors.getAllowedOriginPatterns()));
 		configuration.setAllowedMethods(cors.getAllowedMethods());
 		configuration.setAllowedHeaders(cors.getAllowedHeaders());
 		configuration.setExposedHeaders(cors.getExposedHeaders());
@@ -132,5 +132,17 @@ public class SecurityConfig {
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", configuration);
 		return source;
+	}
+
+	// Blank env-var placeholders (e.g. an unset APP_VERCEL_FRONTEND_PATTERN) resolve to an empty
+	// string; strip those out instead of registering an inert "" pattern.
+	private java.util.List<String> blankFilteredOriginPatterns(java.util.List<String> patterns) {
+		if (patterns == null) {
+			return java.util.List.of();
+		}
+		return patterns.stream()
+			.filter(org.springframework.util.StringUtils::hasText)
+			.map(String::trim)
+			.toList();
 	}
 }

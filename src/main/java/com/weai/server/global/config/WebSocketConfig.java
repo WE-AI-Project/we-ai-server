@@ -57,10 +57,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 			patterns.add(appWebProperties.getFrontendBaseUrl().trim());
 		}
 
-		// 기본 패턴 보장: 로컬 개발 환경 및 Vercel 배포 도메인
-		patterns.add("http://localhost:*");
-		patterns.add("http://127.0.0.1:*");
-		patterns.add("https://*.vercel.app");
+		// WebSocket 허용 origin은 app.web.cors.allowed-origins / allowed-origin-patterns 설정을
+		// 그대로 따른다. 예전에는 여기서 http://localhost:*, https://*.vercel.app 를 설정과
+		// 무관하게 무조건 추가했는데, 이러면 prod에서 해당 패턴을 지우거나 좁혀도 항상 다시
+		// 열리는 문제가 있었다 — 필요하면 각 프로필의 yml에서 명시적으로 켜야 한다.
 
 		return patterns.toArray(new String[0]);
 	}
