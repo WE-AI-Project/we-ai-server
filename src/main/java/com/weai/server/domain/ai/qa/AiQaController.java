@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @Tag(name = "AI QA", description = "Diff-based code QA and semantic commit generation API.")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiQaController {
 
 	private final AiQaService aiQaService;
+	private final QaPersistenceService qaPersistenceService;
 	private final UserService userService;
 	private final ProjectService projectService;
 	private final ApplicationEventPublisher eventPublisher;
@@ -49,6 +52,7 @@ public class AiQaController {
 		projectService.validateProjectAccess(request.projectId(), user.getId());
 
 		QaResponse response = aiQaService.analyze(request.projectId(), request.diff());
+		persistQaReport(request, response);
 		notifyQaCompleted(request.projectId(), user.getId(), response);
 
 		return ApiResponse.success(
@@ -56,6 +60,15 @@ public class AiQaController {
 			"AI QA analysis completed successfully.",
 			response
 		);
+	}
+
+	// QA 히스토리 저장은 부가 기능이라, 실패해도 방금 완료된 분석 결과 응답 자체는 그대로 내려준다.
+	private void persistQaReport(QaRequest request, QaResponse response) {
+		try {
+			qaPersistenceService.persist(request.projectId(), request.commitId(), response);
+		} catch (RuntimeException exception) {
+			log.warn("Failed to persist QA report for projectId={}", request.projectId(), exception);
+		}
 	}
 
 	private void notifyQaCompleted(Long projectId, Long userId, QaResponse response) {

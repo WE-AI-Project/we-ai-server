@@ -22,6 +22,14 @@ public record QaRequest(
 	)
 	@NotBlank(message = "diff is required.")
 	@Size(max = 200000, message = "diff must be 200000 characters or fewer.")
-	String diff
+	String diff,
+
+	@Schema(
+		description = "Optional commit id/hash this diff belongs to. When supplied, the persisted "
+			+ "QA report is linked to that commit so it can be looked up via "
+			+ "GET /projects/{projectId}/commits/{commitId}/qa. Leave null for pre-commit/ad-hoc analysis.",
+		example = "a1b2c3d"
+	)
+	String commitId
 ) {
 }
