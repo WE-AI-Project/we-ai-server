@@ -26,6 +26,13 @@ ai:
       # already sets CHROMA_BASE_URL explicitly; this is a safety net for anyone who forgets to.
       base-url: ${CHROMA_BASE_URL:http://chroma:8000}
 
+storage:
+  minio:
+    # Same reasoning as CHROMA_BASE_URL above: application.yml's localhost default only works if
+    # MinIO runs on the same host as this app, which is never true here - default to the compose
+    # service name instead.
+    endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+
 management:
   health:
     mail:

@@ -3,21 +3,20 @@ package com.weai.server.domain.chat.service;
 import com.weai.server.domain.chat.domain.ChatMessageType;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import com.weai.server.global.storage.ObjectStorageService;
+import com.weai.server.global.storage.StorageProperties;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
+@RequiredArgsConstructor
 public class ChatFileStorageService {
 
 	private static final long MAX_FILE_SIZE = 20L * 1024L * 1024L;
@@ -41,11 +40,8 @@ public class ChatFileStorageService {
 		"application/x-zip-compressed"
 	);
 
-	private final Path uploadRoot;
-
-	public ChatFileStorageService(@Value("${chat.file.upload-root:uploads/chat}") String uploadRoot) {
-		this.uploadRoot = Paths.get(uploadRoot).toAbsolutePath().normalize();
-	}
+	private final ObjectStorageService objectStorageService;
+	private final StorageProperties storageProperties;
 
 	public StoredChatFile store(Long projectId, Long chatRoomId, MultipartFile file) {
 		validateFile(file);
@@ -53,18 +49,10 @@ public class ChatFileStorageService {
 		String originalFileName = normalizeOriginalFileName(file.getOriginalFilename());
 		String extension = extractExtension(originalFileName);
 		String storedFileName = UUID.randomUUID() + (extension == null ? "" : "." + extension);
-		Path roomDirectory = uploadRoot.resolve(projectId.toString()).resolve(chatRoomId.toString()).normalize();
-		Path targetPath = roomDirectory.resolve(storedFileName).normalize();
+		String objectKey = objectKey(projectId, chatRoomId, storedFileName);
 
-		if (!targetPath.startsWith(roomDirectory)) {
-			throw new ApiException(ErrorCode.CHAT_FILE_UPLOAD_FAILED, "Invalid chat file path.");
-		}
-
-		try {
-			Files.createDirectories(roomDirectory);
-			try (InputStream inputStream = file.getInputStream()) {
-				Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
-			}
+		try (InputStream inputStream = file.getInputStream()) {
+			objectStorageService.put(bucketFor(extension), objectKey, inputStream, file.getSize(), file.getContentType());
 		} catch (IOException exception) {
 			throw new ApiException(ErrorCode.CHAT_FILE_UPLOAD_FAILED);
 		}
@@ -80,15 +68,24 @@ public class ChatFileStorageService {
 		);
 	}
 
-	/** Resolves a previously stored chat file's path, guarding against path traversal and missing files. */
-	public Path resolveStoredFile(Long projectId, Long chatRoomId, String storedFileName) {
-		Path roomDirectory = uploadRoot.resolve(projectId.toString()).resolve(chatRoomId.toString()).normalize();
-		Path targetPath = roomDirectory.resolve(storedFileName).normalize();
-
-		if (!targetPath.startsWith(roomDirectory) || !Files.isRegularFile(targetPath)) {
+	/** Resolves a previously stored chat file's bytes from object storage. */
+	public ObjectStorageService.StoredObject resolveStoredFile(Long projectId, Long chatRoomId, String storedFileName) {
+		String extension = extractExtension(storedFileName);
+		try {
+			return objectStorageService.get(bucketFor(extension), objectKey(projectId, chatRoomId, storedFileName));
+		} catch (ObjectStorageService.ObjectNotFoundException exception) {
 			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested chat file could not be found.");
 		}
-		return targetPath;
+	}
+
+	private String objectKey(Long projectId, Long chatRoomId, String storedFileName) {
+		return "chat/%d/%d/%s".formatted(projectId, chatRoomId, storedFileName);
+	}
+
+	private String bucketFor(String extension) {
+		return extension != null && IMAGE_EXTENSIONS.contains(extension)
+			? storageProperties.getPublicBucket()
+			: storageProperties.getPrivateBucket();
 	}
 
 	private void validateFile(MultipartFile file) {
@@ -116,6 +113,9 @@ public class ChatFileStorageService {
 	}
 
 	private String extractExtension(String fileName) {
+		if (fileName == null) {
+			return null;
+		}
 		int dotIndex = fileName.lastIndexOf('.');
 		if (dotIndex < 0 || dotIndex == fileName.length() - 1) {
 			return null;

@@ -15,7 +15,6 @@ import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import com.weai.server.global.web.FileDownloadSupport;
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -63,7 +62,7 @@ class ProjectLibraryServiceTest {
 		);
 
 		assertThat(downloaded.originalFileName()).isEqualTo("guide.md");
-		assertThat(Files.exists(downloaded.path())).isTrue();
+		assertThat(downloaded.content().readAllBytes()).isEqualTo("content".getBytes());
 	}
 
 	@Test

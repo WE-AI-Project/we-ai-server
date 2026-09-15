@@ -32,7 +32,6 @@ import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import com.weai.server.global.web.FileDownloadSupport;
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -492,7 +491,8 @@ class ChatRoomServiceTest {
 		);
 
 		assertThat(downloaded.originalFileName()).isEqualTo("sample.png");
-		assertThat(Files.exists(downloaded.path())).isTrue();
+		assertThat(downloaded.size()).isEqualTo("image-bytes".getBytes().length);
+		assertThat(downloaded.content().readAllBytes()).isEqualTo("image-bytes".getBytes());
 	}
 
 	@Test

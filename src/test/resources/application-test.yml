@@ -77,8 +77,6 @@ ai:
     chroma:
       enabled: false
 
-chat:
-  file:
-    upload-root: build/test-uploads/chat
-  document:
-    upload-root: build/test-uploads/projects
+storage:
+  minio:
+    enabled: false

@@ -268,8 +268,10 @@ public class ChatRoomService {
 			.findByChatRoom_IdAndStoredFileNameAndDeletedAtIsNull(chatRoomId, storedFileName)
 			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested chat file could not be found."));
 
+		var storedObject = chatFileStorageService.resolveStoredFile(projectId, chatRoomId, storedFileName);
 		return new FileDownloadSupport.DownloadableFile(
-			chatFileStorageService.resolveStoredFile(projectId, chatRoomId, storedFileName),
+			storedObject.content(),
+			storedObject.size(),
 			message.getOriginalFileName(),
 			message.getFileContentType()
 		);

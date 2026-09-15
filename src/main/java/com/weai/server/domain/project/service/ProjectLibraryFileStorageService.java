@@ -2,35 +2,32 @@ package com.weai.server.domain.project.service;
 
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import com.weai.server.global.storage.ObjectStorageService;
+import com.weai.server.global.storage.StorageProperties;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-/** 프로젝트 공유 자료실(Shared Library) 문서 파일을 uploads/projects/{projectId}/library 아래에 저장한다. */
+/** 프로젝트 공유 자료실(Shared Library) 문서 파일을 MinIO 오브젝트 스토리지에 저장한다. */
 @Service
+@RequiredArgsConstructor
 public class ProjectLibraryFileStorageService {
 
 	private static final long MAX_FILE_SIZE = 20L * 1024L * 1024L;
+	private static final Set<String> IMAGE_EXTENSIONS = Set.of("png", "jpg", "jpeg");
 	private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
 		"pdf", "md", "txt", "yml", "yaml", "java", "ts", "tsx", "js", "jsx",
 		"doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "png", "jpg", "jpeg"
 	);
 
-	private final Path uploadRoot;
-
-	public ProjectLibraryFileStorageService(@Value("${chat.document.upload-root:uploads/projects}") String uploadRoot) {
-		this.uploadRoot = Paths.get(uploadRoot).toAbsolutePath().normalize();
-	}
+	private final ObjectStorageService objectStorageService;
+	private final StorageProperties storageProperties;
 
 	public StoredLibraryFile store(Long projectId, MultipartFile file) {
 		validateFile(file);
@@ -38,18 +35,10 @@ public class ProjectLibraryFileStorageService {
 		String originalFileName = normalizeOriginalFileName(file.getOriginalFilename());
 		String extension = extractExtension(originalFileName);
 		String storedFileName = UUID.randomUUID() + (extension == null ? "" : "." + extension);
-		Path libraryDirectory = uploadRoot.resolve(projectId.toString()).resolve("library").normalize();
-		Path targetPath = libraryDirectory.resolve(storedFileName).normalize();
+		String objectKey = objectKey(projectId, storedFileName);
 
-		if (!targetPath.startsWith(libraryDirectory)) {
-			throw new ApiException(ErrorCode.LIBRARY_UPLOAD_FAILED, "Invalid library file path.");
-		}
-
-		try {
-			Files.createDirectories(libraryDirectory);
-			try (InputStream inputStream = file.getInputStream()) {
-				Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
-			}
+		try (InputStream inputStream = file.getInputStream()) {
+			objectStorageService.put(bucketFor(extension), objectKey, inputStream, file.getSize(), file.getContentType());
 		} catch (IOException exception) {
 			throw new ApiException(ErrorCode.LIBRARY_UPLOAD_FAILED);
 		}
@@ -65,15 +54,24 @@ public class ProjectLibraryFileStorageService {
 		);
 	}
 
-	/** Resolves a previously stored library file's path, guarding against path traversal and missing files. */
-	public Path resolveStoredFile(Long projectId, String storedFileName) {
-		Path libraryDirectory = uploadRoot.resolve(projectId.toString()).resolve("library").normalize();
-		Path targetPath = libraryDirectory.resolve(storedFileName).normalize();
-
-		if (!targetPath.startsWith(libraryDirectory) || !Files.isRegularFile(targetPath)) {
+	/** Resolves a previously stored library file's bytes from object storage. */
+	public ObjectStorageService.StoredObject resolveStoredFile(Long projectId, String storedFileName) {
+		String extension = extractExtension(storedFileName);
+		try {
+			return objectStorageService.get(bucketFor(extension), objectKey(projectId, storedFileName));
+		} catch (ObjectStorageService.ObjectNotFoundException exception) {
 			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested library file could not be found.");
 		}
-		return targetPath;
+	}
+
+	private String objectKey(Long projectId, String storedFileName) {
+		return "library/%d/%s".formatted(projectId, storedFileName);
+	}
+
+	private String bucketFor(String extension) {
+		return extension != null && IMAGE_EXTENSIONS.contains(extension)
+			? storageProperties.getPublicBucket()
+			: storageProperties.getPrivateBucket();
 	}
 
 	private void validateFile(MultipartFile file) {
@@ -98,6 +96,9 @@ public class ProjectLibraryFileStorageService {
 	}
 
 	private String extractExtension(String fileName) {
+		if (fileName == null) {
+			return null;
+		}
 		int dotIndex = fileName.lastIndexOf('.');
 		if (dotIndex < 0 || dotIndex == fileName.length() - 1) {
 			return null;

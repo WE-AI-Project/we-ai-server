@@ -118,8 +118,10 @@ public class ProjectLibraryService {
 			.findByProject_IdAndStoredFileNameAndDeletedAtIsNull(projectId, storedFileName)
 			.orElseThrow(() -> new ApiException(ErrorCode.LIBRARY_RESOURCE_NOT_FOUND));
 
+		var storedObject = projectLibraryFileStorageService.resolveStoredFile(projectId, storedFileName);
 		return new FileDownloadSupport.DownloadableFile(
-			projectLibraryFileStorageService.resolveStoredFile(projectId, storedFileName),
+			storedObject.content(),
+			storedObject.size(),
 			resource.getOriginalFileName(),
 			resource.getFileContentType()
 		);

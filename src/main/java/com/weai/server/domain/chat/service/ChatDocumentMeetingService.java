@@ -36,13 +36,11 @@ import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import com.weai.server.global.storage.ObjectStorageService;
+import com.weai.server.global.storage.StorageProperties;
 import com.weai.server.global.web.FileDownloadSupport;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -53,7 +51,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -93,9 +90,8 @@ public class ChatDocumentMeetingService {
 	private final ObjectMapper objectMapper;
 	private final DocumentTextExtractor documentTextExtractor;
 	private final DocumentBriefingAiService documentBriefingAiService;
-
-	@Value("${chat.document.upload-root:uploads/projects}")
-	private String documentUploadRoot;
+	private final ObjectStorageService objectStorageService;
+	private final StorageProperties storageProperties;
 
 	@Transactional
 	public DocumentUploadResponse uploadDocument(
@@ -302,22 +298,10 @@ public class ChatDocumentMeetingService {
 		String extension
 	) {
 		String storedFileName = UUID.randomUUID() + "." + extension;
-		Path projectDirectory = Paths.get(documentUploadRoot)
-			.toAbsolutePath()
-			.normalize()
-			.resolve(projectId.toString())
-			.resolve("documents")
-			.normalize();
-		Path targetPath = projectDirectory.resolve(storedFileName).normalize();
-		if (!targetPath.startsWith(projectDirectory)) {
-			throw new ApiException(ErrorCode.DOCUMENT_UPLOAD_FAILED, "Invalid document file path.");
-		}
+		String objectKey = documentObjectKey(projectId, storedFileName);
 
-		try {
-			Files.createDirectories(projectDirectory);
-			try (InputStream inputStream = file.getInputStream()) {
-				Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
-			}
+		try (InputStream inputStream = file.getInputStream()) {
+			objectStorageService.put(storageProperties.getPrivateBucket(), objectKey, inputStream, file.getSize(), file.getContentType());
 		} catch (IOException exception) {
 			throw new ApiException(ErrorCode.DOCUMENT_UPLOAD_FAILED);
 		}
@@ -332,20 +316,19 @@ public class ChatDocumentMeetingService {
 		);
 	}
 
-	/** Resolves a previously stored document's path, guarding against path traversal and missing files. */
-	public Path resolveStoredDocumentFile(Long projectId, String storedFileName) {
-		Path projectDirectory = Paths.get(documentUploadRoot)
-			.toAbsolutePath()
-			.normalize()
-			.resolve(projectId.toString())
-			.resolve("documents")
-			.normalize();
-		Path targetPath = projectDirectory.resolve(storedFileName).normalize();
-
-		if (!targetPath.startsWith(projectDirectory) || !Files.isRegularFile(targetPath)) {
+	/** Resolves a previously stored document's bytes from object storage. Meeting/briefing source
+	 * documents are never allowed to be images (see ALLOWED_DOCUMENT_EXTENSIONS), so unlike chat
+	 * attachments and library files these always live in the private bucket. */
+	public ObjectStorageService.StoredObject resolveStoredDocumentFile(Long projectId, String storedFileName) {
+		try {
+			return objectStorageService.get(storageProperties.getPrivateBucket(), documentObjectKey(projectId, storedFileName));
+		} catch (ObjectStorageService.ObjectNotFoundException exception) {
 			throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested document file could not be found.");
 		}
-		return targetPath;
+	}
+
+	private String documentObjectKey(Long projectId, String storedFileName) {
+		return "documents/%d/%s".formatted(projectId, storedFileName);
 	}
 
 	private void validateDocumentFile(MultipartFile file) {
@@ -372,8 +355,10 @@ public class ChatDocumentMeetingService {
 			.findByProject_IdAndStoredFileNameAndDeletedAtIsNull(projectId, storedFileName)
 			.orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "The requested document file could not be found."));
 
+		ObjectStorageService.StoredObject storedObject = resolveStoredDocumentFile(projectId, storedFileName);
 		return new FileDownloadSupport.DownloadableFile(
-			resolveStoredDocumentFile(projectId, storedFileName),
+			storedObject.content(),
+			storedObject.size(),
 			document.getOriginalFileName(),
 			document.getFileContentType()
 		);

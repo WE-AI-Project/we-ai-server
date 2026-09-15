@@ -23,6 +23,11 @@ ai:
       # See application-prod.yml for why this can't stay on the base localhost:8000 default.
       base-url: ${CHROMA_BASE_URL:http://chroma:8000}
 
+storage:
+  minio:
+    # See application-prod.yml for why this can't stay on the base localhost:9000 default.
+    endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+
 springdoc:
   api-docs:
     enabled: ${SWAGGER_ENABLED:true}
