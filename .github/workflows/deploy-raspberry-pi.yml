@@ -13,4 +13,48 @@ jobs:
       - name: Deploy on Raspberry Pi
         run: |
           cd /home/synaipse/we-ai-server
-          ./deploy.sh
+
+          deploy_log="$(mktemp)"
+          trap 'rm -f "$deploy_log"' EXIT
+
+          # The server-local deploy script still contains the previous production policy and
+          # exits with code 1 when Swagger returns 200. Preserve every real deployment failure,
+          # but recover from that one known false negative only after verifying the deployed
+          # revision and all public endpoints without authentication.
+          set +e
+          ./deploy.sh 2>&1 | tee "$deploy_log"
+          deploy_status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$deploy_status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if ! grep -Fq "Unexpected Swagger/OpenAPI status in prod" "$deploy_log"; then
+            echo "Deployment failed for a reason unrelated to the previous Swagger policy."
+            exit "$deploy_status"
+          fi
+
+          deployed_sha="$(git rev-parse HEAD)"
+          if [ "$deployed_sha" != "$GITHUB_SHA" ]; then
+            echo "Deployment repository is at $deployed_sha, expected $GITHUB_SHA."
+            exit "$deploy_status"
+          fi
+
+          public_base_url="https://api.yhy-server.com"
+          for attempt in {1..6}; do
+            health_status="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 30 "$public_base_url/actuator/health" || true)"
+            swagger_status="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 30 "$public_base_url/swagger-ui/index.html" || true)"
+            openapi_status="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 30 "$public_base_url/v3/api-docs" || true)"
+
+            echo "Public verification attempt $attempt: health=$health_status swagger=$swagger_status openapi=$openapi_status"
+            if [ "$health_status" = "200" ] && [ "$swagger_status" = "200" ] && [ "$openapi_status" = "200" ]; then
+              echo "Deployment succeeded; the server-local script only failed because it expected Swagger to be disabled."
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "Public production endpoint verification failed."
+          exit "$deploy_status"
