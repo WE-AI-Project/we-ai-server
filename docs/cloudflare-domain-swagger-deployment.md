@@ -15,8 +15,7 @@ nginx 프록시 라우팅은 이미 [docker/nginx/default.conf.template](C:/User
 
 - `dev` 는 기본적으로 Swagger가 활성화됩니다.
 - `stag` 도 기본적으로 Swagger가 활성화되지만 `SWAGGER_ENABLED` 로 덮어쓸 수 있습니다.
-- `prod` 는 기본적으로 Swagger가 비활성화되며, 운영자가 `SWAGGER_ENABLED=true` 를
-  명시한 경우에만 활성화됩니다. 이 값은 prod에서도 지원됩니다.
+- `prod` 는 현재 Swagger를 기본 활성화하며 `PROD_SWAGGER_ENABLED=false` 로 다시 끌 수 있습니다.
 
 관련 파일:
 
@@ -90,7 +89,7 @@ APP_BASE_URL=https://api.example.com
 APP_API_DOMAIN=api.example.com
 APP_FRONTEND_BASE_URL=https://app.example.com
 APP_FRONTEND_DOMAIN=app.example.com
-SWAGGER_ENABLED=false
+PROD_SWAGGER_ENABLED=true
 KAKAO_REDIRECT_URI=https://api.example.com/api/v1/auth/kakao/callback
 NAVER_REDIRECT_URI=https://api.example.com/api/v1/auth/naver/callback
 GOOGLE_REDIRECT_URI=https://api.example.com/api/v1/auth/google/callback
@@ -136,9 +135,8 @@ OpenAPI JSON 확인 주소:
 
 권장 방식:
 
-- 운영에서는 기본적으로 Swagger를 꺼 둡니다.
 - 일상적인 API 테스트는 staging을 사용합니다.
-- 운영에서 꼭 필요할 때만 일시적으로 `SWAGGER_ENABLED=true` 로 설정합니다.
+- 운영 Swagger가 더 이상 필요하지 않으면 `PROD_SWAGGER_ENABLED=false` 로 되돌립니다.
 - 값을 변경한 뒤에는 애플리케이션 컨테이너를 다시 빌드하거나 재시작합니다.
 - 외부에서 접근 가능해야 한다면 Swagger와 OpenAPI 엔드포인트를 Cloudflare Access로 보호합니다.
 
@@ -152,8 +150,8 @@ OpenAPI JSON 확인 주소:
 
 `swagger-ui.html` 이 열리지 않으면 아래를 확인합니다:
 
-- 활성 프로필에 대해 `SWAGGER_ENABLED=true` 인지 확인
-- `app` 컨테이너가 `SWAGGER_ENABLED` 값을 실제로 받았는지 확인
+- prod에서는 `PROD_SWAGGER_ENABLED=true` 인지 확인
+- `app` 컨테이너가 `PROD_SWAGGER_ENABLED` 값을 실제로 받았는지 확인
 - nginx가 실행 중이고 호스트 `80` 포트에 publish 되었는지 확인
 - Cloudflare hostname이 올바른 origin을 가리키는지 확인
 - 우선 `/actuator/health` 가 접근 가능한지 확인

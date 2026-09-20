@@ -44,9 +44,9 @@ management:
 
 springdoc:
   api-docs:
-    enabled: ${SWAGGER_ENABLED:false}
+    enabled: ${PROD_SWAGGER_ENABLED:true}
   swagger-ui:
-    enabled: ${SWAGGER_ENABLED:false}
+    enabled: ${PROD_SWAGGER_ENABLED:true}
 
 app:
   web:
