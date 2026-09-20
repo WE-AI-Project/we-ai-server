@@ -15,7 +15,8 @@ nginx 프록시 라우팅은 이미 [docker/nginx/default.conf.template](C:/User
 
 - `dev` 는 기본적으로 Swagger가 활성화됩니다.
 - `stag` 도 기본적으로 Swagger가 활성화되지만 `SWAGGER_ENABLED` 로 덮어쓸 수 있습니다.
-- `prod` 는 기본적으로 Swagger가 비활성화되며 `SWAGGER_ENABLED=true` 일 때만 활성화됩니다.
+- `prod` 는 기본적으로 Swagger가 비활성화되며, 운영자가 `SWAGGER_ENABLED=true` 를
+  명시한 경우에만 활성화됩니다. 이 값은 prod에서도 지원됩니다.
 
 관련 파일:
 
@@ -138,6 +139,7 @@ OpenAPI JSON 확인 주소:
 - 운영에서는 기본적으로 Swagger를 꺼 둡니다.
 - 일상적인 API 테스트는 staging을 사용합니다.
 - 운영에서 꼭 필요할 때만 일시적으로 `SWAGGER_ENABLED=true` 로 설정합니다.
+- 값을 변경한 뒤에는 애플리케이션 컨테이너를 다시 빌드하거나 재시작합니다.
 - 외부에서 접근 가능해야 한다면 Swagger와 OpenAPI 엔드포인트를 Cloudflare Access로 보호합니다.
 
 권장 Cloudflare Access 보호 대상:
