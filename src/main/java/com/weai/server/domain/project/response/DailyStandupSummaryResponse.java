@@ -45,7 +45,10 @@ public record DailyStandupSummaryResponse(
 	List<DailyStandupItemResponse> blockerItems,
 
 	@ArraySchema(schema = @Schema(implementation = DailyStandupActivityResponse.class))
-	List<DailyStandupActivityResponse> recentActivities
+	List<DailyStandupActivityResponse> recentActivities,
+
+	@ArraySchema(schema = @Schema(implementation = DailyStandupMemberResponse.class))
+	List<DailyStandupMemberResponse> members
 ) {
 
 	@Schema(description = "Daily standup summary counts")

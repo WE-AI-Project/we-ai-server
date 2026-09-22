@@ -14,6 +14,7 @@ import com.weai.server.domain.project.repository.ProjectTechStackRepository;
 import com.weai.server.domain.project.response.DailyStandupActivityResponse;
 import com.weai.server.domain.project.response.DailyStandupDismissResponse;
 import com.weai.server.domain.project.response.DailyStandupItemResponse;
+import com.weai.server.domain.project.response.DailyStandupMemberResponse;
 import com.weai.server.domain.project.response.DailyStandupSummaryResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
@@ -22,8 +23,11 @@ import com.weai.server.global.exception.ApiException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -80,6 +84,7 @@ public class DailyStandupService {
 				todoCount,
 				blockerItems.size()
 			);
+			List<DailyStandupMemberResponse> members = buildMemberBriefings(projectId, schedules, currentMember);
 
 			return new DailyStandupSummaryResponse(
 				project.getId(),
@@ -94,7 +99,8 @@ public class DailyStandupService {
 				completedItems,
 				inProgressItems,
 				blockerItems,
-				recentActivities
+				recentActivities,
+				members
 			);
 		} catch (ApiException exception) {
 			throw exception;
@@ -123,6 +129,65 @@ public class DailyStandupService {
 		}
 
 		return new DailyStandupDismissResponse(project.getId(), user.getId(), today, dismissedUntil, false);
+	}
+
+	// 부서/블로커 기준의 단순하지만 설명 가능한 연관도 판정 - 팀원 각각의 항목을 실제로 채워주고,
+	// "나에게 관련"이 왜 그런지 사용자에게 정직하게 보여줄 수 있는 최소한의 규칙이다.
+	private List<DailyStandupMemberResponse> buildMemberBriefings(
+		Long projectId,
+		List<ProjectSchedule> schedules,
+		ProjectMember viewer
+	) {
+		Map<Long, List<ProjectSchedule>> schedulesByAssigneeId = schedules.stream()
+			.collect(Collectors.groupingBy(schedule -> schedule.getAssignee().getId()));
+
+		return projectMemberRepository.findByProjectIdAndStatusWithUser(projectId, ProjectMemberStatus.ACTIVE)
+			.stream()
+			.map(member -> toMemberBriefing(
+				member,
+				schedulesByAssigneeId.getOrDefault(member.getUser().getId(), Collections.emptyList()),
+				viewer
+			))
+			.toList();
+	}
+
+	private DailyStandupMemberResponse toMemberBriefing(
+		ProjectMember member,
+		List<ProjectSchedule> memberSchedules,
+		ProjectMember viewer
+	) {
+		List<DailyStandupItemResponse> completed = filterScheduleItems(memberSchedules, ProjectScheduleStatus.DONE, ProjectScheduleStatus.COMPLETED);
+		List<DailyStandupItemResponse> inProgress = filterScheduleItems(memberSchedules, ProjectScheduleStatus.IN_PROGRESS);
+		List<DailyStandupItemResponse> blockers = filterScheduleItems(memberSchedules, ProjectScheduleStatus.HOLD);
+
+		boolean isViewer = member.getUser().getId().equals(viewer.getUser().getId());
+		boolean hasBlockers = !blockers.isEmpty();
+		boolean sameDepartment = member.getDepartment() == viewer.getDepartment();
+		boolean relevantToMe = !isViewer && (hasBlockers || sameDepartment);
+
+		String relevantReason = "";
+		String relevantAction = "일정 확인";
+		if (relevantToMe) {
+			if (hasBlockers) {
+				relevantReason = "블로커가 있어 팀 진행에 영향을 줄 수 있어요.";
+				relevantAction = "블로커 확인";
+			} else {
+				relevantReason = "같은 %s 소속이라 관련 작업이 있어요.".formatted(member.getDepartment().name());
+			}
+		}
+
+		return new DailyStandupMemberResponse(
+			member.getUser().getName(),
+			member.getDepartment(),
+			completed,
+			inProgress,
+			blockers,
+			relevantToMe,
+			relevantReason,
+			relevantAction,
+			"Calendar",
+			member.getLastAccessedAt()
+		);
 	}
 
 	private List<DailyStandupItemResponse> filterScheduleItems(
