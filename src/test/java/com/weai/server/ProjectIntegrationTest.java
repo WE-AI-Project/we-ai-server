@@ -47,7 +47,7 @@ class ProjectIntegrationTest {
 
 		HttpResponse<String> createResponse = createProject(leader.accessToken(), """
 			{
-			  "projectName": "WE&AI Enterprise",
+			  "projectName": "SynAIpse Enterprise",
 			  "description": "AI-based developer collaboration platform",
 			  "localPath": "D:\\\\WE_AI\\\\enterprise",
 			  "department": "BACKEND",
@@ -71,7 +71,7 @@ class ProjectIntegrationTest {
 
 		assertThat(createResponse.statusCode()).isEqualTo(201);
 		assertThat(createResponse.body()).contains("\"code\":\"PROJECT_CREATE_SUCCESS\"");
-		assertThat(createResponse.body()).contains("\"projectName\":\"WE&AI Enterprise\"");
+		assertThat(createResponse.body()).contains("\"projectName\":\"SynAIpse Enterprise\"");
 		assertThat(createResponse.body()).contains("\"localPath\":\"D:\\\\WE_AI\\\\enterprise\"");
 		assertThat(createResponse.body()).contains("\"deadlineDate\":\"" + deadlineDate + "\"");
 		assertThat(createResponse.body()).contains("\"daysRemaining\":42");
@@ -128,7 +128,7 @@ class ProjectIntegrationTest {
 		assertThat(leaderProjectsAfterJoin.statusCode()).isEqualTo(200);
 		assertThat(leaderProjectsAfterJoin.body()).contains("\"memberCount\":2");
 		assertThat(memberProjects.statusCode()).isEqualTo(200);
-		assertThat(memberProjects.body()).contains("\"projectName\":\"WE&AI Enterprise\"");
+		assertThat(memberProjects.body()).contains("\"projectName\":\"SynAIpse Enterprise\"");
 		assertThat(memberProjects.body()).contains("\"role\":\"MEMBER\"");
 	}
 

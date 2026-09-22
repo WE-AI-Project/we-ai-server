@@ -10,7 +10,7 @@ public record LibraryResourceResponse(
 	@Schema(description = "자료 ID", example = "1")
 	Long id,
 
-	@Schema(description = "제목", example = "WE&AI REST API Reference")
+	@Schema(description = "제목", example = "SynAIpse REST API Reference")
 	String title,
 
 	@Schema(description = "카테고리", example = "DOCS")

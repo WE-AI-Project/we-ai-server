@@ -17,7 +17,7 @@ public record MyProjectResponse(
 	@Schema(description = "프로젝트 ID", example = "1")
 	Long projectId,
 
-	@Schema(description = "프로젝트명", example = "WE&AI Backend Server")
+	@Schema(description = "프로젝트명", example = "SynAIpse Backend Server")
 	String projectName,
 
 	@Schema(description = "프로젝트 설명", example = "AI 기반 개발 협업 플랫폼 백엔드")

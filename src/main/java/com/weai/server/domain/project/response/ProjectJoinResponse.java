@@ -11,7 +11,7 @@ public record ProjectJoinResponse(
 	@Schema(description = "프로젝트 ID", example = "1")
 	Long projectId,
 
-	@Schema(description = "프로젝트명", example = "WE&AI Enterprise")
+	@Schema(description = "프로젝트명", example = "SynAIpse Enterprise")
 	String projectName,
 
 	@Schema(description = "프로젝트 참여 코드", example = "WEAI2025")

@@ -15,7 +15,7 @@ public record ProjectDashboardResponse(
 	@Schema(description = "Project id", example = "1")
 	Long projectId,
 
-	@Schema(description = "Project name", example = "WE&AI Enterprise")
+	@Schema(description = "Project name", example = "SynAIpse Enterprise")
 	String projectName,
 
 	@Schema(description = "Project join code", example = "WEAI2025")
