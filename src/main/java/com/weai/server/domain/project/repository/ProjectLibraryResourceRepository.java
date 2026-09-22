@@ -21,4 +21,6 @@ public interface ProjectLibraryResourceRepository extends JpaRepository<ProjectL
 	long countByProject_IdAndDeletedAtIsNull(Long projectId);
 
 	long countByProject_IdAndCategoryAndDeletedAtIsNull(Long projectId, LibraryResourceCategory category);
+
+	boolean existsBySourceDocumentId(Long sourceDocumentId);
 }

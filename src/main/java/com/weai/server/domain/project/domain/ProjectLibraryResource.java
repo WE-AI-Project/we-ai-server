@@ -80,6 +80,14 @@ public class ProjectLibraryResource extends BaseEntity {
 	@Builder.Default
 	private long viewCount = 0L;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	@Builder.Default
+	private LibraryResourceSource source = LibraryResourceSource.MANUAL;
+
+	@Column(name = "source_document_id")
+	private Long sourceDocumentId;
+
 	@Column(name = "deleted_at")
 	private LocalDateTime deletedAt;
 
@@ -109,6 +117,39 @@ public class ProjectLibraryResource extends BaseEntity {
 			.fileContentType(fileContentType)
 			.extension(extension)
 			.viewCount(0L)
+			.source(LibraryResourceSource.MANUAL)
+			.build();
+	}
+
+	/** 회의/채팅 문서 업로드에서 자동 동기화되는 자료실 항목을 만든다. 원본 파일을 재업로드하지 않고 같은 저장 위치를 그대로 참조한다. */
+	public static ProjectLibraryResource syncedFromMeetingDocument(
+		Project project,
+		User uploader,
+		String title,
+		String description,
+		String originalFileName,
+		String storedFileName,
+		String fileUrl,
+		Long fileSize,
+		String fileContentType,
+		String extension,
+		Long sourceDocumentId
+	) {
+		return ProjectLibraryResource.builder()
+			.project(project)
+			.uploader(uploader)
+			.title(title)
+			.category(LibraryResourceCategory.DOCS)
+			.description(description)
+			.originalFileName(originalFileName)
+			.storedFileName(storedFileName)
+			.fileUrl(fileUrl)
+			.fileSize(fileSize)
+			.fileContentType(fileContentType)
+			.extension(extension)
+			.viewCount(0L)
+			.source(LibraryResourceSource.MEETING)
+			.sourceDocumentId(sourceDocumentId)
 			.build();
 	}
 

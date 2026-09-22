@@ -11,6 +11,7 @@ import com.weai.server.domain.chat.domain.MeetingMinute;
 import com.weai.server.domain.chat.domain.MeetingMinuteStatus;
 import com.weai.server.domain.chat.domain.MeetingParticipant;
 import com.weai.server.domain.chat.domain.MeetingStatus;
+import com.weai.server.domain.chat.event.MeetingFileUploadedEvent;
 import com.weai.server.domain.chat.repository.ChatDocumentRepository;
 import com.weai.server.domain.chat.repository.ChatMeetingRepository;
 import com.weai.server.domain.chat.repository.ChatRoomRepository;
@@ -52,6 +53,7 @@ import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -95,6 +97,7 @@ public class ChatDocumentMeetingService {
 	private final MeetingSummaryAiService meetingSummaryAiService;
 	private final ObjectStorageService objectStorageService;
 	private final StorageProperties storageProperties;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public DocumentUploadResponse uploadDocument(
@@ -123,6 +126,8 @@ public class ChatDocumentMeetingService {
 			trimToNull(description),
 			extractedText
 		));
+
+		eventPublisher.publishEvent(new MeetingFileUploadedEvent(projectId, document.getId()));
 
 		return DocumentUploadResponse.from(document);
 	}

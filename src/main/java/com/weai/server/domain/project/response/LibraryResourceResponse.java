@@ -1,6 +1,7 @@
 package com.weai.server.domain.project.response;
 
 import com.weai.server.domain.project.domain.LibraryResourceCategory;
+import com.weai.server.domain.project.domain.LibraryResourceSource;
 import com.weai.server.domain.project.domain.ProjectLibraryResource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
@@ -15,6 +16,9 @@ public record LibraryResourceResponse(
 
 	@Schema(description = "카테고리", example = "DOCS")
 	LibraryResourceCategory category,
+
+	@Schema(description = "출처 (직접 업로드 또는 회의 문서 자동 동기화)", example = "MANUAL")
+	LibraryResourceSource source,
 
 	@Schema(description = "설명")
 	String description,
@@ -45,6 +49,7 @@ public record LibraryResourceResponse(
 			resource.getId(),
 			resource.getTitle(),
 			resource.getCategory(),
+			resource.getSource(),
 			resource.getDescription(),
 			resource.getOriginalFileName(),
 			resource.getFileUrl(),
