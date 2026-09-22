@@ -26,6 +26,24 @@ server {
         proxy_set_header X-Forwarded-Proto $origin_scheme;
     }
 
+    # STOMP/SockJS 채팅·알림 엔드포인트. 이 블록이 없으면 /ws/**로 오는 모든 요청이
+    # 위의 location / (SPA fallback)으로 떨어져서 index.html(text/html)이 돌아오고,
+    # SockJS가 websocket -> xhr_streaming -> eventsource -> jsonp 순으로 계속
+    # 폴백하다가 전부 실패한다 (채팅/알림이 조용히 끊긴 채로 재연결만 반복함).
+    location /ws/ {
+        proxy_pass http://${BACKEND_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout ${NGINX_PROXY_READ_TIMEOUT};
+        proxy_read_timeout ${NGINX_PROXY_READ_TIMEOUT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $origin_scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
     location /swagger-ui.html {
         proxy_pass http://${BACKEND_UPSTREAM};
         proxy_http_version 1.1;
