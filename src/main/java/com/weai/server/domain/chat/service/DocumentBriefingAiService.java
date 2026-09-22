@@ -10,6 +10,7 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
  * {@link ChatDocumentMeetingService}, which never called an AI model despite the "AI 브리핑"
  * product framing.
  */
+@Slf4j
 @Service
 public class DocumentBriefingAiService {
 
@@ -79,7 +81,8 @@ public class DocumentBriefingAiService {
 				readStringArray(root, "keywords")
 			);
 		} catch (Exception exception) {
-			throw new ApiException(ErrorCode.DOCUMENT_BRIEFING_CREATE_FAILED, "Failed to parse the AI briefing response as JSON.");
+			log.error("Failed to parse the AI briefing response as JSON", exception);
+			throw new ApiException(ErrorCode.DOCUMENT_BRIEFING_CREATE_FAILED, "Failed to parse the AI briefing response as JSON.", exception);
 		}
 	}
 

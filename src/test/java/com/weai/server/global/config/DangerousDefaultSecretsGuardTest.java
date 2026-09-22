@@ -8,13 +8,15 @@ import org.springframework.core.env.StandardEnvironment;
 
 class DangerousDefaultSecretsGuardTest {
 
+	private static final String REAL_MASTER_KEY = "a-real-base64-encoded-32-byte-key==";
+
 	@Test
 	void refusesToStartWithDefaultDbPasswordOutsideDevTest() {
 		StandardEnvironment environment = new StandardEnvironment();
 		environment.setActiveProfiles("prod");
 
 		assertThatThrownBy(() -> new DangerousDefaultSecretsGuard(
-			environment, "change-me-db-password", "a-real-secret", "a-real-secret"
+			environment, "change-me-db-password", "a-real-secret", "a-real-secret", REAL_MASTER_KEY
 		).validate())
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("spring.datasource.password");
@@ -26,7 +28,7 @@ class DangerousDefaultSecretsGuardTest {
 		environment.setActiveProfiles("stag");
 
 		assertThatThrownBy(() -> new DangerousDefaultSecretsGuard(
-			environment, "a-real-password", "change-this-development-secret-key-at-least-32-bytes", "a-real-secret"
+			environment, "a-real-password", "change-this-development-secret-key-at-least-32-bytes", "a-real-secret", REAL_MASTER_KEY
 		).validate())
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("spring.jwt.secret");
@@ -38,10 +40,22 @@ class DangerousDefaultSecretsGuardTest {
 		environment.setActiveProfiles("prod");
 
 		assertThatThrownBy(() -> new DangerousDefaultSecretsGuard(
-			environment, "a-real-password", "a-real-secret", "change-me-minio-password"
+			environment, "a-real-password", "a-real-secret", "change-me-minio-password", REAL_MASTER_KEY
 		).validate())
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("storage.minio.secret-key");
+	}
+
+	@Test
+	void refusesToStartWithBlankEnvironmentMasterKeyOutsideDevTest() {
+		StandardEnvironment environment = new StandardEnvironment();
+		environment.setActiveProfiles("prod");
+
+		assertThatThrownBy(() -> new DangerousDefaultSecretsGuard(
+			environment, "a-real-password", "a-real-secret", "a-real-secret", ""
+		).validate())
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("synaipse.environment.master-key");
 	}
 
 	@Test
@@ -49,7 +63,7 @@ class DangerousDefaultSecretsGuardTest {
 		StandardEnvironment environment = new StandardEnvironment();
 
 		assertThatThrownBy(() -> new DangerousDefaultSecretsGuard(
-			environment, "change-me-db-password", "a-real-secret", "a-real-secret"
+			environment, "change-me-db-password", "a-real-secret", "a-real-secret", REAL_MASTER_KEY
 		).validate())
 			.isInstanceOf(IllegalStateException.class);
 	}
@@ -59,13 +73,13 @@ class DangerousDefaultSecretsGuardTest {
 		StandardEnvironment dev = new StandardEnvironment();
 		dev.setActiveProfiles("dev");
 		assertThatCode(() -> new DangerousDefaultSecretsGuard(
-			dev, "change-me-db-password", "change-this-development-secret-key-at-least-32-bytes", "change-me-minio-password"
+			dev, "change-me-db-password", "change-this-development-secret-key-at-least-32-bytes", "change-me-minio-password", ""
 		).validate()).doesNotThrowAnyException();
 
 		StandardEnvironment test = new StandardEnvironment();
 		test.setActiveProfiles("test");
 		assertThatCode(() -> new DangerousDefaultSecretsGuard(
-			test, "change-me-db-password", "change-this-development-secret-key-at-least-32-bytes", "change-me-minio-password"
+			test, "change-me-db-password", "change-this-development-secret-key-at-least-32-bytes", "change-me-minio-password", ""
 		).validate()).doesNotThrowAnyException();
 	}
 
@@ -75,7 +89,7 @@ class DangerousDefaultSecretsGuardTest {
 		environment.setActiveProfiles("prod");
 
 		assertThatCode(() -> new DangerousDefaultSecretsGuard(
-			environment, "a-real-password", "a-real-jwt-secret", "a-real-minio-secret"
+			environment, "a-real-password", "a-real-jwt-secret", "a-real-minio-secret", REAL_MASTER_KEY
 		).validate()).doesNotThrowAnyException();
 	}
 }

@@ -184,9 +184,10 @@ public class ProjectBuildExecutionService {
 		}
 		File candidate = new File(localPath.trim());
 		if (!candidate.exists() || !candidate.isDirectory()) {
+			log.warn("Configured project local path does not exist or is not a directory: {}", localPath);
 			throw new ApiException(
 				ErrorCode.BUILD_LOCAL_PATH_NOT_FOUND,
-				"The project's local path does not exist on this server: " + localPath
+				"The project's local path does not exist on this server. Check the path configured in Project Settings."
 			);
 		}
 		return candidate;

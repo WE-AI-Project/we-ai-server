@@ -30,17 +30,20 @@ public class DangerousDefaultSecretsGuard {
 	private final String dbPassword;
 	private final String jwtSecret;
 	private final String minioSecretKey;
+	private final String environmentMasterKey;
 
 	public DangerousDefaultSecretsGuard(
 		Environment environment,
 		@Value("${spring.datasource.password:}") String dbPassword,
 		@Value("${spring.jwt.secret:}") String jwtSecret,
-		@Value("${storage.minio.secret-key:}") String minioSecretKey
+		@Value("${storage.minio.secret-key:}") String minioSecretKey,
+		@Value("${synaipse.environment.master-key:${SYNAIPSE_ENV_MASTER_KEY:}}") String environmentMasterKey
 	) {
 		this.environment = environment;
 		this.dbPassword = dbPassword;
 		this.jwtSecret = jwtSecret;
 		this.minioSecretKey = minioSecretKey;
+		this.environmentMasterKey = environmentMasterKey;
 	}
 
 	@PostConstruct
@@ -60,6 +63,9 @@ public class DangerousDefaultSecretsGuard {
 		}
 		if (DEFAULT_MINIO_SECRET_KEY.equals(minioSecretKey)) {
 			offenders.add("storage.minio.secret-key (MINIO_ROOT_PASSWORD)");
+		}
+		if (environmentMasterKey == null || environmentMasterKey.isBlank()) {
+			offenders.add("synaipse.environment.master-key (SYNAIPSE_ENV_MASTER_KEY)");
 		}
 
 		if (!offenders.isEmpty()) {

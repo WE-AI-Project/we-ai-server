@@ -7,9 +7,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 public class ServerLogEventQueue {
 
@@ -43,7 +45,7 @@ public class ServerLogEventQueue {
 		}
 		long dropped = droppedCount.incrementAndGet();
 		if (dropped == 1 || (dropped & (dropped - 1)) == 0) {
-			System.err.println("Server log DB queue is full. Dropped events=" + dropped);
+			log.warn("Server log DB queue is full. Dropped events={}", dropped);
 		}
 	}
 
@@ -58,7 +60,7 @@ public class ServerLogEventQueue {
 				Thread.currentThread().interrupt();
 				break;
 			} catch (RuntimeException exception) {
-				System.err.println("Failed to persist captured server log: " + exception.getMessage());
+				log.error("Failed to persist captured server log", exception);
 			}
 		}
 	}

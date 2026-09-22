@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -179,6 +180,7 @@ public class ProjectBuildController {
 		summary = "시스템 빌드 태스크 목록 조회",
 		description = "서버 루트 환경에서 실행 가능한 빌드 태스크 목록을 조회합니다. ADMIN 전용입니다."
 	)
+	@PreAuthorize("hasRole('ADMIN')")
 	@GetMapping("/build/tasks")
 	public ApiResponse<BuildTaskListResponse> getSystemBuildTasks() {
 		return ApiResponse.success(
@@ -204,6 +206,7 @@ public class ProjectBuildController {
 		summary = "시스템 빌드 태스크 실제 실행",
 		description = "서버 환경(SynAIpse 서버 자신의 소스 트리)에서 지정된 Gradle 태스크를 실제로 실행하고 출력 로그를 반환합니다. ADMIN 전용입니다."
 	)
+	@PreAuthorize("hasRole('ADMIN')")
 	@PostMapping("/build/execute")
 	public ApiResponse<BuildTaskExecutionResponse> executeSystemBuildTask(
 		@Valid @RequestBody ExecuteBuildTaskRequest request

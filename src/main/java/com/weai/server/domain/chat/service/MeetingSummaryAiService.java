@@ -10,6 +10,7 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -22,6 +23,7 @@ import org.springframework.util.StringUtils;
  * it was given), the same class of fake-AI issue {@link DocumentBriefingAiService} fixed for
  * document briefings.
  */
+@Slf4j
 @Service
 public class MeetingSummaryAiService {
 
@@ -72,7 +74,8 @@ public class MeetingSummaryAiService {
 			String summary = readRequiredText(root, "summary");
 			return new MeetingSummaryDraft(summary, readStringArray(root, "action_items"));
 		} catch (Exception exception) {
-			throw new ApiException(ErrorCode.MEETING_SUMMARY_CREATE_FAILED, "Failed to parse the AI meeting summary response as JSON.");
+			log.error("Failed to parse the AI meeting summary response as JSON", exception);
+			throw new ApiException(ErrorCode.MEETING_SUMMARY_CREATE_FAILED, "Failed to parse the AI meeting summary response as JSON.", exception);
 		}
 	}
 

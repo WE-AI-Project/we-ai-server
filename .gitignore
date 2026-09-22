@@ -2,6 +2,7 @@
 .gradle/
 build/
 out/
+bin/
 tools/node_modules/
 .run/
 .codex-run/
