@@ -23,16 +23,16 @@ class AiInfrastructureHealthServiceTest {
 	}
 
 	@Test
-	void reportsCloudflareHtmlAndChromaV1Removal() throws IOException {
+	void reportsCloudflareHtmlAndChromaV2Removal() throws IOException {
 		startServer();
 		server.createContext("/api/tags", exchange -> respond(exchange, 200, "text/html", "<!DOCTYPE html><title>Sign in</title>"));
-		server.createContext("/api/v1/heartbeat", exchange -> respond(exchange, 410, "application/json", "{}"));
+		server.createContext("/api/v2/heartbeat", exchange -> respond(exchange, 410, "application/json", "{}"));
 
 		AiInfrastructureHealthResponse result = service().check();
 
 		assertThat(result.status()).isEqualTo("DOWN");
 		assertThat(result.ollama().message()).contains("Cloudflare Access");
-		assertThat(result.chroma().message()).contains("LangChain4j 0.31.0");
+		assertThat(result.chroma().message()).contains("v2 API");
 	}
 
 	@Test
@@ -44,7 +44,7 @@ class AiInfrastructureHealthServiceTest {
 			"application/json",
 			"{\"models\":[{\"name\":\"llama3.1\"},{\"name\":\"qwen2.5-coder\"}]}"
 		));
-		server.createContext("/api/v1/heartbeat", exchange -> respond(exchange, 200, "application/json", "{\"nanosecond heartbeat\":1}"));
+		server.createContext("/api/v2/heartbeat", exchange -> respond(exchange, 200, "application/json", "{\"nanosecond heartbeat\":1}"));
 
 		AiInfrastructureHealthResponse result = service().check();
 

@@ -22,6 +22,14 @@ ai:
     ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
     model-name: ${AI_COMMIT_MODEL_NAME:qwen2.5-coder}
     timeout: ${AI_COMMIT_TIMEOUT:PT60S}
+  briefing:
+    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
+    model-name: ${AI_BRIEFING_MODEL_NAME:llama3.1}
+    timeout: ${AI_BRIEFING_TIMEOUT:PT60S}
+  meeting:
+    ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
+    model-name: ${AI_MEETING_MODEL_NAME:llama3.1}
+    timeout: ${AI_MEETING_TIMEOUT:PT60S}
   chat:
     ollama-base-url: ${OLLAMA_BASE_URL:https://ollama.yhy-server.com}
     model-name: ${AI_CHAT_MODEL_NAME:llama3.1}

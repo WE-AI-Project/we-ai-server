@@ -11,12 +11,8 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.ollama.OllamaChatModel;
-import dev.langchain4j.model.chat.request.ResponseFormat;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -69,21 +65,11 @@ public class AiQaService {
 
 	public AiQaService(
 		ProjectRagContextService projectRagContextService,
-		@Value("${ai.qa.ollama-base-url:${OLLAMA_BASE_URL:https://ollama.yhy-server.com}}") String baseUrl,
-		@Value("${ai.qa.model-name:${AI_QA_MODEL_NAME:qwen2.5-coder}}") String modelName,
-		@Value("${ai.qa.timeout:${AI_QA_TIMEOUT:PT60S}}") Duration timeout,
-		@Qualifier("ollamaCustomHeaders") Map<String, String> customHeaders
+		@Qualifier("qaChatModel") OllamaChatModel jsonQaModel
 	) {
 		this.objectMapper = new ObjectMapper();
 		this.projectRagContextService = projectRagContextService;
-		this.jsonQaModel = OllamaChatModel.builder()
-			.baseUrl(baseUrl)
-			.modelName(modelName)
-			.temperature(0.1)
-			.timeout(timeout)
-			.responseFormat(ResponseFormat.JSON)
-			.customHeaders(customHeaders)
-			.build();
+		this.jsonQaModel = jsonQaModel;
 	}
 
 	public QaResponse analyze(Long projectId, String diff) {

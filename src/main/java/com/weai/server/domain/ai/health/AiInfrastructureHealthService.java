@@ -80,18 +80,21 @@ public class AiInfrastructureHealthService {
 	}
 
 	private AiInfrastructureHealthResponse.ComponentStatus checkChroma() {
-		String endpoint = chromaBaseUrl + "/api/v1/heartbeat";
+		// The real RAG embedding store (AiConfig#oracleChromaEmbeddingStore) talks to Chroma's v2
+		// (tenant/database-scoped) API, so the health probe must hit the same surface - otherwise
+		// this check can report DOWN on a Chroma server where the actual feature works fine.
+		String endpoint = chromaBaseUrl + "/api/v2/heartbeat";
 		try {
 			HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint)).timeout(requestTimeout).GET().build();
 			HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 			if (response.statusCode() == 410) {
-				return down(endpoint, 410, "Chroma API v1 is unavailable. LangChain4j 0.31.0 requires Chroma 0.4.x API v1.");
+				return down(endpoint, 410, "Chroma API v2 is unavailable on this server. Upgrade Chroma to a version that supports the v2 API.");
 			}
 			if (response.statusCode() < 200 || response.statusCode() >= 300) {
 				return down(endpoint, response.statusCode(), "Chroma returned a non-success status.");
 			}
 			objectMapper.readTree(response.body());
-			return up(endpoint, response.statusCode(), "Chroma API v1 is reachable.", List.of());
+			return up(endpoint, response.statusCode(), "Chroma API v2 is reachable.", List.of());
 		} catch (Exception exception) {
 			return down(endpoint, null, exception.getClass().getSimpleName() + ": " + exception.getMessage());
 		}
