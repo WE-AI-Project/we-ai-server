@@ -1,7 +1,6 @@
 package com.weai.server.domain.ai.debate;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -33,9 +32,7 @@ public record EditorContextDto(
 	@Schema(description = "Developer's question for the AI agent team", example = "Why does this component re-render too often?")
 	String userQuery,
 
-	@Min(value = 1, message = "ragMaxResults must be greater than or equal to 1.")
-	@Max(value = 12, message = "ragMaxResults must be less than or equal to 12.")
-	@Schema(description = "Optional per-request RAG retrieval depth. Defaults to ai.chat.retriever.max-results.", example = "8")
-	Integer ragMaxResults
+	@Schema(description = "Answer depth/thinking level: LOW, DEFAULT, or HIGH. Defaults to DEFAULT.", example = "DEFAULT")
+	String level
 ) {
 }

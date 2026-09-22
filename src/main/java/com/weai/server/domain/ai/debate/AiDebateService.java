@@ -5,6 +5,7 @@ import com.weai.server.domain.ai.debate.agent.FrontendAi;
 import com.weai.server.domain.ai.debate.agent.InspectorAi;
 import com.weai.server.domain.ai.debate.agent.OracleAi;
 import com.weai.server.domain.ai.rag.ProjectRagRetriever;
+import com.weai.server.domain.ai.rag.ThinkingLevel;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
@@ -68,7 +69,7 @@ public class AiDebateService {
 		List<AiAgentType> agents = normalizeAgents(selectedAgents);
 		int roundLimit = normalizeMaxRounds(requestedMaxRounds);
 
-		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context), context.ragMaxResults());
+		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context), ThinkingLevel.from(context.level()));
 		String ragContext = formatRagContext(projectId, ragContexts);
 
 		StringBuilder debateHistory = new StringBuilder();
@@ -153,7 +154,7 @@ public class AiDebateService {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "agent is required.");
 		}
 
-		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context), context.ragMaxResults());
+		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context), ThinkingLevel.from(context.level()));
 		String ragContext = formatRagContext(projectId, ragContexts);
 		StringBuilder debateHistory = new StringBuilder()
 			.append("[Single Agent Request]\n")

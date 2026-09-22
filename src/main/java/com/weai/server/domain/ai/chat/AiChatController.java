@@ -1,5 +1,6 @@
 package com.weai.server.domain.ai.chat;
 
+import com.weai.server.domain.ai.rag.ThinkingLevel;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
@@ -50,7 +51,7 @@ public class AiChatController {
 		return ApiResponse.success(
 			"AI_CHAT_SUCCESS",
 			"AI chat completed successfully.",
-			aiChatService.chat(request.projectId(), request.question())
+			aiChatService.chat(request.projectId(), request.question(), ThinkingLevel.from(request.level()))
 		);
 	}
 

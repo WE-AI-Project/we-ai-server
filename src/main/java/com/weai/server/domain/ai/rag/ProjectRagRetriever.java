@@ -10,7 +10,6 @@ import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.filter.Filter;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -23,37 +22,31 @@ public class ProjectRagRetriever {
 
 	private final EmbeddingStore<TextSegment> embeddingStore;
 	private final EmbeddingModel embeddingModel;
-	private final int maxResults;
-	private final double minScore;
 
 	public ProjectRagRetriever(
 		@Qualifier("oracleChromaEmbeddingStore") EmbeddingStore<TextSegment> embeddingStore,
-		@Qualifier("oracleEmbeddingModel") EmbeddingModel embeddingModel,
-		@Value("${ai.chat.retriever.max-results:4}") Integer maxResults,
-		@Value("${ai.chat.retriever.min-score:0.65}") Double minScore
+		@Qualifier("oracleEmbeddingModel") EmbeddingModel embeddingModel
 	) {
 		this.embeddingStore = embeddingStore;
 		this.embeddingModel = embeddingModel;
-		this.maxResults = maxResults == null ? 4 : maxResults;
-		this.minScore = minScore == null ? 0.65 : minScore;
 	}
 
 	public List<String> retrieve(Long projectId, String query) {
-		return retrieve(projectId, query, maxResults);
+		return retrieve(projectId, query, ThinkingLevel.DEFAULT);
 	}
 
-	public List<String> retrieve(Long projectId, String query, Integer requestedMaxResults) {
+	public List<String> retrieve(Long projectId, String query, ThinkingLevel level) {
 		if (projectId == null || !StringUtils.hasText(query)) {
 			return List.of();
 		}
 
-		int effectiveMaxResults = normalizeMaxResults(requestedMaxResults);
+		ThinkingLevel effectiveLevel = level == null ? ThinkingLevel.DEFAULT : level;
 		Filter projectFilter = metadataKey("projectId").isEqualTo(projectId);
 		ContentRetriever retriever = EmbeddingStoreContentRetriever.builder()
 			.embeddingStore(embeddingStore)
 			.embeddingModel(embeddingModel)
-			.maxResults(effectiveMaxResults)
-			.minScore(minScore)
+			.maxResults(effectiveLevel.maxResults())
+			.minScore(effectiveLevel.minScore())
 			.filter(projectFilter)
 			.build();
 
@@ -63,12 +56,5 @@ public class ProjectRagRetriever {
 			.map(TextSegment::text)
 			.filter(StringUtils::hasText)
 			.toList();
-	}
-
-	private int normalizeMaxResults(Integer requestedMaxResults) {
-		if (requestedMaxResults == null) {
-			return maxResults;
-		}
-		return Math.min(12, Math.max(1, requestedMaxResults));
 	}
 }

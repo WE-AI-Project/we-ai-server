@@ -33,9 +33,8 @@ ai:
       tenant-name: ${CHROMA_TENANT_NAME:default_tenant}
       database-name: ${CHROMA_DATABASE_NAME:default_database}
       timeout: ${CHROMA_TIMEOUT:PT10S}
-    retriever:
-      max-results: ${AI_CHAT_RETRIEVER_MAX_RESULTS:4}
-      min-score: ${AI_CHAT_RETRIEVER_MIN_SCORE:0.65}
+    # RAG 검색 깊이는 이제 ThinkingLevel(LOW/DEFAULT/HIGH)이 고정값으로 관리한다 - 사용자가
+    # 검색 문서 수를 직접 숫자로 조절하는 대신 "심층도" 개념으로 고르게 하기 위함.
 
 smart-commit:
   idle-threshold: ${SMART_COMMIT_IDLE_THRESHOLD:PT10M}
