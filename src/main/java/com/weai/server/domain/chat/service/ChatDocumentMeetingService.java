@@ -51,6 +51,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -61,6 +62,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -90,6 +92,7 @@ public class ChatDocumentMeetingService {
 	private final ObjectMapper objectMapper;
 	private final DocumentTextExtractor documentTextExtractor;
 	private final DocumentBriefingAiService documentBriefingAiService;
+	private final MeetingSummaryAiService meetingSummaryAiService;
 	private final ObjectStorageService objectStorageService;
 	private final StorageProperties storageProperties;
 
@@ -225,8 +228,18 @@ public class ChatDocumentMeetingService {
 		}
 
 		String content = validateMinuteContent(request == null ? null : request.content());
-		String summary = resolveSummary(request == null ? null : request.summary(), content);
-		List<String> actionItems = normalizeStringList(request == null ? null : request.actionItems());
+		boolean needsAiSummary = request == null || !StringUtils.hasText(request.summary());
+		boolean needsAiActionItems = request == null || request.actionItems() == null || request.actionItems().isEmpty();
+		MeetingSummaryAiService.MeetingSummaryDraft aiDraft = (needsAiSummary || needsAiActionItems)
+			? tryGenerateAiSummary(content)
+			: null;
+
+		String summary = needsAiSummary
+			? resolveSummary(aiDraft == null ? null : aiDraft.summary(), content)
+			: resolveSummary(request.summary(), content);
+		List<String> actionItems = needsAiActionItems
+			? normalizeStringList(aiDraft == null ? null : aiDraft.actionItems())
+			: normalizeStringList(request.actionItems());
 		List<Long> participantIds = resolveParticipantIds(projectId, user.getId(), request == null ? null : request.participants());
 		LocalDateTime endedAt = LocalDateTime.now();
 		meeting.end(endedAt);
@@ -472,6 +485,17 @@ public class ChatDocumentMeetingService {
 	private String resolveSummary(String rawSummary, String content) {
 		String summary = trimToNull(rawSummary);
 		return summary == null ? shorten(content, 500) : shorten(summary, 2000);
+	}
+
+	// AI 요약은 부가 기능이라, 모델 호출이 실패해도 회의 종료/회의록 저장 자체는 막지 않는다 -
+	// 이 경우 resolveSummary가 content를 잘라 쓰는 이전 폴백으로 자연스럽게 넘어간다.
+	private MeetingSummaryAiService.MeetingSummaryDraft tryGenerateAiSummary(String content) {
+		try {
+			return meetingSummaryAiService.generate(content);
+		} catch (RuntimeException exception) {
+			log.warn("Failed to generate AI meeting summary; falling back to truncated content.", exception);
+			return null;
+		}
 	}
 
 	private List<String> normalizeStringList(Collection<String> values) {

@@ -232,6 +232,7 @@ public enum ErrorCode {
 	MEETING_PARTICIPANT_NOT_PROJECT_MEMBER(HttpStatus.BAD_REQUEST, "CHAT_MEETING_400_4", "Meeting participant is not an active project member."),
 	DOCUMENT_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_DOCUMENT_500_1", "Failed to upload the document."),
 	DOCUMENT_BRIEFING_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_DOCUMENT_500_2", "Failed to create the document briefing."),
+	MEETING_SUMMARY_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_MEETING_500_1", "Failed to create the AI meeting summary."),
 
 	// Project Shared Library Errors
 	LIBRARY_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "LIBRARY_400_1", "Library resource file is required."),
