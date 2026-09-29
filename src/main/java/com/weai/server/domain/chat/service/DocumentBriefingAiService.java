@@ -2,6 +2,8 @@ package com.weai.server.domain.chat.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.weai.server.domain.ai.support.AiCallRetrier;
+import com.weai.server.domain.ai.support.AiJsonExtractor;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import dev.langchain4j.data.message.ChatMessage;
@@ -65,13 +67,13 @@ public class DocumentBriefingAiService {
 			UserMessage.from(buildPrompt(truncate(documentText.trim(), MAX_INPUT_LENGTH)))
 		);
 
-		String rawJson = briefingModel.chat(messages).aiMessage().text();
+		String rawJson = AiCallRetrier.withRetry("Document briefing", 2, 500, () -> briefingModel.chat(messages).aiMessage().text());
 		if (!StringUtils.hasText(rawJson)) {
 			throw new ApiException(ErrorCode.DOCUMENT_BRIEFING_CREATE_FAILED, "The AI briefing model returned an empty response.");
 		}
 
 		try {
-			JsonNode root = objectMapper.readTree(rawJson);
+			JsonNode root = objectMapper.readTree(AiJsonExtractor.extractJsonObject(rawJson));
 			String summary = readRequiredText(root, "summary");
 			return new BriefingDraft(
 				summary,

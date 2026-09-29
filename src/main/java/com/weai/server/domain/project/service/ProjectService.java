@@ -778,7 +778,10 @@ public class ProjectService {
 
 	private void validateCreateRequest(ProjectCreateRequest request, LocalDate today) {
 		validateProjectName(request.projectName());
-		validateRequiredProjectLocalPath(request.localPath());
+		// localPath는 더 이상 서버 동작(빌드 실행/기술스택 감지)을 좌우하지 않는다 - 그 기능들은
+		// 이제 ProjectWorkspaceService가 관리하는 서버 측 워크스페이스 디렉터리를 사용한다.
+		// 클라이언트가 참고용으로 보내는 자유 텍스트일 뿐이므로 필수값 강제를 해제한다.
+		validateProjectLocalPath(request.localPath());
 
 		validateProjectDeadline(request.deadlineDate(), today);
 	}
@@ -1194,14 +1197,6 @@ public class ProjectService {
 		} catch (IllegalArgumentException exception) {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "repositoryUrl is invalid.");
 		}
-	}
-
-	private String validateRequiredProjectLocalPath(String rawLocalPath) {
-		String localPath = validateProjectLocalPath(rawLocalPath);
-		if (localPath == null) {
-			throw new ApiException(ErrorCode.PROJECT_PATH_REQUIRED);
-		}
-		return localPath;
 	}
 
 	private String validateProjectLocalPath(String rawLocalPath) {

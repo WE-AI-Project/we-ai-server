@@ -28,6 +28,13 @@ public record MeetingEndResponse(
 	@Schema(description = "회의 요약", example = "채팅 문서/회의 기능 구현 범위를 확정하였다.")
 	String summary,
 
+	@Schema(
+		description = "summary가 실제 AI 모델이 생성한 요약인지 여부. false면 AI 호출 실패로 "
+			+ "회의록 원문을 잘라낸 대체 텍스트이거나 사용자가 직접 입력한 요약이다.",
+		example = "true"
+	)
+	boolean aiSummaryGenerated,
+
 	@ArraySchema(schema = @Schema(description = "해야 할 일", example = "문서 업로드 API 구현"))
 	List<String> actionItems,
 
@@ -52,6 +59,7 @@ public record MeetingEndResponse(
 			meeting.getTitle(),
 			minute.getContent(),
 			minute.getSummary(),
+			minute.isAiSummaryGenerated(),
 			actionItems,
 			meeting.getStatus(),
 			meeting.getStartedAt(),

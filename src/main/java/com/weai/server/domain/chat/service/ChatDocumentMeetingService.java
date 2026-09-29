@@ -239,6 +239,7 @@ public class ChatDocumentMeetingService {
 			? tryGenerateAiSummary(content)
 			: null;
 
+		boolean aiSummaryGenerated = needsAiSummary && aiDraft != null && StringUtils.hasText(aiDraft.summary());
 		String summary = needsAiSummary
 			? resolveSummary(aiDraft == null ? null : aiDraft.summary(), content)
 			: resolveSummary(request.summary(), content);
@@ -266,6 +267,7 @@ public class ChatDocumentMeetingService {
 			.summary(summary)
 			.actionItems(toJson(actionItems))
 			.status(MeetingMinuteStatus.CREATED)
+			.aiSummaryGenerated(aiSummaryGenerated)
 			.build());
 
 		return MeetingEndResponse.from(meeting, minute, actionItems);

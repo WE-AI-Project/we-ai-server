@@ -1,12 +1,29 @@
 package com.weai.server.domain.auth.config;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 
+/**
+ * {@code clientId}/{@code clientSecret}/{@code redirectUri} are intentionally NOT {@code @NotBlank}:
+ * they used to be, with no default in application.yml, which meant the whole server - every
+ * feature, not just social login - refused to boot with a {@code PlaceholderResolutionException}
+ * on any environment (a fresh local dev checkout included) that had not set up Kakao/Naver/Google
+ * OAuth credentials. A missing social-login credential is a per-provider feature gap, not a
+ * security issue like a default DB password or JWT secret (see {@code DangerousDefaultSecretsGuard}
+ * for those), so it now only logs a warning (see {@link #warnAboutUnconfiguredProviders()}) instead
+ * of blocking startup; the provider's own authorization endpoint will reject an empty client_id if
+ * that specific login is actually attempted.
+ */
+@Slf4j
 @Getter
 @Setter
 @Validated
@@ -22,14 +39,29 @@ public class OAuthProperties {
 	@Valid
 	private final Google google = new Google();
 
+	@PostConstruct
+	public void warnAboutUnconfiguredProviders() {
+		List<String> unconfigured = new ArrayList<>();
+		if (!StringUtils.hasText(kakao.getClientId())) {
+			unconfigured.add("kakao (KAKAO_CLIENT_ID)");
+		}
+		if (!StringUtils.hasText(naver.getClientId())) {
+			unconfigured.add("naver (NAVER_CLIENT_ID)");
+		}
+		if (!StringUtils.hasText(google.getClientId())) {
+			unconfigured.add("google (GOOGLE_CLIENT_ID)");
+		}
+		if (!unconfigured.isEmpty()) {
+			log.warn("Social login provider(s) not configured, that login method will fail if used: {}", unconfigured);
+		}
+	}
+
 	@Getter
 	@Setter
 	public static class Kakao {
 
-		@NotBlank
 		private String clientId;
 
-		@NotBlank
 		private String redirectUri;
 
 		@NotBlank
@@ -46,13 +78,10 @@ public class OAuthProperties {
 	@Setter
 	public static class Naver {
 
-		@NotBlank
 		private String clientId;
 
-		@NotBlank
 		private String clientSecret;
 
-		@NotBlank
 		private String redirectUri;
 
 		@NotBlank
@@ -69,13 +98,10 @@ public class OAuthProperties {
 	@Setter
 	public static class Google {
 
-		@NotBlank
 		private String clientId;
 
-		@NotBlank
 		private String clientSecret;
 
-		@NotBlank
 		private String redirectUri;
 
 		@NotBlank

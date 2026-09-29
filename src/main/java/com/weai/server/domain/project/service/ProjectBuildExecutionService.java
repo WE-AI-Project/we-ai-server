@@ -41,11 +41,12 @@ public class ProjectBuildExecutionService {
 	private final ProjectService projectService;
 	private final UserService userService;
 	private final ProjectTechStackRepository projectTechStackRepository;
+	private final ProjectWorkspaceService projectWorkspaceService;
 
 	public BuildTaskExecutionResponse executeTask(String userEmail, Long projectId, String rawTaskName) {
 		Project project = getLeaderAccessibleProject(userEmail, projectId);
 		String buildTool = resolveBuildTool(project.getId());
-		File workingDir = resolveWorkingDirectory(project.getLocalPath());
+		File workingDir = resolveWorkingDirectory(project.getId());
 
 		return runProcess(buildTool, rawTaskName, workingDir);
 	}
@@ -119,11 +120,7 @@ public class ProjectBuildExecutionService {
 	private List<String> buildCommand(String buildTool, String taskName, boolean isWindows, File workingDir) {
 		List<String> cmd = new ArrayList<>();
 		if ("MAVEN".equalsIgnoreCase(buildTool)) {
-			String executable = isWindows ? "mvnw.cmd" : "./mvnw";
-			File execFile = new File(workingDir, executable);
-			if (!execFile.exists() && isWindows) {
-				executable = "mvn";
-			}
+			String executable = resolveWrapperExecutable(workingDir, isWindows ? "mvnw.cmd" : "./mvnw", "mvn", isWindows);
 			if (isWindows) {
 				cmd.add("cmd.exe");
 				cmd.add("/c");
@@ -131,11 +128,7 @@ public class ProjectBuildExecutionService {
 			cmd.add(executable);
 			cmd.add(taskName);
 		} else {
-			String executable = isWindows ? "gradlew.bat" : "./gradlew";
-			File execFile = new File(workingDir, executable);
-			if (!execFile.exists() && isWindows) {
-				executable = "gradle";
-			}
+			String executable = resolveWrapperExecutable(workingDir, isWindows ? "gradlew.bat" : "./gradlew", "gradle", isWindows);
 			if (isWindows) {
 				cmd.add("cmd.exe");
 				cmd.add("/c");
@@ -144,6 +137,22 @@ public class ProjectBuildExecutionService {
 			cmd.add(taskName);
 		}
 		return cmd;
+	}
+
+	/**
+	 * On Windows, {@code cmd.exe /c <bare-filename>.bat} does not reliably search the current
+	 * working directory the way an interactive cmd.exe session does (this environment's `cmd.exe
+	 * /c gradlew.bat` failed with "not recognized" even though `dir` in the same ProcessBuilder
+	 * working directory showed the file) - it needs an explicit `.\` prefix to resolve a wrapper
+	 * script sitting in the project's workspace directory. The bare global fallback (`gradle`/`mvn`)
+	 * is left unprefixed since that one is meant to resolve via PATH, not the working directory.
+	 */
+	private String resolveWrapperExecutable(File workingDir, String wrapperRelativePath, String globalFallback, boolean isWindows) {
+		File wrapperFile = new File(workingDir, wrapperRelativePath);
+		if (!wrapperFile.exists()) {
+			return isWindows ? globalFallback : wrapperRelativePath;
+		}
+		return isWindows ? ".\\" + wrapperRelativePath : wrapperRelativePath;
 	}
 
 	private String validateAndNormalizeTask(String rawTaskName) {
@@ -178,18 +187,10 @@ public class ProjectBuildExecutionService {
 		return "GRADLE";
 	}
 
-	private File resolveWorkingDirectory(String localPath) {
-		if (localPath == null || localPath.isBlank()) {
-			throw new ApiException(ErrorCode.BUILD_LOCAL_PATH_NOT_FOUND, "The project has no local path configured.");
-		}
-		File candidate = new File(localPath.trim());
-		if (!candidate.exists() || !candidate.isDirectory()) {
-			log.warn("Configured project local path does not exist or is not a directory: {}", localPath);
-			throw new ApiException(
-				ErrorCode.BUILD_LOCAL_PATH_NOT_FOUND,
-				"The project's local path does not exist on this server. Check the path configured in Project Settings."
-			);
-		}
-		return candidate;
+	// 예전엔 project.getLocalPath()(클라이언트 PC 경로)를 서버에서 그대로 파일 경로로 취급했다 -
+	// 원격 중앙 서버 배포에서는 그 경로가 서버 디스크에 존재할 리 없다. 이제 빌드는 프로젝트가
+	// 업로드한 서버 측 워크스페이스 스냅샷(ProjectWorkspaceService)을 대상으로 실행한다.
+	private File resolveWorkingDirectory(Long projectId) {
+		return projectWorkspaceService.requireProjectDirectory(projectId).toFile();
 	}
 }

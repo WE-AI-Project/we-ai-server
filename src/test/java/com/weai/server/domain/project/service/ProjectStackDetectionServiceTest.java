@@ -26,7 +26,7 @@ class ProjectStackDetectionServiceTest {
 			""");
 
 		ProjectStackDetectResponse result = new ProjectStackDetectionService(new ObjectMapper())
-			.detect(projectRoot.toString());
+			.detect(projectRoot);
 
 		assertThat(result.stack()).contains("Node.js 20", "React 18.3.1", "TypeScript 5.4.0", "Vite 6.3.5");
 		assertThat(result.detectedFiles()).containsExactly("package.json");
@@ -39,7 +39,7 @@ class ProjectStackDetectionServiceTest {
 		Files.writeString(ignored.resolve("package.json"), "{\"dependencies\":{\"react\":\"99.0.0\"}}");
 
 		ProjectStackDetectResponse result = new ProjectStackDetectionService(new ObjectMapper())
-			.detect(projectRoot.toString());
+			.detect(projectRoot);
 
 		assertThat(result.stack()).isEmpty();
 		assertThat(result.detectedFiles()).isEmpty();

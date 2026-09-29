@@ -10,9 +10,9 @@ import com.weai.server.domain.ai.qa.response.CommitQaResultResponse;
 import com.weai.server.domain.ai.qa.response.QaReportDetailResponse;
 import com.weai.server.domain.ai.qa.response.QaReportListResponse;
 import com.weai.server.domain.ai.qa.response.QaRunStatusResponse;
-import com.weai.server.domain.project.response.ProjectCommitDetailResponse;
-import com.weai.server.domain.project.service.ProjectGitService;
 import com.weai.server.domain.project.service.ProjectService;
+import com.weai.server.domain.smartcommit.domain.SynCommit;
+import com.weai.server.domain.smartcommit.repository.SynCommitRepository;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.error.ErrorCode;
@@ -37,7 +37,7 @@ public class QaQueryService {
 
 	private final ProjectService projectService;
 	private final UserService userService;
-	private final ProjectGitService projectGitService;
+	private final SynCommitRepository synCommitRepository;
 	private final QaRunRepository qaRunRepository;
 	private final QaReportRepository qaReportRepository;
 	private final QaReportTestResultRepository qaReportTestResultRepository;
@@ -85,27 +85,18 @@ public class QaQueryService {
 		);
 	}
 
-	public CommitQaResultResponse getCommitQaResult(
-		String userEmail,
-		Long projectId,
-		String commitId,
-		String repositoryType
-	) {
+	public CommitQaResultResponse getCommitQaResult(String userEmail, Long projectId, String commitId) {
 		validateProjectAccess(userEmail, projectId);
 		String normalizedCommitId = trimToNull(commitId);
 		if (normalizedCommitId == null) {
 			throw new ApiException(ErrorCode.COMMIT_NOT_FOUND);
 		}
 
-		ProjectCommitDetailResponse commit = getCommitDetail(userEmail, projectId, repositoryType, normalizedCommitId);
+		SynCommit commit = getSynCommit(projectId, normalizedCommitId);
 		List<QaReport> reports = qaReportRepository.findByProjectIdAndCommitIdOrderByLatest(
 			projectId,
 			normalizedCommitId
 		);
-
-		if (reports.isEmpty() && !normalizedCommitId.equals(commit.commitHash())) {
-			reports = qaReportRepository.findByProjectIdAndCommitIdOrderByLatest(projectId, commit.commitHash());
-		}
 
 		return CommitQaResultResponse.from(commit, reports);
 	}
@@ -115,25 +106,17 @@ public class QaQueryService {
 		projectService.validateProjectAccess(projectId, user.getId());
 	}
 
-	private ProjectCommitDetailResponse getCommitDetail(
-		String userEmail,
-		Long projectId,
-		String repositoryType,
-		String commitId
-	) {
+	// commitId는 SmartCommit(syn commit)의 DB 식별자(SynCommit.id) 문자열이다 - 실제 git 커밋
+	// 해시를 조회하던 이전 ProjectGitService 기반 조회를 대체한다.
+	private SynCommit getSynCommit(Long projectId, String commitId) {
+		Long synCommitId;
 		try {
-			return projectGitService.getProjectCommitDetail(
-				userEmail,
-				projectId,
-				trimToNull(repositoryType) == null ? "BACKEND" : repositoryType,
-				commitId
-			);
-		} catch (ApiException exception) {
-			if (exception.getErrorCode() == ErrorCode.PROJECT_COMMIT_NOT_FOUND) {
-				throw new ApiException(ErrorCode.COMMIT_NOT_FOUND);
-			}
-			throw exception;
+			synCommitId = Long.valueOf(commitId);
+		} catch (NumberFormatException exception) {
+			throw new ApiException(ErrorCode.COMMIT_NOT_FOUND);
 		}
+		return synCommitRepository.findByIdAndProject_Id(synCommitId, projectId)
+			.orElseThrow(() -> new ApiException(ErrorCode.COMMIT_NOT_FOUND));
 	}
 
 	private QaReportStatus parseReportStatus(String rawStatus) {

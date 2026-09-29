@@ -49,8 +49,14 @@ public class ProjectStackDetectionService {
 
 	private final ObjectMapper objectMapper;
 
-	public ProjectStackDetectResponse detect(String rawPath) {
-		Path root = resolveRoot(rawPath);
+	/**
+	 * {@code root} must already be a validated, existing directory - callers resolve it via
+	 * {@link ProjectWorkspaceService#requireProjectDirectory}, the server-side workspace extracted
+	 * from the project's uploaded snapshot. This used to accept a raw client-supplied path string
+	 * and scan whatever local filesystem path the request claimed, which only worked when the
+	 * server and the caller happened to share a filesystem.
+	 */
+	public ProjectStackDetectResponse detect(Path root) {
 		Map<String, DetectedTechStack> detected = new LinkedHashMap<>();
 		List<String> detectedFiles = new ArrayList<>();
 
@@ -92,26 +98,6 @@ public class ProjectStackDetectionService {
 			techStacks,
 			List.copyOf(detectedFiles)
 		);
-	}
-
-	private Path resolveRoot(String rawPath) {
-		try {
-			Path root = Path.of(rawPath.trim()).toAbsolutePath().normalize();
-			if (!Files.exists(root)) {
-				throw new ApiException(ErrorCode.INVALID_INPUT, "localPath does not exist: " + root);
-			}
-			if (!Files.isDirectory(root)) {
-				throw new ApiException(ErrorCode.INVALID_INPUT, "localPath must be a directory: " + root);
-			}
-			if (!Files.isReadable(root)) {
-				throw new ApiException(ErrorCode.INVALID_INPUT, "localPath is not readable: " + root);
-			}
-			return root;
-		} catch (ApiException exception) {
-			throw exception;
-		} catch (RuntimeException exception) {
-			throw new ApiException(ErrorCode.INVALID_INPUT, "localPath is invalid.");
-		}
 	}
 
 	private boolean isSkippedDirectory(Path path) {

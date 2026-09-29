@@ -9,7 +9,6 @@ import com.weai.server.domain.project.request.ProjectMemberRoleUpdateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleCreateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleStatusUpdateRequest;
 import com.weai.server.domain.project.request.ProjectScheduleUpdateRequest;
-import com.weai.server.domain.project.request.ProjectStackDetectRequest;
 import com.weai.server.domain.project.request.ProjectTechStackCreateRequest;
 import com.weai.server.domain.project.request.ProjectTechStackUpdateRequest;
 import com.weai.server.domain.project.request.ProjectUpdateRequest;
@@ -37,6 +36,9 @@ import com.weai.server.domain.project.response.ProjectTechStackResponse;
 import com.weai.server.domain.project.response.ProjectUpdateResponse;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.domain.project.service.ProjectStackDetectionService;
+import com.weai.server.domain.project.service.ProjectWorkspaceService;
+import com.weai.server.domain.user.domain.User;
+import com.weai.server.domain.user.service.UserService;
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.swagger.SwaggerErrorResponses;
@@ -71,15 +73,28 @@ public class ProjectController {
 
 	private final ProjectService projectService;
 	private final ProjectStackDetectionService projectStackDetectionService;
+	private final ProjectWorkspaceService projectWorkspaceService;
+	private final UserService userService;
 
-	@Operation(summary = "Detect project technology stack from a local path")
-	@SwaggerErrorResponses({ErrorCode.UNAUTHORIZED, ErrorCode.INVALID_INPUT})
-	@PostMapping("/detect-stack")
-	public ApiResponse<ProjectStackDetectResponse> detectStack(@Valid @RequestBody ProjectStackDetectRequest request) {
+	@Operation(
+		summary = "Detect project technology stack",
+		description = "Scans the project's uploaded server-side workspace (see POST "
+			+ "/api/v1/projects/{projectId}/workspace/upload) and detects its technology stack. "
+			+ "Fails with PROJECT_WORKSPACE_NOT_FOUND if no snapshot has been uploaded yet."
+	)
+	@SwaggerErrorResponses({ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED, ErrorCode.PROJECT_WORKSPACE_NOT_FOUND})
+	@PostMapping("/{projectId}/detect-stack")
+	public ApiResponse<ProjectStackDetectResponse> detectStack(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		User user = userService.getUserEntityByEmail(authentication.getName());
+		projectService.validateProjectAccess(projectId, user.getId());
+
 		return ApiResponse.success(
 			"PROJECT_STACK_DETECT_SUCCESS",
 			"Project technology stack detection completed.",
-			projectStackDetectionService.detect(request.localPath())
+			projectStackDetectionService.detect(projectWorkspaceService.requireProjectDirectory(projectId))
 		);
 	}
 

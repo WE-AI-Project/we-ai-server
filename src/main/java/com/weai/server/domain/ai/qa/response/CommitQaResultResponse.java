@@ -2,7 +2,7 @@ package com.weai.server.domain.ai.qa.response;
 
 import com.weai.server.domain.ai.qa.domain.QaReport;
 import com.weai.server.domain.ai.qa.domain.QaReportStatus;
-import com.weai.server.domain.project.response.ProjectCommitDetailResponse;
+import com.weai.server.domain.smartcommit.domain.SynCommit;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
@@ -13,11 +13,8 @@ public record CommitQaResultResponse(
 	@Schema(description = "프로젝트 ID", example = "1")
 	Long projectId,
 
-	@Schema(description = "커밋 ID", example = "32a4ffc")
+	@Schema(description = "Syn commit ID (SmartCommit 커밋 식별자)", example = "32")
 	String commitId,
-
-	@Schema(description = "커밋 해시", example = "32a4ffcb47ed8b98168f0d117f41fcbec5c2bb08")
-	String commitHash,
 
 	@Schema(description = "커밋 메시지", example = "feat: 일정 API 구현")
 	String commitMessage,
@@ -29,12 +26,11 @@ public record CommitQaResultResponse(
 	List<CommitQaReportResponse> reports
 ) {
 
-	public static CommitQaResultResponse from(ProjectCommitDetailResponse commit, List<QaReport> reports) {
+	public static CommitQaResultResponse from(SynCommit commit, List<QaReport> reports) {
 		return new CommitQaResultResponse(
-			commit.projectId(),
-			commit.shortCommitHash(),
-			commit.commitHash(),
-			commit.message(),
+			commit.getProject().getId(),
+			String.valueOf(commit.getId()),
+			commit.getCommitMessage(),
 			reports.isEmpty() ? null : CommitQaLatestReportResponse.from(reports.get(0)),
 			reports.stream()
 				.map(CommitQaReportResponse::from)

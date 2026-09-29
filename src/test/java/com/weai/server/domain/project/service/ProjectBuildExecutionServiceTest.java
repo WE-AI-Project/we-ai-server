@@ -54,15 +54,18 @@ class ProjectBuildExecutionServiceTest {
 	}
 
 	@Test
-	void leaderCannotExecuteBuildTaskWhenLocalPathDoesNotExist() {
-		TestFixture fixture = createFixture("C:\\this\\path\\definitely\\does\\not\\exist\\on\\this\\machine");
+	void leaderCannotExecuteBuildTaskWhenNoWorkspaceHasBeenUploaded() {
+		// localPath is no longer read by build execution at all - it now resolves the project's
+		// server-side workspace directory (see ProjectWorkspaceService), which nothing has
+		// uploaded to for this freshly created test project.
+		TestFixture fixture = createFixture(null);
 
 		assertThatThrownBy(() ->
 			projectBuildExecutionService.executeTask(fixture.leader().getEmail(), fixture.project().getId(), "build")
 		)
 			.isInstanceOf(ApiException.class)
 			.extracting("errorCode")
-			.isEqualTo(ErrorCode.BUILD_LOCAL_PATH_NOT_FOUND);
+			.isEqualTo(ErrorCode.PROJECT_WORKSPACE_NOT_FOUND);
 	}
 
 	private TestFixture createFixture(String localPath) {

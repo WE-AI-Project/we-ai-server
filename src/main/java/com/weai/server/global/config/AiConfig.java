@@ -17,15 +17,41 @@ import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Configuration
 public class AiConfig {
+
+	/**
+	 * Bounds concurrent AI debate SSE streams instead of the previous {@code new Thread()} per
+	 * request, which had no ceiling and could exhaust OS threads under concurrent load. Rejected
+	 * tasks (queue full) throw {@link org.springframework.core.task.TaskRejectedException} back to
+	 * the caller rather than silently spawning yet another unbounded thread.
+	 */
+	@Bean("aiDebateStreamExecutor")
+	public Executor aiDebateStreamExecutor(
+		@Value("${ai.debate.stream.core-pool-size:4}") int corePoolSize,
+		@Value("${ai.debate.stream.max-pool-size:16}") int maxPoolSize,
+		@Value("${ai.debate.stream.queue-capacity:32}") int queueCapacity
+	) {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(corePoolSize);
+		executor.setMaxPoolSize(maxPoolSize);
+		executor.setQueueCapacity(queueCapacity);
+		executor.setThreadNamePrefix("ai-debate-stream-");
+		executor.setDaemon(true);
+		executor.initialize();
+		return executor;
+	}
 
 	private static final String CF_ACCESS_CLIENT_ID_HEADER = "CF-Access-Client-Id";
 	private static final String CF_ACCESS_CLIENT_SECRET_HEADER = "CF-Access-Client-Secret";
@@ -36,6 +62,15 @@ public class AiConfig {
 		@Value("${OLLAMA_ACCESS_CLIENT_SECRET:}") String clientSecret
 	) {
 		if (!StringUtils.hasText(clientId) || !StringUtils.hasText(clientSecret)) {
+			if (StringUtils.hasText(clientId) || StringUtils.hasText(clientSecret)) {
+				// 하나만 설정된 경우 이전에는 아무 경고 없이 그냥 인증 헤더 없는 요청으로 조용히
+				// 넘어갔다 - 운영 환경에서 오타/설정 누락을 알아챌 방법이 없었다.
+				log.warn(
+					"Only one of OLLAMA_ACCESS_CLIENT_ID/OLLAMA_ACCESS_CLIENT_SECRET is set. "
+						+ "Cloudflare Access headers will NOT be sent, so Ollama calls will go out unauthenticated. "
+						+ "Set both or neither."
+				);
+			}
 			return Collections.emptyMap();
 		}
 

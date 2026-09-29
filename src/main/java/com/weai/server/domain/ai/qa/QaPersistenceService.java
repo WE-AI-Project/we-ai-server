@@ -40,6 +40,7 @@ public class QaPersistenceService {
 	private static final int SUMMARY_MAX_LENGTH = 2000;
 	private static final int TITLE_MAX_LENGTH = 200;
 	private static final int COMMIT_MESSAGE_MAX_LENGTH = 500;
+	private static final int ERROR_MESSAGE_MAX_LENGTH = 1000;
 
 	private final ProjectRepository projectRepository;
 	private final QaRunRepository qaRunRepository;
@@ -89,6 +90,34 @@ public class QaPersistenceService {
 			.build());
 
 		return qaReportRepository.save(report);
+	}
+
+	/**
+	 * Records that a QA analysis was attempted and failed (the AI call itself threw), so the run
+	 * history and "run status" query actually reflect failures instead of the failed analysis
+	 * leaving no trace at all. No {@link QaReport} is created here - there is no analysis result to
+	 * report - only the {@link QaRun}.
+	 */
+	@Transactional
+	public QaRun persistFailure(Long projectId, String commitId, String errorMessage) {
+		Project project = projectRepository.getReferenceById(projectId);
+		LocalDateTime now = LocalDateTime.now();
+		String normalizedCommitId = StringUtils.hasText(commitId) ? commitId.trim() : null;
+
+		return qaRunRepository.save(QaRun.builder()
+			.project(project)
+			.commitId(normalizedCommitId)
+			.status(QaRunStatus.FAILED)
+			.progressRate(0)
+			.currentStep(0)
+			.totalStep(1)
+			.startedAt(now)
+			.finishedAt(now)
+			.errorMessage(truncate(
+				StringUtils.hasText(errorMessage) ? errorMessage : "AI QA analysis failed with no error message.",
+				ERROR_MESSAGE_MAX_LENGTH
+			))
+			.build());
 	}
 
 	private QaIssueSeverity classifySeverity(String bugReport) {

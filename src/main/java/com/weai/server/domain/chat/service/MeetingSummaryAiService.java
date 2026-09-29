@@ -2,6 +2,8 @@ package com.weai.server.domain.chat.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.weai.server.domain.ai.support.AiCallRetrier;
+import com.weai.server.domain.ai.support.AiJsonExtractor;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import dev.langchain4j.data.message.ChatMessage;
@@ -64,13 +66,13 @@ public class MeetingSummaryAiService {
 			UserMessage.from(buildPrompt(truncate(transcript.trim(), MAX_INPUT_LENGTH)))
 		);
 
-		String rawJson = meetingSummaryModel.chat(messages).aiMessage().text();
+		String rawJson = AiCallRetrier.withRetry("Meeting summary", 2, 500, () -> meetingSummaryModel.chat(messages).aiMessage().text());
 		if (!StringUtils.hasText(rawJson)) {
 			throw new ApiException(ErrorCode.MEETING_SUMMARY_CREATE_FAILED, "The AI meeting summary model returned an empty response.");
 		}
 
 		try {
-			JsonNode root = objectMapper.readTree(rawJson);
+			JsonNode root = objectMapper.readTree(AiJsonExtractor.extractJsonObject(rawJson));
 			String summary = readRequiredText(root, "summary");
 			return new MeetingSummaryDraft(summary, readStringArray(root, "action_items"));
 		} catch (Exception exception) {

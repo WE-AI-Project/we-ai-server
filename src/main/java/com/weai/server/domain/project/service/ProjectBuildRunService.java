@@ -65,6 +65,7 @@ public class ProjectBuildRunService {
 	private final BuildRunExecutionWorker buildRunExecutionWorker;
 	private final ProjectEnvironmentService projectEnvironmentService;
 	private final ProjectEnvironmentVariableService projectEnvironmentVariableService;
+	private final ProjectWorkspaceService projectWorkspaceService;
 	@Qualifier("buildTaskExecutor")
 	private final TaskExecutor buildTaskExecutor;
 
@@ -76,7 +77,7 @@ public class ProjectBuildRunService {
 
 		String taskName = validateTaskName(request == null ? null : request.taskName());
 		String profile = resolveProfile(projectId, request == null ? null : request.profile());
-		Path projectPath = validateProjectLocalPath(project);
+		Path projectPath = projectWorkspaceService.requireProjectDirectory(project.getId());
 		Path gradleWrapper = resolveGradleWrapper(projectPath);
 		if (buildRunRepository.existsByProject_IdAndStatusIn(projectId, ACTIVE_BUILD_STATUSES)) {
 			throw new ApiException(ErrorCode.BUILD_ALREADY_RUNNING);
@@ -145,18 +146,6 @@ public class ProjectBuildRunService {
 		if (!member.isLeader()) {
 			throw new ApiException(ErrorCode.PROJECT_LEADER_ONLY);
 		}
-	}
-
-	private Path validateProjectLocalPath(Project project) {
-		if (project.getLocalPath() == null || project.getLocalPath().isBlank()) {
-			throw new ApiException(ErrorCode.PROJECT_LOCAL_PATH_NOT_FOUND);
-		}
-
-		Path projectPath = Path.of(project.getLocalPath().trim()).toAbsolutePath().normalize();
-		if (!Files.isDirectory(projectPath)) {
-			throw new ApiException(ErrorCode.PROJECT_LOCAL_PATH_NOT_FOUND);
-		}
-		return projectPath;
 	}
 
 	private Path resolveGradleWrapper(Path projectPath) {

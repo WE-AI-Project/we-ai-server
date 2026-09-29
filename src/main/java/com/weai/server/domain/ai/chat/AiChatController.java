@@ -1,6 +1,7 @@
 package com.weai.server.domain.ai.chat;
 
 import com.weai.server.domain.ai.rag.ThinkingLevel;
+import com.weai.server.domain.ai.support.AiRateLimiterService;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.Duration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,14 +27,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/ai")
 public class AiChatController {
 
+	private static final int MAX_CALLS_PER_MINUTE = 20;
+
 	private final AiChatService aiChatService;
 	private final UserService userService;
 	private final ProjectService projectService;
+	private final AiRateLimiterService aiRateLimiterService;
 
-	public AiChatController(@Lazy AiChatService aiChatService, UserService userService, ProjectService projectService) {
+	public AiChatController(
+		@Lazy AiChatService aiChatService,
+		UserService userService,
+		ProjectService projectService,
+		AiRateLimiterService aiRateLimiterService
+	) {
 		this.aiChatService = aiChatService;
 		this.userService = userService;
 		this.projectService = projectService;
+		this.aiRateLimiterService = aiRateLimiterService;
 	}
 
 	@Operation(
@@ -47,6 +58,7 @@ public class AiChatController {
 	) {
 		User user = authenticatedUser(authentication);
 		projectService.validateProjectAccess(request.projectId(), user.getId());
+		aiRateLimiterService.checkAndConsume("chat:" + user.getId(), MAX_CALLS_PER_MINUTE, Duration.ofMinutes(1).toMillis());
 
 		return ApiResponse.success(
 			"AI_CHAT_SUCCESS",

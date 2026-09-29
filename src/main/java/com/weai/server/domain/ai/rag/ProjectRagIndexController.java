@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,7 +30,9 @@ public class ProjectRagIndexController {
 
 	@Operation(
 		summary = "Index a project document for RAG",
-		description = "Chunks text, embeds each chunk, and stores it in ChromaDB with projectId metadata."
+		description = "Chunks text, embeds each chunk, and stores it in ChromaDB with projectId metadata. "
+			+ "Re-indexing the same (projectId, source) first removes the previously indexed chunks for "
+			+ "that document, so this call is an upsert rather than an unbounded append."
 	)
 	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED, ErrorCode.INTERNAL_SERVER_ERROR})
 	@PostMapping("/documents")
@@ -44,6 +47,29 @@ public class ProjectRagIndexController {
 			"AI_RAG_INDEX_SUCCESS",
 			"RAG document indexed successfully.",
 			projectRagIndexService.index(request.projectId(), request.source(), request.text())
+		);
+	}
+
+	@Operation(
+		summary = "Remove a document's indexed RAG chunks",
+		description = "Removes every previously indexed chunk for one (projectId, source) pair, e.g. when the "
+			+ "source document is deleted from the project and should no longer be retrievable."
+	)
+	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED, ErrorCode.INTERNAL_SERVER_ERROR})
+	@DeleteMapping("/documents")
+	public ApiResponse<RagDocumentDeleteResponse> delete(
+		Authentication authentication,
+		@Valid @RequestBody RagDocumentDeleteRequest request
+	) {
+		User user = authenticatedUser(authentication);
+		projectService.validateProjectAccess(request.projectId(), user.getId());
+
+		projectRagIndexService.delete(request.projectId(), request.source());
+
+		return ApiResponse.success(
+			"AI_RAG_DELETE_SUCCESS",
+			"RAG document removed successfully.",
+			new RagDocumentDeleteResponse(request.projectId(), request.source().trim())
 		);
 	}
 

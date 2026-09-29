@@ -23,9 +23,10 @@ public record ProjectCreateRequest(
 	String repositoryUrl,
 
 	@Schema(
-		description = "Local working path for the project.",
-		example = "C:\\WE_AI\\schedule-api-test",
-		requiredMode = Schema.RequiredMode.REQUIRED
+		description = "Optional free-text note about where this project lives on the client's machine. "
+			+ "Purely informational - the server no longer reads or resolves this path for anything; "
+			+ "build execution and tech-stack detection use the project's uploaded workspace instead "
+			+ "(see POST /api/v1/projects/{projectId}/workspace/upload)."
 	)
 	@Size(max = 500, message = "localPath must be 500 characters or fewer.")
 	String localPath,

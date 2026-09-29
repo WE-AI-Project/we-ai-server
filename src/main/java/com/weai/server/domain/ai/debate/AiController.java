@@ -1,5 +1,6 @@
 package com.weai.server.domain.ai.debate;
 
+import com.weai.server.domain.ai.support.AiRateLimiterService;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.service.UserService;
@@ -12,9 +13,11 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Tag(name = "AI Debate", description = "Dynamic four-agent debate API powered by Ollama qwen2.5-coder and llama3.1.")
 @SecurityRequirement(name = "bearerAuth")
@@ -32,21 +36,27 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/ai")
 public class AiController {
 
+	private static final int MAX_DEBATE_CALLS_PER_5_MINUTES = 10;
+	private static final int MAX_ASK_CALLS_PER_MINUTE = 20;
+
 	private final AiDebateService aiDebateService;
 	private final AgentMetricsService agentMetricsService;
 	private final UserService userService;
 	private final ProjectService projectService;
+	private final AiRateLimiterService aiRateLimiterService;
 
 	public AiController(
 		@Lazy AiDebateService aiDebateService,
 		AgentMetricsService agentMetricsService,
 		UserService userService,
-		ProjectService projectService
+		ProjectService projectService,
+		AiRateLimiterService aiRateLimiterService
 	) {
 		this.aiDebateService = aiDebateService;
 		this.agentMetricsService = agentMetricsService;
 		this.userService = userService;
 		this.projectService = projectService;
+		this.aiRateLimiterService = aiRateLimiterService;
 	}
 
 	@Operation(
@@ -108,6 +118,7 @@ public class AiController {
 	) {
 		User user = authenticatedUser(authentication);
 		projectService.validateProjectAccess(request.projectId(), user.getId());
+		aiRateLimiterService.checkAndConsume("debate:" + user.getId(), MAX_DEBATE_CALLS_PER_5_MINUTES, Duration.ofMinutes(5).toMillis());
 
 		return ApiResponse.success(
 			"AI_DEBATE_SUCCESS",
@@ -128,6 +139,7 @@ public class AiController {
 	) {
 		User user = authenticatedUser(authentication);
 		projectService.validateProjectAccess(request.context().projectId(), user.getId());
+		aiRateLimiterService.checkAndConsume("debate:" + user.getId(), MAX_DEBATE_CALLS_PER_5_MINUTES, Duration.ofMinutes(5).toMillis());
 
 		return ApiResponse.success(
 			"AI_CUSTOM_DEBATE_SUCCESS",
@@ -139,6 +151,32 @@ public class AiController {
 				request.agents(),
 				request.maxRounds()
 			)
+		);
+	}
+
+	@Operation(
+		summary = "Run custom N-agent debate over SSE",
+		description = "Same as /debate/custom, but streams each agent turn as an SSE 'turn' event as soon as it is "
+			+ "generated (plus a 'start' event before the first turn and a final 'done' event with the full result), "
+			+ "instead of blocking until every round finishes. Avoids gateway timeouts on long multi-round, "
+			+ "multi-agent debates and lets the client render the agents' exchange live."
+	)
+	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED, ErrorCode.INTERNAL_SERVER_ERROR})
+	@PostMapping(value = "/debate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public SseEmitter debateStream(
+		Authentication authentication,
+		@Valid @RequestBody CustomDebateRequest request
+	) {
+		User user = authenticatedUser(authentication);
+		projectService.validateProjectAccess(request.context().projectId(), user.getId());
+		aiRateLimiterService.checkAndConsume("debate:" + user.getId(), MAX_DEBATE_CALLS_PER_5_MINUTES, Duration.ofMinutes(5).toMillis());
+
+		return aiDebateService.debateStream(
+			user,
+			request.context().projectId(),
+			request.context(),
+			request.agents(),
+			request.maxRounds()
 		);
 	}
 
@@ -156,6 +194,7 @@ public class AiController {
 	) {
 		User user = authenticatedUser(authentication);
 		projectService.validateProjectAccess(request.projectId(), user.getId());
+		aiRateLimiterService.checkAndConsume("ask:" + user.getId(), MAX_ASK_CALLS_PER_MINUTE, Duration.ofMinutes(1).toMillis());
 
 		return ApiResponse.success(
 			"AI_AGENT_ASK_SUCCESS",

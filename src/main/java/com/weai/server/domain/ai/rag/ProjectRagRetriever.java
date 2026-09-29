@@ -9,6 +9,7 @@ import dev.langchain4j.rag.query.Query;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.filter.Filter;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,14 @@ import org.springframework.util.StringUtils;
 
 import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
 
+/**
+ * Every caller (chat, QA, commit, debate, syn-commit) already knows how to degrade gracefully when
+ * no RAG context is found - they fall back to general knowledge / diff-only analysis instead of
+ * refusing. Before this class also treated ChromaDB/embedding-model connectivity failures as "no
+ * context" (rather than letting the exception propagate), an outage there turned into a 500 on
+ * every AI endpoint instead of that same graceful degradation.
+ */
+@Slf4j
 @Lazy
 @Component
 public class ProjectRagRetriever {
@@ -50,11 +59,20 @@ public class ProjectRagRetriever {
 			.filter(projectFilter)
 			.build();
 
-		return retriever.retrieve(Query.from(query.trim()))
-			.stream()
-			.map(Content::textSegment)
-			.map(TextSegment::text)
-			.filter(StringUtils::hasText)
-			.toList();
+		try {
+			return retriever.retrieve(Query.from(query.trim()))
+				.stream()
+				.map(Content::textSegment)
+				.map(TextSegment::text)
+				.filter(StringUtils::hasText)
+				.toList();
+		} catch (RuntimeException exception) {
+			log.warn(
+				"RAG retrieval failed for projectId={} (embedding store/model unavailable?); "
+					+ "degrading to no context instead of failing the request.",
+				projectId, exception
+			);
+			return List.of();
+		}
 	}
 }

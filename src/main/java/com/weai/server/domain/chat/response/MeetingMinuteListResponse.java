@@ -53,6 +53,9 @@ public record MeetingMinuteListResponse(
 		@Schema(description = "회의 요약", example = "채팅 문서/회의 기능 구현 범위를 확정하였다.")
 		String summary,
 
+		@Schema(description = "summary가 실제 AI 모델이 생성한 요약인지 여부", example = "true")
+		boolean aiSummaryGenerated,
+
 		@Schema(description = "작성자 ID", example = "3")
 		Long writerId,
 
@@ -78,6 +81,7 @@ public record MeetingMinuteListResponse(
 				minute.getMeeting().getId(),
 				minute.getTitle(),
 				minute.getSummary(),
+				minute.isAiSummaryGenerated(),
 				minute.getWriter().getId(),
 				minute.getWriter().getName(),
 				participantCount,

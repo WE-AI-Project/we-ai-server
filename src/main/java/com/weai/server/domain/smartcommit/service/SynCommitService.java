@@ -87,7 +87,9 @@ public class SynCommitService {
 	/** "syn commit" triggered on demand. Throws if there is nothing staged or the cooldown has not elapsed. */
 	@Transactional
 	public PendingCommitBatch drainForManualCommit(Long projectId, Instant now, Duration commitCooldown) {
-		List<SynPendingChange> pending = synPendingChangeRepository.findByProject_IdOrderByFilePathAsc(projectId);
+		// PESSIMISTIC_WRITE: blocks a concurrent auto-commit drain for the same project until this
+		// transaction commits, so the two paths can never both drain the same pending batch.
+		List<SynPendingChange> pending = synPendingChangeRepository.findByProject_IdOrderByFilePathAscForUpdate(projectId);
 		if (pending.isEmpty()) {
 			throw new ApiException(ErrorCode.SYN_COMMIT_NOTHING_PENDING);
 		}
@@ -102,7 +104,8 @@ public class SynCommitService {
 	public List<PendingCommitBatch> drainAllReadyForAutoCommit(Instant now, Duration idleThreshold, Duration commitCooldown) {
 		List<PendingCommitBatch> batches = new ArrayList<>();
 		for (Long projectId : synPendingChangeRepository.findDistinctProjectIds()) {
-			List<SynPendingChange> pending = synPendingChangeRepository.findByProject_IdOrderByFilePathAsc(projectId);
+			// Same lock as the manual path - see drainForManualCommit.
+			List<SynPendingChange> pending = synPendingChangeRepository.findByProject_IdOrderByFilePathAscForUpdate(projectId);
 			if (pending.isEmpty()) {
 				continue;
 			}

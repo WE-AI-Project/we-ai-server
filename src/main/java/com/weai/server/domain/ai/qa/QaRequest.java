@@ -30,6 +30,7 @@ public record QaRequest(
 			+ "GET /projects/{projectId}/commits/{commitId}/qa. Leave null for pre-commit/ad-hoc analysis.",
 		example = "a1b2c3d"
 	)
+	@Size(max = 100, message = "commitId must be 100 characters or fewer.")
 	String commitId
 ) {
 }

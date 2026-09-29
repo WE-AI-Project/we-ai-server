@@ -60,6 +60,7 @@ class ProjectBuildRunServiceTest {
 	private BuildRunExecutionWorker buildRunExecutionWorker;
 	private ProjectEnvironmentService projectEnvironmentService;
 	private ProjectEnvironmentVariableService projectEnvironmentVariableService;
+	private ProjectWorkspaceService projectWorkspaceService;
 	private ProjectBuildRunService service;
 	private User user;
 	private Project project;
@@ -90,6 +91,7 @@ class ProjectBuildRunServiceTest {
 		buildRunExecutionWorker = mock(BuildRunExecutionWorker.class);
 		projectEnvironmentService = mock(ProjectEnvironmentService.class);
 		projectEnvironmentVariableService = mock(ProjectEnvironmentVariableService.class);
+		projectWorkspaceService = mock(ProjectWorkspaceService.class);
 		TaskExecutor directExecutor = Runnable::run;
 
 		service = new ProjectBuildRunService(
@@ -100,11 +102,13 @@ class ProjectBuildRunServiceTest {
 			buildRunExecutionWorker,
 			projectEnvironmentService,
 			projectEnvironmentVariableService,
+			projectWorkspaceService,
 			directExecutor
 		);
 
 		when(userService.getUserEntityByEmail(USER_EMAIL)).thenReturn(user);
 		when(projectService.validateProjectAccess(PROJECT_ID, USER_ID)).thenReturn(project);
+		when(projectWorkspaceService.requireProjectDirectory(PROJECT_ID)).thenReturn(projectRoot);
 		when(projectMemberRepository.findByProject_IdAndUser_IdAndStatus(PROJECT_ID, USER_ID, ProjectMemberStatus.ACTIVE))
 			.thenReturn(Optional.of(projectMember(ProjectMemberRole.LEADER)));
 		when(buildRunRepository.existsByProject_IdAndStatusIn(eq(PROJECT_ID), any())).thenReturn(false);

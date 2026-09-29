@@ -69,6 +69,12 @@ public class MeetingMinute extends BaseEntity {
 	@Column(nullable = false, length = 30)
 	private MeetingMinuteStatus status;
 
+	/** True only when {@code summary} was actually produced by the AI model - false for the
+	 * truncated-content fallback used when the model call fails, and false for a user-supplied
+	 * summary. Without this, both cases were stored identically and presented to users as "AI 요약". */
+	@Column(name = "ai_summary_generated", nullable = false)
+	private boolean aiSummaryGenerated;
+
 	@Column(name = "deleted_at")
 	private LocalDateTime deletedAt;
 }

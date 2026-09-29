@@ -17,6 +17,7 @@ public enum ErrorCode {
 	METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "COMMON_405", "The HTTP method is not supported for this endpoint."),
 	UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "COMMON_415", "The content type is not supported."),
 	INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_500", "An unexpected server error occurred."),
+	TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "COMMON_429", "Too many AI requests. Please wait before trying again."),
 
 	// Auth & User Errors
 	DUPLICATE_EMAIL(HttpStatus.CONFLICT, "AUTH_409_1", "The email address is already in use."),
@@ -109,6 +110,21 @@ public enum ErrorCode {
 	GIT_BRANCH_NOT_FOUND(HttpStatus.NOT_FOUND, "GIT_404_2", "The requested git branch could not be found."),
 	INVALID_GIT_GRAPH_LIMIT(HttpStatus.BAD_REQUEST, "GIT_400_10", "Git graph limit must be between 1 and 200."),
 	GIT_BRANCH_GRAPH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "GIT_500_8", "Failed to retrieve the git branch graph."),
+	WORKSPACE_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "WORKSPACE_400_1", "Workspace snapshot file is required."),
+	WORKSPACE_FILE_EMPTY(HttpStatus.BAD_REQUEST, "WORKSPACE_400_2", "Workspace snapshot file is empty."),
+	WORKSPACE_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "WORKSPACE_400_3", "Workspace snapshot file size exceeded."),
+	WORKSPACE_FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "WORKSPACE_400_4", "Workspace snapshot must be a .zip file."),
+	WORKSPACE_SNAPSHOT_TOO_LARGE(
+		HttpStatus.BAD_REQUEST,
+		"WORKSPACE_400_5",
+		"Workspace snapshot expands to too much data or too many files once extracted."
+	),
+	WORKSPACE_EXTRACTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "WORKSPACE_500_1", "Failed to extract the workspace snapshot."),
+	PROJECT_WORKSPACE_NOT_FOUND(
+		HttpStatus.BAD_REQUEST,
+		"WORKSPACE_400_6",
+		"No workspace snapshot has been uploaded for this project yet."
+	),
 	INVALID_SERVER_LOG_LEVEL(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_1", "Server log level is invalid."),
 	INVALID_SERVER_LOG_SOURCE(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_2", "Server log source is invalid."),
 	INVALID_LOG_DATE_RANGE(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_3", "Server log start date must be before end date."),
