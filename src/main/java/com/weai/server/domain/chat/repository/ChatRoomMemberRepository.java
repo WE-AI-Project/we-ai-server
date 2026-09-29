@@ -20,6 +20,8 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
 
 	long countByChatRoom_IdAndStatus(Long chatRoomId, ChatRoomMemberStatus status);
 
+	List<ChatRoomMember> findByChatRoom_IdAndStatus(Long chatRoomId, ChatRoomMemberStatus status);
+
 	@Query("""
 		select crm
 		from ChatRoomMember crm
