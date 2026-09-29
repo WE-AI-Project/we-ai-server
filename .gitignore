@@ -13,3 +13,4 @@ tools/node_modules/
 cloudrun.env
 cloudrun.env.*
 docs/internal/
+workspace/
