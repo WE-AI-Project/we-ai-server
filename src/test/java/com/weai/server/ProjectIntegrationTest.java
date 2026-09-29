@@ -187,7 +187,11 @@ class ProjectIntegrationTest {
 	}
 
 	@Test
-	void projectCreateRejectsBlankLocalPath() throws Exception {
+	void projectCreateAllowsBlankLocalPath() throws Exception {
+		// localPath is purely an informational, client-supplied note now - the server never reads
+		// it to resolve anything (build execution and tech-stack detection use the project's
+		// uploaded workspace instead, see ProjectWorkspaceService), so a blank/omitted value is no
+		// longer a validation error.
 		UserSession leader = signUpAndLogin("missing-path");
 
 		HttpResponse<String> response = createProject(leader.accessToken(), """
@@ -197,8 +201,8 @@ class ProjectIntegrationTest {
 			}
 			""");
 
-		assertThat(response.statusCode()).isEqualTo(400);
-		assertThat(response.body()).contains("\"code\":\"PROJECT_400_6\"");
+		assertThat(response.statusCode()).isEqualTo(201);
+		assertThat(response.body()).contains("\"code\":\"PROJECT_CREATE_SUCCESS\"");
 	}
 
 	@Test

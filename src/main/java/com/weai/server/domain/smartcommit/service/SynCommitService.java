@@ -11,6 +11,7 @@ import com.weai.server.domain.smartcommit.repository.SynCommitRepository;
 import com.weai.server.domain.smartcommit.repository.SynPendingChangeRepository;
 import com.weai.server.domain.smartcommit.response.SynCommitListResponse;
 import com.weai.server.domain.smartcommit.response.SynCommitResponse;
+import com.weai.server.domain.smartcommit.SmartCommitPendingListResponse;
 import com.weai.server.domain.smartcommit.SmartCommitPendingResponse;
 import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.error.ErrorCode;
@@ -82,6 +83,17 @@ public class SynCommitService {
 			.max(Comparator.naturalOrder())
 			.orElse(null);
 		return new SmartCommitPendingResponse(pending.size(), lastModifiedTime);
+	}
+
+	/**
+	 * Lists every currently staged ("syn add") file diff, full content included. This is the
+	 * replacement for the old git-based "changed files" list (ProjectGitChangesController, removed
+	 * along with the rest of the local-git subsystem) - clients such as the QA screen use it to
+	 * pick which staged diffs to send to AI QA instead of reading a client-local git working tree.
+	 */
+	public SmartCommitPendingListResponse getPendingChanges(Long projectId) {
+		List<SynPendingChange> pending = synPendingChangeRepository.findByProject_IdOrderByFilePathAsc(projectId);
+		return SmartCommitPendingListResponse.from(projectId, pending);
 	}
 
 	/** "syn commit" triggered on demand. Throws if there is nothing staged or the cooldown has not elapsed. */

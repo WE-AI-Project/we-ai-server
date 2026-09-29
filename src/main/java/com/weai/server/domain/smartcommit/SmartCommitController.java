@@ -99,6 +99,24 @@ public class SmartCommitController {
 		}
 	}
 
+	@Operation(
+		summary = "List pending syn-add changes",
+		description = "Lists every currently staged (\"syn add\") file diff for the project, full diff content included. "
+			+ "Used by clients (e.g. the QA screen) to pick which staged changes to analyze instead of reading a "
+			+ "client-local git working tree."
+	)
+	@SwaggerErrorResponses({ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED})
+	@GetMapping("/{projectId}/pending")
+	public ApiResponse<SmartCommitPendingListResponse> getPendingChanges(
+		Authentication authentication,
+		@PathVariable Long projectId
+	) {
+		User user = authenticatedUser(authentication);
+		projectService.validateProjectAccess(projectId, user.getId());
+
+		return ApiResponse.success(synCommitService.getPendingChanges(projectId));
+	}
+
 	@Operation(summary = "List syn commits", description = "Lists this project's syn commit history, newest first.")
 	@SwaggerErrorResponses({ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED})
 	@GetMapping("/{projectId}/commits")

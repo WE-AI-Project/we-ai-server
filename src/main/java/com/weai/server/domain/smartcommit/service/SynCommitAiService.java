@@ -90,7 +90,7 @@ public class SynCommitAiService {
 	private String extractCommitMessage(String aiResult) {
 		for (String line : aiResult.split("\\R")) {
 			if (line.toLowerCase().startsWith("commit message:")) {
-				String message = line.substring("commit message:".length()).trim();
+				String message = stripWrappingQuotes(line.substring("commit message:".length()).trim());
 				if (StringUtils.hasText(message)) {
 					return message;
 				}
@@ -98,6 +98,17 @@ public class SynCommitAiService {
 		}
 		log.warn("AI syn-commit response did not contain a 'Commit message:' line; falling back to a generic message. Raw response: {}", aiResult);
 		return "chore: syn commit staged workspace changes";
+	}
+
+	// 모델이 "Commit message: \"...\"" 처럼 값 자체를 따옴표로 감싸서 반환하는 경우가 있어,
+	// 커밋 메시지에 리터럴 큰따옴표가 그대로 남지 않도록 감싸는 따옴표 한 겹을 벗겨낸다.
+	private String stripWrappingQuotes(String value) {
+		if (value.length() >= 2
+			&& ((value.startsWith("\"") && value.endsWith("\""))
+				|| (value.startsWith("'") && value.endsWith("'")))) {
+			return value.substring(1, value.length() - 1).trim();
+		}
+		return value;
 	}
 
 	public record GeneratedSynCommit(String commitMessage, String summary) {

@@ -67,11 +67,14 @@ class SwaggerDocumentationTest {
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/notifications/{notificationId}/read\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/notifications/read-all\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/notifications/{notificationId}\"");
-		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/commits\"");
-		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/commits/filter\"");
-		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/commits/{commitHash}\"");
-		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/commits/{commitHash}/files\"");
-		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/commits/{commitHash}/diff\"");
+		// Real per-repo git history browsing (ProjectGitController) was removed in favor of
+		// SmartCommit - a no-git, DB-backed commit model that works against the central server's
+		// own workspace storage instead of a client-local git checkout.
+		assertThat(response.body()).contains("\"/api/v1/smart-commit/pending\"");
+		assertThat(response.body()).contains("\"/api/v1/smart-commit/{projectId}/commit\"");
+		assertThat(response.body()).contains("\"/api/v1/smart-commit/{projectId}/commits\"");
+		assertThat(response.body()).contains("\"/api/v1/smart-commit/{projectId}/commits/{synCommitId}\"");
+		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/workspace/upload\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules/{scheduleId}\"");
 		assertThat(response.body()).contains("\"/api/v1/projects/{projectId}/schedules/{scheduleId}/status\"");
 		assertThat(response.body()).contains("\"/api/v1/users/me\"");
