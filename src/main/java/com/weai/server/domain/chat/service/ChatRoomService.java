@@ -16,6 +16,7 @@ import com.weai.server.domain.chat.response.ChatFileUploadResponse;
 import com.weai.server.domain.chat.response.ChatMessageListResponse;
 import com.weai.server.domain.chat.response.ChatMessageSendResponse;
 import com.weai.server.domain.chat.response.ChatRoomCreateResponse;
+import com.weai.server.domain.chat.response.ChatRoomDeleteResponse;
 import com.weai.server.domain.chat.response.ChatRoomLeaveResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse.ChatRoomResponse;
@@ -302,6 +303,28 @@ public class ChatRoomService {
 			.orElseGet(() -> chatRoomMemberRepository.save(ChatRoomMember.active(chatRoom, user)));
 		member.leave();
 		return ChatRoomLeaveResponse.from(member);
+	}
+
+	@Transactional
+	public ChatRoomDeleteResponse deleteChatRoom(String userEmail, Long projectId, Long chatRoomId) {
+		User user = userService.getUserEntityByEmail(userEmail);
+		validateChatRoomDeletePermission(projectId, user.getId());
+		ChatRoom chatRoom = chatRoomRepository
+			.findByIdAndProject_IdAndStatusAndDeletedAtIsNull(chatRoomId, projectId, ChatRoomStatus.ACTIVE)
+			.orElseThrow(() -> new ApiException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+		if (chatRoom.isDefault()) {
+			throw new ApiException(ErrorCode.DEFAULT_CHAT_ROOM_CANNOT_BE_DELETED);
+		}
+
+		chatRoom.delete(LocalDateTime.now());
+		chatRoomMemberRepository.findByChatRoom_IdAndStatus(chatRoomId, ChatRoomMemberStatus.ACTIVE)
+			.forEach(ChatRoomMember::leave);
+		return ChatRoomDeleteResponse.from(chatRoom);
+	}
+
+	private void validateChatRoomDeletePermission(Long projectId, Long userId) {
+		projectService.validateProjectLeaderAccess(projectId, userId);
 	}
 
 	private ProjectDepartmentListResponse.DepartmentItem toDepartmentItem(

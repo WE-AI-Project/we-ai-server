@@ -211,6 +211,11 @@ public enum ErrorCode {
 	CHAT_ROOM_DEPARTMENT_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_400_14", "Department is required for a department chat room."),
 	CHAT_ROOM_ACCESS_DENIED(HttpStatus.FORBIDDEN, "CHAT_403_1", "You cannot access this chat room."),
 	CHAT_ROOM_NOT_ACTIVE(HttpStatus.FORBIDDEN, "CHAT_403_2", "The chat room is not active."),
+	DEFAULT_CHAT_ROOM_CANNOT_BE_DELETED(
+		HttpStatus.FORBIDDEN,
+		"CHAT_403_3",
+		"The default project chat room cannot be deleted."
+	),
 	CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_1", "The requested chat room could not be found."),
 	CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_2", "The requested chat message could not be found."),
 	PROJECT_DEPARTMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_404_3", "The department has no active members in this project."),
@@ -230,6 +235,7 @@ public enum ErrorCode {
 		"An active chat room with the same name already exists in this project."
 	),
 	CHAT_FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_500_1", "Failed to upload the chat file."),
+	CHAT_ROOM_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_500_2", "Failed to delete the chat room."),
 
 	// Chat Document & Meeting Errors
 	DOCUMENT_FILE_REQUIRED(HttpStatus.BAD_REQUEST, "CHAT_DOCUMENT_400_1", "Document file is required."),

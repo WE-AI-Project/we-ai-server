@@ -7,6 +7,7 @@ import com.weai.server.domain.chat.response.ChatMessageListResponse;
 import com.weai.server.domain.chat.response.ChatMessageSendResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
 import com.weai.server.domain.chat.response.ChatRoomCreateResponse;
+import com.weai.server.domain.chat.response.ChatRoomDeleteResponse;
 import com.weai.server.domain.chat.response.ChatRoomLeaveResponse;
 import com.weai.server.domain.chat.response.ProjectDepartmentListResponse;
 import com.weai.server.domain.chat.service.ChatRoomService;
@@ -23,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -201,6 +203,33 @@ public class ChatRoomController {
 			"CHAT_ROOM_LEAVE_SUCCESS",
 			"채팅방에서 나갔습니다.",
 			chatRoomService.leaveChatRoom(authentication.getName(), projectId, chatRoomId)
+		);
+	}
+
+	@Operation(
+		summary = "채팅방 삭제",
+		description = "프로젝트의 일반 또는 부서 채팅방을 삭제합니다. 프로젝트 생성 시 자동 생성된 기본 전체 채팅방은 삭제할 수 없습니다."
+	)
+	@SwaggerErrorResponses({
+		ErrorCode.UNAUTHORIZED,
+		ErrorCode.PROJECT_NOT_FOUND,
+		ErrorCode.PROJECT_NOT_ACTIVE,
+		ErrorCode.PROJECT_ACCESS_DENIED,
+		ErrorCode.PROJECT_LEADER_ONLY,
+		ErrorCode.CHAT_ROOM_NOT_FOUND,
+		ErrorCode.DEFAULT_CHAT_ROOM_CANNOT_BE_DELETED,
+		ErrorCode.CHAT_ROOM_DELETE_FAILED
+	})
+	@DeleteMapping("/rooms/{chatRoomId}")
+	public ApiResponse<ChatRoomDeleteResponse> deleteChatRoom(
+		Authentication authentication,
+		@PathVariable Long projectId,
+		@PathVariable Long chatRoomId
+	) {
+		return ApiResponse.success(
+			"CHAT_ROOM_DELETE_SUCCESS",
+			"채팅방이 삭제되었습니다.",
+			chatRoomService.deleteChatRoom(authentication.getName(), projectId, chatRoomId)
 		);
 	}
 
