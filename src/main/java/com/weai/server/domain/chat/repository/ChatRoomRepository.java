@@ -37,6 +37,12 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 		ChatRoomStatus status
 	);
 
+	Optional<ChatRoom> findByIdAndProject_IdAndStatusAndDeletedAtIsNull(
+		Long chatRoomId,
+		Long projectId,
+		ChatRoomStatus status
+	);
+
 	@Query("""
 		select cr.department
 		from ChatRoom cr

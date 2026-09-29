@@ -8,6 +8,7 @@ import com.weai.server.domain.chat.domain.ChatMessageType;
 import com.weai.server.domain.chat.domain.ChatRoom;
 import com.weai.server.domain.chat.domain.ChatRoomMember;
 import com.weai.server.domain.chat.domain.ChatRoomMemberStatus;
+import com.weai.server.domain.chat.domain.ChatRoomStatus;
 import com.weai.server.domain.chat.domain.ChatRoomType;
 import com.weai.server.domain.chat.repository.ChatMessageRepository;
 import com.weai.server.domain.chat.repository.ChatRoomMemberRepository;
@@ -20,6 +21,7 @@ import com.weai.server.domain.chat.response.ChatMessageSendResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse;
 import com.weai.server.domain.chat.response.ChatRoomListResponse.ChatRoomResponse;
 import com.weai.server.domain.chat.response.ChatRoomCreateResponse;
+import com.weai.server.domain.chat.response.ChatRoomDeleteResponse;
 import com.weai.server.domain.chat.response.ProjectDepartmentListResponse;
 import com.weai.server.domain.project.domain.Project;
 import com.weai.server.domain.project.domain.ProjectDepartment;
@@ -800,6 +802,170 @@ class ChatRoomServiceTest {
 			.isInstanceOf(ApiException.class)
 			.extracting("errorCode")
 			.isEqualTo(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
+	}
+
+	@Test
+	void deleteGeneralChatRoomSoftDeletesRoomMembersAndKeepsMessages() {
+		TestFixture fixture = createFixture();
+		ChatRoomCreateResponse created = chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("API 질문방", "GENERAL", null)
+		);
+		ChatRoom room = chatRoomRepository.findById(created.chatRoomId()).orElseThrow();
+		ChatMessage message = chatMessageRepository.save(ChatMessage.text(room, fixture.leader(), "삭제 전 메시지"));
+
+		ChatRoomDeleteResponse response = chatRoomService.deleteChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId()
+		);
+
+		assertThat(response.chatRoomId()).isEqualTo(room.getId());
+		assertThat(response.projectId()).isEqualTo(fixture.project().getId());
+		assertThat(response.deletedAt()).isNotNull();
+		assertThat(room.getStatus()).isEqualTo(ChatRoomStatus.DELETED);
+		assertThat(room.getDeletedAt()).isEqualTo(response.deletedAt());
+		assertThat(chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(room.getId(), fixture.leader().getId()))
+			.get()
+			.extracting(ChatRoomMember::getStatus)
+			.isEqualTo(ChatRoomMemberStatus.LEFT);
+		assertThat(chatMessageRepository.findById(message.getId())).isPresent();
+		assertThat(chatRoomService.getChatRooms(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			null,
+			null,
+			null,
+			0,
+			20
+		).chatRooms()).extracting(ChatRoomResponse::chatRoomId).doesNotContain(room.getId());
+		assertThatThrownBy(() -> chatRoomService.sendChatMessage(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			room.getId(),
+			new ChatMessageSendRequest("삭제 후 메시지", null)
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_NOT_ACTIVE);
+	}
+
+	@Test
+	void deleteDepartmentChatRoomAllowsDepartmentRoomToBeCreatedAgain() {
+		TestFixture fixture = createFixture();
+		ChatRoomCreateResponse created = chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("백엔드 채팅방", "DEPARTMENT", "BACKEND")
+		);
+
+		chatRoomService.deleteChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			created.chatRoomId()
+		);
+		ChatRoomCreateResponse recreated = chatRoomService.createChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			new ChatRoomCreateRequest("새 백엔드 채팅방", "DEPARTMENT", "BACKEND")
+		);
+
+		assertThat(recreated.chatRoomId()).isNotEqualTo(created.chatRoomId());
+		assertThat(recreated.department()).isEqualTo(ProjectDepartment.BACKEND);
+	}
+
+	@Test
+	void deleteChatRoomRejectsDefaultRoom() {
+		TestFixture fixture = createFixture();
+		ChatRoom defaultRoom = chatRoomProjectLifecycleService.createDefaultChatRoom(fixture.project());
+
+		assertThatThrownBy(() -> chatRoomService.deleteChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			defaultRoom.getId()
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.DEFAULT_CHAT_ROOM_CANNOT_BE_DELETED);
+		assertThat(defaultRoom.getStatus()).isEqualTo(ChatRoomStatus.ACTIVE);
+		assertThat(defaultRoom.getDeletedAt()).isNull();
+	}
+
+	@Test
+	void deleteChatRoomRequiresProjectLeader() {
+		TestFixture fixture = createFixture();
+		ChatRoom room = saveRoom(fixture.project(), fixture.leader(), "일반 채팅방", ChatRoomType.GENERAL, null, false);
+
+		assertThatThrownBy(() -> chatRoomService.deleteChatRoom(
+			fixture.member().getEmail(),
+			fixture.project().getId(),
+			room.getId()
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.PROJECT_LEADER_ONLY);
+		assertThatThrownBy(() -> chatRoomService.deleteChatRoom(
+			fixture.outsider().getEmail(),
+			fixture.project().getId(),
+			room.getId()
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.PROJECT_ACCESS_DENIED);
+	}
+
+	@Test
+	void deleteChatRoomReturnsNotFoundForMissingCrossProjectAndAlreadyDeletedRoom() {
+		TestFixture fixture = createFixture();
+		TestFixture otherFixture = createFixture();
+		ChatRoom otherRoom = saveRoom(
+			otherFixture.project(),
+			otherFixture.leader(),
+			"다른 프로젝트 방",
+			ChatRoomType.GENERAL,
+			null,
+			false
+		);
+		ChatRoom ownRoom = saveRoom(
+			fixture.project(),
+			fixture.leader(),
+			"삭제할 방",
+			ChatRoomType.GENERAL,
+			null,
+			false
+		);
+
+		assertThatThrownBy(() -> chatRoomService.deleteChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			999_999L
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
+		assertThatThrownBy(() -> chatRoomService.deleteChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			otherRoom.getId()
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
+
+		chatRoomService.deleteChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			ownRoom.getId()
+		);
+		assertThatThrownBy(() -> chatRoomService.deleteChatRoom(
+			fixture.leader().getEmail(),
+			fixture.project().getId(),
+			ownRoom.getId()
+		))
+			.isInstanceOf(ApiException.class)
+			.extracting("errorCode")
+			.isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
 	}
 
 	@Test
