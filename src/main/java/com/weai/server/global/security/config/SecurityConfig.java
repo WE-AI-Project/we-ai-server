@@ -83,7 +83,8 @@ public class SecurityConfig {
 					"/api/v1/auth/google/login",
 					"/api/v1/auth/kakao/callback",
 					"/api/v1/auth/naver/callback",
-					"/api/v1/auth/google/callback"
+					"/api/v1/auth/google/callback",
+					"/api/v1/auth/vscode/login"
 				).permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 				// System-wide (non-project-scoped) build endpoints run commands against the

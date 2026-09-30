@@ -190,6 +190,23 @@ class AuthIntegrationTest {
 	}
 
 	@Test
+	void vscodeLoginPageIsPubliclyAccessibleWithoutAuthentication() throws Exception {
+		String callbackUri = "vscode://synaipse.synaipse-vscode/auth-callback";
+
+		HttpResponse<String> response = httpClient.send(
+			HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:%d/api/v1/auth/vscode/login?callbackUri=%s"
+					.formatted(port, java.net.URLEncoder.encode(callbackUri, StandardCharsets.UTF_8))))
+				.GET()
+				.build(),
+			HttpResponse.BodyHandlers.ofString()
+		);
+
+		assertThat(response.statusCode()).isEqualTo(200);
+		assertThat(response.body()).contains(callbackUri);
+	}
+
+	@Test
 	void userCanSignUpWithoutUsernameWhenFrontendSendsExtraFields() throws Exception {
 		String email = "frontend-" + UUID.randomUUID().toString().substring(0, 8) + "@example.com";
 		String signUpRequestBody = """
