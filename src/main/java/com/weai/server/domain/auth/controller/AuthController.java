@@ -294,31 +294,53 @@ public class AuthController {
 			    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 			    .status { min-height: 20px; color: #93c5fd; font-size: 13px; line-height: 1.45; }
 			    .status.error { color: #fca5a5; }
+			    .divider { margin-top: 6px; font-size: 12px; color: #9ca3af; text-align: center; }
 			  </style>
 			</head>
 			<body>
 			  <main>
 			    <h1>SYNAIPSE 로그인</h1>
-			    <p>이메일 인증을 완료하면 VS Code 확장으로 자동 이동합니다.</p>
+			    <p>로그인을 완료하면 VS Code 확장으로 자동 이동합니다.</p>
 			    <label>
 			      이메일
 			      <input id="email" type="email" autocomplete="email" placeholder="email@example.com">
 			    </label>
+			    <label>
+			      비밀번호
+			      <input id="password" type="password" autocomplete="current-password" placeholder="비밀번호">
+			    </label>
+			    <button id="passwordLogin">비밀번호로 로그인</button>
+			    <p class="divider">또는 이메일 인증 코드로 로그인</p>
 			    <button id="sendCode" class="secondary">인증 코드 받기</button>
 			    <label>
 			      인증 코드
 			      <input id="code" type="text" inputmode="numeric" maxlength="6" placeholder="6자리 코드">
 			    </label>
-			    <button id="login">VS Code로 로그인</button>
+			    <button id="login" class="secondary">인증 코드로 로그인</button>
 			    <div id="status" class="status"></div>
 			  </main>
 			  <script>
 			    const callbackUri = '__CALLBACK_URI__';
 			    const email = document.getElementById('email');
 			    const code = document.getElementById('code');
+			    const password = document.getElementById('password');
+			    const passwordLogin = document.getElementById('passwordLogin');
 			    const sendCode = document.getElementById('sendCode');
 			    const login = document.getElementById('login');
 			    const status = document.getElementById('status');
+
+			    passwordLogin.addEventListener('click', async () => {
+			      await run(passwordLogin, async () => {
+			        const userEmail = email.value.trim();
+			        if (!userEmail || !password.value) throw new Error('이메일과 비밀번호를 모두 입력해 주세요.');
+			        const payload = await request('/api/v1/auth/login', { email: userEmail, password: password.value });
+			        redirectToVsCode(payload, userEmail);
+			      });
+			    });
+
+			    password.addEventListener('keydown', (event) => {
+			      if (event.key === 'Enter') passwordLogin.click();
+			    });
 
 			    sendCode.addEventListener('click', async () => {
 			      await run(sendCode, async () => {
@@ -338,15 +360,20 @@ public class AuthController {
 			        const verificationCode = code.value.trim();
 			        if (!userEmail || !verificationCode) throw new Error('이메일과 인증 코드를 모두 입력해 주세요.');
 			        const payload = await request('/api/v1/auth/email-login', { email: userEmail, verificationCode });
-			        const token = payload.data || payload;
-			        if (!token.accessToken) throw new Error('로그인 응답에 accessToken이 없습니다.');
-			        const params = new URLSearchParams();
-			        params.set('accessToken', token.accessToken);
-			        if (token.refreshToken) params.set('refreshToken', token.refreshToken);
-			        params.set('email', token.email || userEmail);
-			        window.location.href = callbackUri + (callbackUri.includes('?') ? '&' : '?') + params.toString();
+			        redirectToVsCode(payload, userEmail);
 			      });
 			    });
+
+			    function redirectToVsCode(payload, userEmail) {
+			      const token = payload.data || payload;
+			      if (!token.accessToken) throw new Error('로그인 응답에 accessToken이 없습니다.');
+			      const params = new URLSearchParams();
+			      params.set('accessToken', token.accessToken);
+			      if (token.refreshToken) params.set('refreshToken', token.refreshToken);
+			      params.set('email', token.email || userEmail);
+			      window.location.href = callbackUri + (callbackUri.includes('?') ? '&' : '?') + params.toString();
+			      setStatus('VS Code로 이동합니다. 브라우저가 확인 창을 띄우면 열기를 눌러 주세요.');
+			    }
 
 			    async function request(path, body) {
 			      const response = await fetch(path, {

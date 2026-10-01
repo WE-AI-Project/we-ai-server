@@ -204,6 +204,7 @@ class AuthIntegrationTest {
 
 		assertThat(response.statusCode()).isEqualTo(200);
 		assertThat(response.body()).contains(callbackUri);
+		assertThat(response.body()).contains("/api/v1/auth/login").contains("/api/v1/auth/email-login");
 	}
 
 	@Test
