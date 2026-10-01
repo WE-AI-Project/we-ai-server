@@ -10,6 +10,9 @@ public record ChatResponse(
 	String answer,
 
 	@ArraySchema(schema = @Schema(description = "Retrieved context chunk", example = "VerificationCode verificationCode = verificationCodeRepository ..."))
-	List<String> contexts
+	List<String> contexts,
+
+	@Schema(description = "Which chat backend actually answered: DEFAULT (shared Ollama cluster), PERSONAL, or PROJECT", example = "DEFAULT")
+	String backendSource
 ) {
 }

@@ -27,6 +27,7 @@ dependencies {
 	implementation platform('dev.langchain4j:langchain4j-bom:1.16.2')
 	implementation 'dev.langchain4j:langchain4j'
 	implementation 'dev.langchain4j:langchain4j-ollama'
+	implementation 'dev.langchain4j:langchain4j-open-ai'
 	implementation 'dev.langchain4j:langchain4j-chroma'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 

@@ -176,6 +176,12 @@ public enum ErrorCode {
 	QA_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "QA_404_2", "The requested QA report could not be found."),
 	COMMIT_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMIT_404_1", "The requested commit could not be found."),
 
+	AI_BACKEND_BASE_URL_REQUIRED(HttpStatus.BAD_REQUEST, "AI_BACKEND_400_1", "Base URL is required when the custom AI backend is enabled."),
+	AI_BACKEND_INVALID_DIALECT(HttpStatus.BAD_REQUEST, "AI_BACKEND_400_2", "Unsupported AI backend dialect."),
+	AI_BACKEND_BASE_URL_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "AI_BACKEND_400_3", "Base URL must be a publicly routable host; private/internal addresses are not allowed."),
+	AI_BACKEND_ENCRYPT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AI_BACKEND_500_1", "Failed to encrypt the AI backend API key."),
+	AI_BACKEND_DECRYPT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AI_BACKEND_500_2", "Failed to decrypt the AI backend API key."),
+
 	// Notification Errors
 	NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_404_1", "The requested notification could not be found."),
 	NOTIFICATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "NOTIFICATION_403_1", "You cannot access this notification."),

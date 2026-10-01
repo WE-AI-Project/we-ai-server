@@ -63,7 +63,7 @@ public class AiChatController {
 		return ApiResponse.success(
 			"AI_CHAT_SUCCESS",
 			"AI chat completed successfully.",
-			aiChatService.chat(request.projectId(), request.question(), ThinkingLevel.from(request.level()))
+			aiChatService.chat(user.getId(), request.projectId(), request.question(), ThinkingLevel.from(request.level()))
 		);
 	}
 

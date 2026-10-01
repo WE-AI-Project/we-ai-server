@@ -1,5 +1,8 @@
 package com.weai.server.domain.ai.chat;
 
+import com.weai.server.domain.ai.backend.AiBackendResolver;
+import com.weai.server.domain.ai.backend.DynamicAiChatModelFactory;
+import com.weai.server.domain.ai.backend.ResolvedAiBackend;
 import com.weai.server.domain.ai.rag.ProjectRagContext;
 import com.weai.server.domain.ai.rag.ProjectRagRetriever;
 import com.weai.server.domain.ai.rag.ThinkingLevel;
@@ -9,10 +12,11 @@ import com.weai.server.global.exception.ApiException;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.ollama.OllamaChatModel;
+import dev.langchain4j.model.chat.ChatModel;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -54,22 +58,31 @@ public class AiChatService {
 		600 Korean characters when the question genuinely warrants it.
 		""";
 
-	private final OllamaChatModel oracleRagChatModel;
+	private final ChatModel defaultChatModel;
 	private final ProjectRagRetriever projectRagRetriever;
+	private final AiBackendResolver aiBackendResolver;
+	private final DynamicAiChatModelFactory dynamicAiChatModelFactory;
+	private final String defaultModelName;
 
 	public AiChatService(
-		@Qualifier("oracleRagChatModel") OllamaChatModel oracleRagChatModel,
-		@Lazy ProjectRagRetriever projectRagRetriever
+		@Qualifier("oracleRagChatModel") ChatModel defaultChatModel,
+		@Lazy ProjectRagRetriever projectRagRetriever,
+		AiBackendResolver aiBackendResolver,
+		DynamicAiChatModelFactory dynamicAiChatModelFactory,
+		@Value("${ai.chat.model-name:${AI_CHAT_MODEL_NAME:llama3.1}}") String defaultModelName
 	) {
-		this.oracleRagChatModel = oracleRagChatModel;
+		this.defaultChatModel = defaultChatModel;
 		this.projectRagRetriever = projectRagRetriever;
+		this.aiBackendResolver = aiBackendResolver;
+		this.dynamicAiChatModelFactory = dynamicAiChatModelFactory;
+		this.defaultModelName = defaultModelName;
 	}
 
-	public ChatResponse chat(Long projectId, String question) {
-		return chat(projectId, question, ThinkingLevel.DEFAULT);
+	public ChatResponse chat(Long userId, Long projectId, String question) {
+		return chat(userId, projectId, question, ThinkingLevel.DEFAULT);
 	}
 
-	public ChatResponse chat(Long projectId, String question, ThinkingLevel level) {
+	public ChatResponse chat(Long userId, Long projectId, String question, ThinkingLevel level) {
 		if (projectId == null) {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "projectId is required.");
 		}
@@ -78,18 +91,23 @@ public class AiChatService {
 		}
 
 		ThinkingLevel effectiveLevel = level == null ? ThinkingLevel.DEFAULT : level;
+		// RAG 검색(ChromaDB + 우리 임베딩 모델)은 답변을 생성하는 백엔드가 무엇이든 항상 우리 인프라로
+		// 수행한다 - 사용자가 개인/프로젝트 커스텀 백엔드를 쓰더라도 프로젝트 문서 컨텍스트는 그대로 유지된다.
 		List<String> contexts = projectRagRetriever.retrieve(projectId, question.trim(), effectiveLevel);
 
 		List<ChatMessage> messages = new ArrayList<>();
 		messages.add(SystemMessage.from(buildSystemPrompt(effectiveLevel)));
 		messages.add(UserMessage.from(buildUserPrompt(projectId, question.trim(), contexts)));
 
-		String answer = AiCallRetrier.withRetry("AI chat", 2, 500, () -> oracleRagChatModel.chat(messages).aiMessage().text());
+		ResolvedAiBackend backend = aiBackendResolver.resolve(userId, projectId);
+		ChatModel chatModel = backend.isDefault() ? defaultChatModel : dynamicAiChatModelFactory.build(backend, defaultModelName);
+
+		String answer = AiCallRetrier.withRetry("AI chat", 2, 500, () -> chatModel.chat(messages).aiMessage().text());
 		if (!StringUtils.hasText(answer)) {
 			throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, "The RAG chat model returned an empty response.");
 		}
 
-		return new ChatResponse(answer.trim(), contexts);
+		return new ChatResponse(answer.trim(), contexts, backend.source().name());
 	}
 
 	private String buildSystemPrompt(ThinkingLevel level) {
