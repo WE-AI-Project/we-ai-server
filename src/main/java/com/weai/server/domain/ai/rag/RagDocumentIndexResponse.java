@@ -16,6 +16,9 @@ public record RagDocumentIndexResponse(
 	int chunkCount,
 
 	@ArraySchema(schema = @Schema(description = "Embedding store id for an indexed chunk"))
-	List<String> embeddingIds
+	List<String> embeddingIds,
+
+	@Schema(description = "true if the content was identical to what is already indexed, so nothing was re-embedded")
+	boolean unchanged
 ) {
 }

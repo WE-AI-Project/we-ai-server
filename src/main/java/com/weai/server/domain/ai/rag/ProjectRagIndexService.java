@@ -8,11 +8,17 @@ import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.filter.Filter;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -21,61 +27,109 @@ import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metad
 /**
  * Indexes (and re-indexes / deletes) project documents in the shared RAG vector store.
  *
- * Re-indexing the same {@code source} used to just append another copy of its chunks on top of
- * whatever was indexed before - old and new versions of the same document would both keep
- * matching future retrievals forever, with no way to tell them apart or clean them up. {@link #index}
- * now removes any previously indexed chunks for that exact (projectId, source) pair first, so
- * indexing is an upsert rather than an unbounded append, and {@link #delete} lets a document be
- * removed outright when it is deleted from the project.
+ * Indexing is an upsert per (projectId, source): previously indexed chunks for that pair are removed
+ * first. The {@link RagDocument} registry records a hash of what was embedded, so re-indexing
+ * identical content (repeated saves, re-uploaded workspaces) is skipped instead of re-embedded.
  */
 @Slf4j
 @Service
 public class ProjectRagIndexService {
 
+	public static final int MAX_SOURCE_LENGTH = 500;
+
 	private static final int CHUNK_SIZE = 1_200;
 	private static final int CHUNK_OVERLAP = 180;
+	private static final int LOCK_STRIPES = 64;
 
 	private final EmbeddingStore<TextSegment> embeddingStore;
 	private final EmbeddingModel embeddingModel;
+	private final RagDocumentRepository ragDocumentRepository;
+	private final String embeddingModelName;
+	private final Object[] locks = new Object[LOCK_STRIPES];
 
 	public ProjectRagIndexService(
 		@Qualifier("oracleChromaEmbeddingStore") EmbeddingStore<TextSegment> embeddingStore,
-		@Qualifier("oracleEmbeddingModel") EmbeddingModel embeddingModel
+		@Qualifier("oracleEmbeddingModel") EmbeddingModel embeddingModel,
+		RagDocumentRepository ragDocumentRepository,
+		@Value("${ai.chat.embedding-model-name:${AI_CHAT_EMBEDDING_MODEL_NAME:nomic-embed-text}}") String embeddingModelName
 	) {
 		this.embeddingStore = embeddingStore;
 		this.embeddingModel = embeddingModel;
+		this.ragDocumentRepository = ragDocumentRepository;
+		this.embeddingModelName = embeddingModelName;
+		for (int i = 0; i < LOCK_STRIPES; i++) {
+			locks[i] = new Object();
+		}
 	}
 
 	public RagDocumentIndexResponse index(Long projectId, String source, String text) {
-		if (projectId == null) {
-			throw new ApiException(ErrorCode.INVALID_INPUT, "projectId is required.");
-		}
-		if (!StringUtils.hasText(source)) {
-			throw new ApiException(ErrorCode.INVALID_INPUT, "source is required.");
-		}
+		return index(projectId, source, text, RagDocumentOrigin.MANUAL);
+	}
+
+	public RagDocumentIndexResponse index(Long projectId, String source, String text, RagDocumentOrigin origin) {
+		String normalizedSource = validateSource(projectId, source);
 		if (!StringUtils.hasText(text)) {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "text is required.");
 		}
+		if (RagSourcePolicy.isSecretFile(normalizedSource)) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "Secret files (.env, keys, credentials) cannot be indexed.");
+		}
 
-		String normalizedSource = source.trim();
-		removeExisting(projectId, normalizedSource);
+		String content = RagSourcePolicy.redactSecrets(normalizedSource, text.trim());
+		String contentHash = sha256(embeddingModelName + "\n" + content);
 
-		List<TextSegment> segments = toSegments(projectId, normalizedSource, text.trim());
-		List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
-		List<String> ids = embeddingStore.addAll(embeddings, segments);
+		synchronized (lockFor(projectId, normalizedSource)) {
+			Optional<RagDocument> existing = ragDocumentRepository.findByProjectIdAndSource(projectId, normalizedSource);
+			if (existing.isPresent() && existing.get().isUpToDate(contentHash, embeddingModelName)) {
+				return new RagDocumentIndexResponse(projectId, normalizedSource, existing.get().getChunkCount(), List.of(), true);
+			}
 
-		return new RagDocumentIndexResponse(projectId, normalizedSource, segments.size(), List.copyOf(ids));
+			removeExisting(projectId, normalizedSource);
+			List<TextSegment> segments = toSegments(projectId, normalizedSource, origin, content);
+			List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
+			List<String> ids = embeddingStore.addAll(embeddings, segments);
+
+			RagDocument document = existing.orElseGet(() -> RagDocument.create(projectId, normalizedSource));
+			document.markIndexed(origin, segments.size(), contentHash, embeddingModelName);
+			ragDocumentRepository.save(document);
+
+			return new RagDocumentIndexResponse(projectId, normalizedSource, segments.size(), List.copyOf(ids), false);
+		}
 	}
 
 	/** Removes every previously indexed chunk for one document without re-indexing it. */
 	public void delete(Long projectId, String source) {
+		String normalizedSource = validateSource(projectId, source);
+		synchronized (lockFor(projectId, normalizedSource)) {
+			removeExisting(projectId, normalizedSource);
+			ragDocumentRepository.findByProjectIdAndSource(projectId, normalizedSource).ifPresent(ragDocumentRepository::delete);
+		}
+	}
+
+	public List<RagDocument> list(Long projectId) {
+		return ragDocumentRepository.findAllByProjectIdOrderBySourceAsc(projectId);
+	}
+
+	public List<RagDocument> listByOrigin(Long projectId, RagDocumentOrigin origin) {
+		return ragDocumentRepository.findAllByProjectIdAndOrigin(projectId, origin);
+	}
+
+	private String validateSource(Long projectId, String source) {
 		if (projectId == null) {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "projectId is required.");
 		}
 		if (!StringUtils.hasText(source)) {
 			throw new ApiException(ErrorCode.INVALID_INPUT, "source is required.");
 		}
-		removeExisting(projectId, source.trim());
+		String normalized = source.trim().replace('\\', '/');
+		if (normalized.length() > MAX_SOURCE_LENGTH) {
+			throw new ApiException(ErrorCode.INVALID_INPUT, "source must be " + MAX_SOURCE_LENGTH + " characters or fewer.");
+		}
+		return normalized;
+	}
+
+	private Object lockFor(Long projectId, String source) {
+		return locks[Math.floorMod((projectId + ":" + source).hashCode(), LOCK_STRIPES)];
 	}
 
 	private void removeExisting(Long projectId, String source) {
@@ -87,7 +141,7 @@ public class ProjectRagIndexService {
 		}
 	}
 
-	private List<TextSegment> toSegments(Long projectId, String source, String text) {
+	private List<TextSegment> toSegments(Long projectId, String source, RagDocumentOrigin origin, String text) {
 		List<String> chunks = chunk(text);
 		List<TextSegment> segments = new ArrayList<>();
 		String indexedAt = Instant.now().toString();
@@ -95,6 +149,7 @@ public class ProjectRagIndexService {
 			Metadata metadata = new Metadata()
 				.put("projectId", projectId)
 				.put("source", source)
+				.put("origin", origin.name())
 				.put("chunkIndex", i)
 				.put("indexedAt", indexedAt);
 			segments.add(TextSegment.from(chunks.get(i), metadata));
@@ -136,5 +191,13 @@ public class ProjectRagIndexService {
 			return space;
 		}
 		return end;
+	}
+
+	private static String sha256(String value) {
+		try {
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+		} catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException(exception);
+		}
 	}
 }

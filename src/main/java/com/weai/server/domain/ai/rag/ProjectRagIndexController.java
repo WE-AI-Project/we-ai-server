@@ -13,6 +13,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,14 +27,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectRagIndexController {
 
 	private final ProjectRagIndexService projectRagIndexService;
+	private final WorkspaceRagIndexer workspaceRagIndexer;
 	private final UserService userService;
 	private final ProjectService projectService;
 
 	@Operation(
 		summary = "Index a project document for RAG",
 		description = "Chunks text, embeds each chunk, and stores it in ChromaDB with projectId metadata. "
-			+ "Re-indexing the same (projectId, source) first removes the previously indexed chunks for "
-			+ "that document, so this call is an upsert rather than an unbounded append."
+			+ "Re-indexing the same (projectId, source) replaces the previous chunks; identical content is skipped "
+			+ "(unchanged=true). Secret files (.env, keys, credentials) are rejected and credential values in config "
+			+ "files are masked."
 	)
 	@SwaggerErrorResponses({ErrorCode.INVALID_INPUT, ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED, ErrorCode.INTERNAL_SERVER_ERROR})
 	@PostMapping("/documents")
@@ -46,7 +50,12 @@ public class ProjectRagIndexController {
 		return ApiResponse.success(
 			"AI_RAG_INDEX_SUCCESS",
 			"RAG document indexed successfully.",
-			projectRagIndexService.index(request.projectId(), request.source(), request.text())
+			projectRagIndexService.index(
+				request.projectId(),
+				request.source(),
+				request.text(),
+				RagDocumentOrigin.fromClient(request.origin())
+			)
 		);
 	}
 
@@ -71,6 +80,39 @@ public class ProjectRagIndexController {
 			"RAG document removed successfully.",
 			new RagDocumentDeleteResponse(request.projectId(), request.source().trim())
 		);
+	}
+
+	@Operation(
+		summary = "List a project's indexed RAG documents",
+		description = "Returns every indexed document (source, origin, chunk count, embedding model, indexed time) "
+			+ "and the status of the latest workspace auto-indexing run."
+	)
+	@SwaggerErrorResponses({ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED})
+	@GetMapping("/projects/{projectId}/documents")
+	public ApiResponse<RagDocumentListResponse> list(Authentication authentication, @PathVariable Long projectId) {
+		User user = authenticatedUser(authentication);
+		projectService.validateProjectAccess(projectId, user.getId());
+
+		return ApiResponse.success(RagDocumentListResponse.of(
+			projectId,
+			projectRagIndexService.list(projectId),
+			workspaceRagIndexer.status(projectId).orElse(null)
+		));
+	}
+
+	@Operation(
+		summary = "Re-index the uploaded workspace",
+		description = "Starts a background RAG indexing run over the project's uploaded workspace (also triggered "
+			+ "automatically on every workspace upload). Unchanged files are skipped; poll the list endpoint for status."
+	)
+	@SwaggerErrorResponses({ErrorCode.UNAUTHORIZED, ErrorCode.PROJECT_ACCESS_DENIED})
+	@PostMapping("/projects/{projectId}/reindex-workspace")
+	public ApiResponse<Void> reindexWorkspace(Authentication authentication, @PathVariable Long projectId) {
+		User user = authenticatedUser(authentication);
+		projectService.validateProjectAccess(projectId, user.getId());
+
+		workspaceRagIndexer.schedule(projectId);
+		return ApiResponse.successMessage("AI_RAG_REINDEX_STARTED", "Workspace RAG indexing started.");
 	}
 
 	private User authenticatedUser(Authentication authentication) {

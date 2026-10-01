@@ -1,5 +1,6 @@
 package com.weai.server.domain.project.controller;
 
+import com.weai.server.domain.ai.rag.event.WorkspaceSnapshotUploadedEvent;
 import com.weai.server.domain.project.service.ProjectService;
 import com.weai.server.domain.project.service.ProjectWorkspaceService;
 import com.weai.server.domain.project.service.ProjectWorkspaceService.ProjectWorkspaceUploadResponse;
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +38,7 @@ public class ProjectWorkspaceController {
 	private final ProjectWorkspaceService projectWorkspaceService;
 	private final ProjectService projectService;
 	private final UserService userService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Operation(
 		summary = "Upload a project workspace snapshot",
@@ -62,10 +65,13 @@ public class ProjectWorkspaceController {
 		User user = authenticatedUser(authentication);
 		projectService.validateProjectAccess(projectId, user.getId());
 
+		ProjectWorkspaceUploadResponse response = projectWorkspaceService.uploadSnapshot(projectId, file);
+		eventPublisher.publishEvent(new WorkspaceSnapshotUploadedEvent(projectId));
+
 		return ApiResponse.success(
 			"PROJECT_WORKSPACE_UPLOAD_SUCCESS",
-			"Project workspace snapshot uploaded successfully.",
-			projectWorkspaceService.uploadSnapshot(projectId, file)
+			"Project workspace snapshot uploaded successfully. RAG indexing of its text files has started in the background.",
+			response
 		);
 	}
 

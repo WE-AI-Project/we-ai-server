@@ -53,6 +53,23 @@ public class AiConfig {
 		return executor;
 	}
 
+	// Auto RAG indexing (workspace uploads, documents, meeting minutes). Small pool on purpose: every
+	// task embeds through the single Ollama host, so more threads would only queue there instead.
+	@Bean("ragIndexExecutor")
+	public Executor ragIndexExecutor(
+		@Value("${ai.rag.index.pool-size:2}") int poolSize,
+		@Value("${ai.rag.index.queue-capacity:200}") int queueCapacity
+	) {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(poolSize);
+		executor.setMaxPoolSize(poolSize);
+		executor.setQueueCapacity(queueCapacity);
+		executor.setThreadNamePrefix("rag-index-");
+		executor.setDaemon(true);
+		executor.initialize();
+		return executor;
+	}
+
 	private static final String CF_ACCESS_CLIENT_ID_HEADER = "CF-Access-Client-Id";
 	private static final String CF_ACCESS_CLIENT_SECRET_HEADER = "CF-Access-Client-Secret";
 

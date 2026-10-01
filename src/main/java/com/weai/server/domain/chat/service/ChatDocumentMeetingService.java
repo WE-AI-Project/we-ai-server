@@ -2,6 +2,9 @@ package com.weai.server.domain.chat.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.weai.server.domain.ai.rag.ProjectRagIndexService;
+import com.weai.server.domain.ai.rag.RagDocumentOrigin;
+import com.weai.server.domain.ai.rag.event.RagIndexRequestedEvent;
 import com.weai.server.domain.chat.domain.BriefingStatus;
 import com.weai.server.domain.chat.domain.ChatDocument;
 import com.weai.server.domain.chat.domain.ChatMeeting;
@@ -128,6 +131,14 @@ public class ChatDocumentMeetingService {
 		));
 
 		eventPublisher.publishEvent(new MeetingFileUploadedEvent(projectId, document.getId()));
+		if (StringUtils.hasText(extractedText)) {
+			eventPublisher.publishEvent(new RagIndexRequestedEvent(
+				projectId,
+				ragSource("documents/" + document.getId() + "-" + storedFile.originalFileName()),
+				extractedText,
+				RagDocumentOrigin.CHAT_DOCUMENT
+			));
+		}
 
 		return DocumentUploadResponse.from(document);
 	}
@@ -269,6 +280,13 @@ public class ChatDocumentMeetingService {
 			.status(MeetingMinuteStatus.CREATED)
 			.aiSummaryGenerated(aiSummaryGenerated)
 			.build());
+
+		eventPublisher.publishEvent(new RagIndexRequestedEvent(
+			projectId,
+			ragSource("meetings/" + minute.getId() + "-" + meeting.getTitle()),
+			meetingMinuteRagText(meeting.getTitle(), summary, actionItems, content),
+			RagDocumentOrigin.MEETING_MINUTE
+		));
 
 		return MeetingEndResponse.from(meeting, minute, actionItems);
 	}
@@ -561,6 +579,24 @@ public class ChatDocumentMeetingService {
 			return null;
 		}
 		return value.trim();
+	}
+
+	private String ragSource(String source) {
+		return source.length() <= ProjectRagIndexService.MAX_SOURCE_LENGTH
+			? source
+			: source.substring(0, ProjectRagIndexService.MAX_SOURCE_LENGTH);
+	}
+
+	private String meetingMinuteRagText(String title, String summary, List<String> actionItems, String content) {
+		StringBuilder text = new StringBuilder()
+			.append("회의록: ").append(title).append("\n\n")
+			.append("요약: ").append(summary == null ? "" : summary).append("\n\n");
+		if (!actionItems.isEmpty()) {
+			text.append("액션 아이템:\n");
+			actionItems.forEach(item -> text.append("- ").append(item).append("\n"));
+			text.append("\n");
+		}
+		return text.append("본문:\n").append(content).toString();
 	}
 
 	private record StoredDocumentFile(

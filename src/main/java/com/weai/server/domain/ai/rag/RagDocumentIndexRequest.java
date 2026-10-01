@@ -13,12 +13,15 @@ public record RagDocumentIndexRequest(
 
 	@Schema(description = "Document source name or path", example = "docs/backend/auth.md")
 	@NotBlank(message = "source is required.")
-	@Size(max = 1000, message = "source must be 1000 characters or fewer.")
+	@Size(max = 500, message = "source must be 500 characters or fewer.")
 	String source,
 
 	@Schema(description = "Plain text content to chunk, embed, and index")
 	@NotBlank(message = "text is required.")
 	@Size(max = 1000000, message = "text must be 1000000 characters or fewer.")
-	String text
+	String text,
+
+	@Schema(description = "Who is indexing: MANUAL (default) or VSCODE (extension auto-index on save)", example = "MANUAL")
+	String origin
 ) {
 }
