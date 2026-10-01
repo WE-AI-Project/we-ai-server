@@ -4,6 +4,7 @@ import com.weai.server.global.config.AppWebProperties;
 import com.weai.server.global.security.jwt.JwtAccessDeniedHandler;
 import com.weai.server.global.security.jwt.JwtAuthenticationEntryPoint;
 import com.weai.server.global.security.jwt.JwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -51,6 +52,10 @@ public class SecurityConfig {
 				.authenticationEntryPoint(jwtAuthenticationEntryPoint)
 				.accessDeniedHandler(jwtAccessDeniedHandler))
 			.authorizeHttpRequests(authorize -> authorize
+				// SSE/async responses re-dispatch on completion; the JWT filter skips that dispatch, so
+				// without this the already-authorized stream gets a 401 written into a committed
+				// response and the connection is cut before the terminating chunk.
+				.dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				// Chat/document/library files are no longer served from a public static path; they
 				// go through authenticated, project-membership-checked download endpoints instead
