@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -56,6 +57,18 @@ public interface ProjectScheduleRepository extends JpaRepository<ProjectSchedule
 	List<ProjectSchedule> findByProjectIdOrderByStartDateAscIdAscWithAssignee(@Param("projectId") Long projectId);
 
 	List<ProjectSchedule> findByProject_IdOrderByStartDateAscIdAsc(Long projectId);
+
+	// AI 프롬프트용 프로젝트 팩트 - 종료일이 가까운/최근 일정부터 pageable 크기만큼만 가져온다.
+	@Query("""
+		select ps
+		from ProjectSchedule ps
+		join fetch ps.assignee a
+		where ps.project.id = :projectId
+		order by ps.endDate desc, ps.id desc
+		""")
+	List<ProjectSchedule> findRecentByProjectIdWithAssignee(@Param("projectId") Long projectId, Pageable pageable);
+
+	long countByProject_Id(Long projectId);
 
 	@Query("""
 		select ps

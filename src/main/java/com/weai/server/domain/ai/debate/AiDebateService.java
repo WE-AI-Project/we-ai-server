@@ -4,6 +4,7 @@ import com.weai.server.domain.ai.debate.agent.BackendAi;
 import com.weai.server.domain.ai.debate.agent.FrontendAi;
 import com.weai.server.domain.ai.debate.agent.InspectorAi;
 import com.weai.server.domain.ai.debate.agent.OracleAi;
+import com.weai.server.domain.ai.rag.ProjectFactsService;
 import com.weai.server.domain.ai.rag.ProjectRagRetriever;
 import com.weai.server.domain.ai.rag.RagContextSanitizer;
 import com.weai.server.domain.ai.rag.ThinkingLevel;
@@ -40,6 +41,7 @@ public class AiDebateService {
 	private final FrontendAi frontendAi;
 	private final InspectorAi inspectorAi;
 	private final ProjectRagRetriever projectRagRetriever;
+	private final ProjectFactsService projectFactsService;
 	private final AgentMetricsService agentMetricsService;
 	private final Executor debateStreamExecutor;
 	private final int maxRounds;
@@ -50,6 +52,7 @@ public class AiDebateService {
 		FrontendAi frontendAi,
 		InspectorAi inspectorAi,
 		@Lazy ProjectRagRetriever projectRagRetriever,
+		ProjectFactsService projectFactsService,
 		AgentMetricsService agentMetricsService,
 		@Qualifier("aiDebateStreamExecutor") Executor debateStreamExecutor,
 		@Value("${ai.debate.max-rounds:10}") int maxRounds
@@ -59,6 +62,7 @@ public class AiDebateService {
 		this.frontendAi = frontendAi;
 		this.inspectorAi = inspectorAi;
 		this.projectRagRetriever = projectRagRetriever;
+		this.projectFactsService = projectFactsService;
 		this.agentMetricsService = agentMetricsService;
 		this.debateStreamExecutor = debateStreamExecutor;
 		this.maxRounds = Math.max(1, maxRounds);
@@ -88,6 +92,7 @@ public class AiDebateService {
 
 		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context, codeSnippet), ThinkingLevel.from(context.level()));
 		String ragContext = formatRagContext(projectId, ragContexts);
+		String agentContext = withProjectFacts(projectId, ragContext);
 
 		StringBuilder debateHistory = new StringBuilder();
 		debateHistory
@@ -110,7 +115,7 @@ public class AiDebateService {
 			executedRounds = round;
 
 			for (AiAgentType agent : agents) {
-				String opinion = callAgent(agent, context, codeSnippet, projectId, ragContext, round, debateHistory);
+				String opinion = callAgent(agent, context, codeSnippet, projectId, agentContext, round, debateHistory);
 				appendTurn(debateHistory, turns, round, agent, opinion);
 
 				switch (agent) {
@@ -205,6 +210,7 @@ public class AiDebateService {
 			String codeSnippet = DebateContentGuard.sanitizeCodeSnippet(context.currentCodeSnippet().trim());
 			List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context, codeSnippet), ThinkingLevel.from(context.level()));
 			String ragContext = formatRagContext(projectId, ragContexts);
+			String agentContext = withProjectFacts(projectId, ragContext);
 
 			StringBuilder debateHistory = new StringBuilder()
 				.append("[Request Context]\n")
@@ -229,7 +235,7 @@ public class AiDebateService {
 				executedRounds = round;
 
 				for (AiAgentType agent : agents) {
-					String opinion = callAgent(agent, context, codeSnippet, projectId, ragContext, round, debateHistory);
+					String opinion = callAgent(agent, context, codeSnippet, projectId, agentContext, round, debateHistory);
 					appendTurn(debateHistory, turns, round, agent, opinion);
 					emitter.send(SseEmitter.event().name("turn").data(turns.get(turns.size() - 1)));
 
@@ -310,6 +316,7 @@ public class AiDebateService {
 		String codeSnippet = DebateContentGuard.sanitizeCodeSnippet(context.currentCodeSnippet().trim());
 		List<String> ragContexts = projectRagRetriever.retrieve(projectId, buildRagQuery(context, codeSnippet), ThinkingLevel.from(context.level()));
 		String ragContext = formatRagContext(projectId, ragContexts);
+		String agentContext = withProjectFacts(projectId, ragContext);
 		StringBuilder debateHistory = new StringBuilder()
 			.append("[Single Agent Request]\n")
 			.append("User: ").append(user.getEmail()).append("\n")
@@ -318,7 +325,7 @@ public class AiDebateService {
 			.append("Project-isolated RAG documents: ").append(ragContexts.size()).append(" chunks\n")
 			.append(ragContext);
 
-		String answer = callAgent(agent, context, codeSnippet, projectId, ragContext, 1, debateHistory);
+		String answer = callAgent(agent, context, codeSnippet, projectId, agentContext, 1, debateHistory);
 		String markdown = """
 			# SYNAIPSE Single Agent Answer
 
@@ -596,6 +603,19 @@ public class AiDebateService {
 			.map(DebateContentGuard::sanitizeFreeText)
 			.toList();
 		return RagContextSanitizer.wrap(projectId, sanitizedChunks);
+	}
+
+	/**
+	 * Prepends the authoritative DB facts block (roster, roles, departments, schedules) to the RAG
+	 * context the agents receive. Only the agents get it - debateHistory keeps the plain RAG
+	 * context, so the facts are not sent twice per call nor echoed into the stored history.
+	 */
+	private String withProjectFacts(Long projectId, String ragContext) {
+		String facts = DebateContentGuard.sanitizeFreeText(projectFactsService.buildFactsBlock(projectId));
+		if (!StringUtils.hasText(facts)) {
+			return ragContext;
+		}
+		return facts + "\n\n" + ragContext;
 	}
 
 	private String requireResponse(String agent, String response) {

@@ -1,11 +1,10 @@
 package com.weai.server.domain.ai.rag;
 
+import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.rag.content.Content;
-import dev.langchain4j.rag.content.retriever.ContentRetriever;
-import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
-import dev.langchain4j.rag.query.Query;
+import dev.langchain4j.store.embedding.EmbeddingMatch;
+import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.filter.Filter;
 import java.util.List;
@@ -23,11 +22,20 @@ import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metad
  * refusing. Before this class also treated ChromaDB/embedding-model connectivity failures as "no
  * context" (rather than letting the exception propagate), an outage there turned into a 500 on
  * every AI endpoint instead of that same graceful degradation.
+ *
+ * Retrieval is hybrid: a wide, low-threshold dense search over the project's chunks is re-ranked
+ * by {@link HybridRelevanceScorer}, because nomic-embed-text alone kept returning the same
+ * unrelated CSS chunks for Korean questions whose answer was literally in an indexed document.
  */
 @Slf4j
 @Lazy
 @Component
 public class ProjectRagRetriever {
+
+	// 재정렬 후보 풀: 최종 결과 수의 5배(최소 20개)를 낮은 기준 점수로 먼저 넉넉하게 가져온다.
+	private static final int MIN_CANDIDATE_POOL = 20;
+	private static final int CANDIDATE_POOL_MULTIPLIER = 5;
+	private static final double CANDIDATE_MIN_SCORE = 0.3;
 
 	private final EmbeddingStore<TextSegment> embeddingStore;
 	private final EmbeddingModel embeddingModel;
@@ -50,21 +58,29 @@ public class ProjectRagRetriever {
 		}
 
 		ThinkingLevel effectiveLevel = level == null ? ThinkingLevel.DEFAULT : level;
+		String trimmedQuery = query.trim();
 		Filter projectFilter = metadataKey("projectId").isEqualTo(projectId);
-		ContentRetriever retriever = EmbeddingStoreContentRetriever.builder()
-			.embeddingStore(embeddingStore)
-			.embeddingModel(embeddingModel)
-			.maxResults(effectiveLevel.maxResults())
-			.minScore(effectiveLevel.minScore())
-			.filter(projectFilter)
-			.build();
 
 		try {
-			return retriever.retrieve(Query.from(query.trim()))
+			Embedding queryEmbedding = embeddingModel.embed(trimmedQuery).content();
+			EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
+				.queryEmbedding(queryEmbedding)
+				.maxResults(Math.max(MIN_CANDIDATE_POOL, effectiveLevel.maxResults() * CANDIDATE_POOL_MULTIPLIER))
+				.minScore(CANDIDATE_MIN_SCORE)
+				.filter(projectFilter)
+				.build();
+
+			List<HybridRelevanceScorer.Candidate> candidates = embeddingStore.search(searchRequest)
+				.matches()
 				.stream()
-				.map(Content::textSegment)
-				.map(TextSegment::text)
-				.filter(StringUtils::hasText)
+				.filter(match -> match.embedded() != null && StringUtils.hasText(match.embedded().text()))
+				.map(match -> new HybridRelevanceScorer.Candidate(match.embedded().text(), scoreOf(match)))
+				.toList();
+
+			// 최종 컷(벡터 minScore 또는 키워드 겹침)과 개수 제한은 ThinkingLevel 기준 그대로 유지한다.
+			return HybridRelevanceScorer.rank(trimmedQuery, candidates, effectiveLevel.minScore(), effectiveLevel.maxResults())
+				.stream()
+				.map(HybridRelevanceScorer.ScoredCandidate::text)
 				.toList();
 		} catch (RuntimeException exception) {
 			log.warn(
@@ -74,5 +90,9 @@ public class ProjectRagRetriever {
 			);
 			return List.of();
 		}
+	}
+
+	private static double scoreOf(EmbeddingMatch<TextSegment> match) {
+		return match.score() == null ? 0.0 : match.score();
 	}
 }
