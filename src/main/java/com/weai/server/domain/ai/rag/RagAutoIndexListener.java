@@ -1,7 +1,9 @@
 package com.weai.server.domain.ai.rag;
 
 import com.weai.server.domain.ai.rag.event.RagIndexRequestedEvent;
+import com.weai.server.domain.ai.rag.event.SyncHubPushedEvent;
 import com.weai.server.domain.ai.rag.event.WorkspaceSnapshotUploadedEvent;
+import com.weai.server.domain.project.service.ProjectWorkspaceService;
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,15 +24,18 @@ public class RagAutoIndexListener {
 	private final ProjectRagIndexService projectRagIndexService;
 	private final WorkspaceRagIndexer workspaceRagIndexer;
 	private final Executor ragIndexExecutor;
+	private final ProjectWorkspaceService projectWorkspaceService;
 
 	public RagAutoIndexListener(
 		ProjectRagIndexService projectRagIndexService,
 		WorkspaceRagIndexer workspaceRagIndexer,
-		@Qualifier("ragIndexExecutor") Executor ragIndexExecutor
+		@Qualifier("ragIndexExecutor") Executor ragIndexExecutor,
+		ProjectWorkspaceService projectWorkspaceService
 	) {
 		this.projectRagIndexService = projectRagIndexService;
 		this.workspaceRagIndexer = workspaceRagIndexer;
 		this.ragIndexExecutor = ragIndexExecutor;
+		this.projectWorkspaceService = projectWorkspaceService;
 	}
 
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
@@ -51,5 +56,25 @@ public class RagAutoIndexListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
 	public void onWorkspaceUploaded(WorkspaceSnapshotUploadedEvent event) {
 		workspaceRagIndexer.schedule(event.projectId());
+	}
+
+	/**
+	 * A SyncHub push changes the project's source of truth, so the default branch HEAD is exported
+	 * into the workspace and re-indexed - otherwise RAG answers would only know zip-uploaded code.
+	 */
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+	public void onSyncHubPushed(SyncHubPushedEvent event) {
+		try {
+			ragIndexExecutor.execute(() -> {
+				try {
+					projectWorkspaceService.prepareBuildDirectory(event.projectId());
+					workspaceRagIndexer.schedule(event.projectId());
+				} catch (RuntimeException exception) {
+					log.warn("SyncHub push RAG indexing failed for projectId={}", event.projectId(), exception);
+				}
+			});
+		} catch (TaskRejectedException exception) {
+			log.warn("SyncHub push RAG indexing skipped for projectId={}: executor queue full.", event.projectId());
+		}
 	}
 }

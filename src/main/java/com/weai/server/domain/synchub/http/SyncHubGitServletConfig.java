@@ -1,5 +1,6 @@
 package com.weai.server.domain.synchub.http;
 
+import com.weai.server.domain.ai.rag.event.SyncHubPushedEvent;
 import com.weai.server.domain.synchub.config.SyncHubProperties;
 import com.weai.server.domain.synchub.service.SyncHubAccessService;
 import com.weai.server.domain.synchub.service.SyncHubAccessService.SyncHubAccess;
@@ -18,6 +19,7 @@ import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.Authentication;
@@ -49,7 +51,8 @@ public class SyncHubGitServletConfig {
 	public ServletRegistrationBean<GitServlet> syncHubGitServlet(
 		SyncHubRepositoryService syncHubRepositoryService,
 		SyncHubAccessService syncHubAccessService,
-		SyncHubProperties syncHubProperties
+		SyncHubProperties syncHubProperties,
+		ApplicationEventPublisher eventPublisher
 	) {
 		GitServlet gitServlet = new GitServlet();
 		// Smart protocol only: the "dumb" file-serving fallback would bypass the push role check.
@@ -73,7 +76,7 @@ public class SyncHubGitServletConfig {
 			if (access == null || !access.canPush()) {
 				throw new ServiceNotEnabledException("Push requires the LEADER or MEMBER role (GUEST is read-only).");
 			}
-			return createReceivePack(repository, access, syncHubRepositoryService, syncHubProperties);
+			return createReceivePack(repository, access, syncHubRepositoryService, syncHubProperties, eventPublisher);
 		});
 
 		ServletRegistrationBean<GitServlet> registration = new ServletRegistrationBean<>(gitServlet, URL_PREFIX + "/*");
@@ -86,7 +89,8 @@ public class SyncHubGitServletConfig {
 		Repository repository,
 		SyncHubAccess access,
 		SyncHubRepositoryService syncHubRepositoryService,
-		SyncHubProperties syncHubProperties
+		SyncHubProperties syncHubProperties,
+		ApplicationEventPublisher eventPublisher
 	) {
 		ReceivePack receivePack = new ReceivePack(repository);
 		String principal = currentPrincipalName();
@@ -102,6 +106,12 @@ public class SyncHubGitServletConfig {
 					access.projectId(), access.userId(), command.getRefName(),
 					command.getOldId().name(), command.getNewId().name(), command.getResult()
 				);
+			}
+			boolean branchUpdated = commands.stream().anyMatch(command ->
+				command.getResult() == ReceiveCommand.Result.OK && command.getRefName().startsWith("refs/heads/"));
+			if (branchUpdated) {
+				// 기본 브랜치를 워크스페이스로 내보내고 RAG 재색인 (비동기 - push 응답을 지연시키지 않는다)
+				eventPublisher.publishEvent(new SyncHubPushedEvent(access.projectId()));
 			}
 		});
 		return receivePack;
