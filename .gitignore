@@ -14,3 +14,6 @@ cloudrun.env
 cloudrun.env.*
 docs/internal/
 workspace/
+
+# oh-my-claudecode local state
+.omc/
