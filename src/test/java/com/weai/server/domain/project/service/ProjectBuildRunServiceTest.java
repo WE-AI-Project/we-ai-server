@@ -108,7 +108,7 @@ class ProjectBuildRunServiceTest {
 
 		when(userService.getUserEntityByEmail(USER_EMAIL)).thenReturn(user);
 		when(projectService.validateProjectAccess(PROJECT_ID, USER_ID)).thenReturn(project);
-		when(projectWorkspaceService.requireProjectDirectory(PROJECT_ID)).thenReturn(projectRoot);
+		when(projectWorkspaceService.prepareBuildDirectory(PROJECT_ID)).thenReturn(projectRoot);
 		when(projectMemberRepository.findByProject_IdAndUser_IdAndStatus(PROJECT_ID, USER_ID, ProjectMemberStatus.ACTIVE))
 			.thenReturn(Optional.of(projectMember(ProjectMemberRole.LEADER)));
 		when(buildRunRepository.existsByProject_IdAndStatusIn(eq(PROJECT_ID), any())).thenReturn(false);

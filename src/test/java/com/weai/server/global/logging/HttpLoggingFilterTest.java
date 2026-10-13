@@ -37,4 +37,25 @@ class HttpLoggingFilterTest {
 
 		assertThat(MDC.get(ProjectLogContext.PROJECT_ID_KEY)).isNull();
 	}
+
+	@Test
+	void masksTokenQueryParametersInLoggedUris() {
+		assertThat(HttpLoggingFilter.maskQueryString("token=eyJhbGciOi.abc.def&level=INFO"))
+			.isEqualTo("token=***&level=INFO");
+		assertThat(HttpLoggingFilter.maskQueryString("level=INFO&accessToken=eyJ.x.y"))
+			.isEqualTo("level=INFO&accessToken=***");
+		assertThat(HttpLoggingFilter.maskQueryString("service=git-upload-pack"))
+			.isEqualTo("service=git-upload-pack");
+		assertThat(HttpLoggingFilter.maskQueryString("mytoken=keep"))
+			.isEqualTo("mytoken=keep");
+	}
+
+	@Test
+	void doesNotBufferSyncHubGitRequestBodies() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/synchub/3.git/git-receive-pack");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter.doFilter(request, response, (servletRequest, servletResponse) ->
+			assertThat(servletRequest).isSameAs(request));
+	}
 }

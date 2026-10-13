@@ -94,7 +94,7 @@ public class ProjectController {
 		return ApiResponse.success(
 			"PROJECT_STACK_DETECT_SUCCESS",
 			"Project technology stack detection completed.",
-			projectStackDetectionService.detect(projectWorkspaceService.requireProjectDirectory(projectId))
+			projectStackDetectionService.detect(projectWorkspaceService.prepareBuildDirectory(projectId))
 		);
 	}
 

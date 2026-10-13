@@ -189,8 +189,8 @@ public class ProjectBuildExecutionService {
 
 	// 예전엔 project.getLocalPath()(클라이언트 PC 경로)를 서버에서 그대로 파일 경로로 취급했다 -
 	// 원격 중앙 서버 배포에서는 그 경로가 서버 디스크에 존재할 리 없다. 이제 빌드는 프로젝트가
-	// 업로드한 서버 측 워크스페이스 스냅샷(ProjectWorkspaceService)을 대상으로 실행한다.
+	// 업로드한 서버 측 워크스페이스 스냅샷, 또는 SyncHub 기본 브랜치에서 내보낸 소스(ProjectWorkspaceService#prepareBuildDirectory)를 대상으로 실행한다.
 	private File resolveWorkingDirectory(Long projectId) {
-		return projectWorkspaceService.requireProjectDirectory(projectId).toFile();
+		return projectWorkspaceService.prepareBuildDirectory(projectId).toFile();
 	}
 }

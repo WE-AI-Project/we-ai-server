@@ -217,3 +217,8 @@ app:
         - X-Request-Id
       allow-credentials: true
       max-age: 1h
+  # SyncHub: per-project bare Git repositories served over Smart HTTP at /api/synchub/{projectId}.git
+  synchub:
+    root: ${APP_SYNCHUB_ROOT:/workspace/synchub}
+    default-branch: ${APP_SYNCHUB_DEFAULT_BRANCH:main}
+    max-push-size-bytes: ${APP_SYNCHUB_MAX_PUSH_SIZE_BYTES:209715200}

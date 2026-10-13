@@ -2,6 +2,7 @@ package com.weai.server.global.exception;
 
 import com.weai.server.global.dto.ApiResponse;
 import com.weai.server.global.error.ErrorCode;
+import com.weai.server.global.logging.HttpLoggingFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -152,6 +153,8 @@ public class GlobalExceptionHandler {
 
 	private String buildRequestUri(HttpServletRequest request) {
 		String queryString = request.getQueryString();
-		return queryString == null ? request.getRequestURI() : request.getRequestURI() + "?" + queryString;
+		return queryString == null
+			? request.getRequestURI()
+			: request.getRequestURI() + "?" + HttpLoggingFilter.maskQueryString(queryString);
 	}
 }

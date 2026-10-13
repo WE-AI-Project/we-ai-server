@@ -77,7 +77,7 @@ public class ProjectBuildRunService {
 
 		String taskName = validateTaskName(request == null ? null : request.taskName());
 		String profile = resolveProfile(projectId, request == null ? null : request.profile());
-		Path projectPath = projectWorkspaceService.requireProjectDirectory(project.getId());
+		Path projectPath = projectWorkspaceService.prepareBuildDirectory(project.getId());
 		Path gradleWrapper = resolveGradleWrapper(projectPath);
 		if (buildRunRepository.existsByProject_IdAndStatusIn(projectId, ACTIVE_BUILD_STATUSES)) {
 			throw new ApiException(ErrorCode.BUILD_ALREADY_RUNNING);

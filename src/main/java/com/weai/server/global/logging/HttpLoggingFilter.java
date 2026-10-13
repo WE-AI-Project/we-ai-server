@@ -45,6 +45,10 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 	private static final Pattern SENSITIVE_FIELDS = Pattern.compile(
 		"(?i)\"(password|token|accessToken|refreshToken|secret)\"\\s*:\\s*\"(.*?)\""
 	);
+	private static final Pattern SENSITIVE_QUERY_PARAMS = Pattern.compile(
+		"(?i)(?<=^|&)(token|accessToken|access_token|refreshToken|refresh_token|password)=[^&]*"
+	);
+	private static final String SYNCHUB_GIT_PATH_PREFIX = "/api/synchub/";
 	private static final Pattern PROJECT_API_PATH = Pattern.compile("^/api/v1/projects/(?<projectId>\\d+)(?:/.*)?$");
 	private static final List<String> EXCLUDED_PATH_PREFIXES = List.of(
 		"/swagger-ui",
@@ -66,7 +70,11 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 		HttpServletResponse response,
 		FilterChain filterChain
 	) throws ServletException, IOException {
-		ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request, REQUEST_CACHE_LIMIT);
+		// SyncHub Git Smart HTTP carries binary pack data (pushes can be ~100 MB): never wrap/buffer
+		// that stream for logging - the exchange is still logged, just without a body.
+		HttpServletRequest requestWrapper = isSyncHubGitRequest(request)
+			? request
+			: new ContentCachingRequestWrapper(request, REQUEST_CACHE_LIMIT);
 
 		String requestId = UUID.randomUUID().toString().substring(0, 8);
 		String projectId = extractProjectId(requestWrapper.getRequestURI());
@@ -94,7 +102,7 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 	}
 
 	private void logExchange(
-		ContentCachingRequestWrapper request,
+		HttpServletRequest request,
 		HttpServletResponse response,
 		String requestId,
 		long durationMs
@@ -129,7 +137,7 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 		log.info(logMessage);
 	}
 
-	private String formatRequestHeaders(ContentCachingRequestWrapper request) {
+	private String formatRequestHeaders(HttpServletRequest request) {
 		Map<String, String> headers = new LinkedHashMap<>();
 		Enumeration<String> headerNames = request.getHeaderNames();
 		if (headerNames == null) {
@@ -161,8 +169,11 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 		return abbreviate(headerValue, MAX_HEADER_VALUE_LENGTH);
 	}
 
-	private String extractRequestBody(ContentCachingRequestWrapper request) {
-		byte[] content = request.getContentAsByteArray();
+	private String extractRequestBody(HttpServletRequest request) {
+		if (!(request instanceof ContentCachingRequestWrapper cachingRequest)) {
+			return "<not logged>";
+		}
+		byte[] content = cachingRequest.getContentAsByteArray();
 		if (content.length == 0) {
 			return "<empty>";
 		}
@@ -221,7 +232,17 @@ public class HttpLoggingFilter extends OncePerRequestFilter {
 
 	private String buildRequestUri(HttpServletRequest request) {
 		String queryString = request.getQueryString();
-		return queryString == null ? request.getRequestURI() : request.getRequestURI() + "?" + queryString;
+		return queryString == null ? request.getRequestURI() : request.getRequestURI() + "?" + maskQueryString(queryString);
+	}
+
+	// The SSE log stream authenticates with ?token=<JWT> (EventSource cannot send headers), so the
+	// raw query string must never reach the logs with the credential in it.
+	public static String maskQueryString(String queryString) {
+		return SENSITIVE_QUERY_PARAMS.matcher(queryString).replaceAll("$1=***");
+	}
+
+	private boolean isSyncHubGitRequest(HttpServletRequest request) {
+		return request.getRequestURI().startsWith(SYNCHUB_GIT_PATH_PREFIX);
 	}
 
 	private String abbreviate(String value, int maxLength) {

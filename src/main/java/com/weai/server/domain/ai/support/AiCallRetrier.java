@@ -1,5 +1,7 @@
 package com.weai.server.domain.ai.support;
 
+import com.weai.server.global.error.ErrorCode;
+import com.weai.server.global.exception.ApiException;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,6 +14,11 @@ import lombok.extern.slf4j.Slf4j;
  * trying to whitelist exception types that may not hold across versions. The attempt count is kept
  * small (callers typically pass 2) precisely because of that: it buys resilience against one-off
  * network blips without turning a real outage into an amplified retry storm against Ollama.
+ *
+ * Once every attempt has failed, a failure that means "the AI server could not be reached" (HTTP
+ * 5xx such as the Cloudflare tunnel-down 1033/530 page, timeouts, connection refused, unknown host)
+ * is translated into {@link ErrorCode#AI_SERVER_UNAVAILABLE} (503) so callers get a clear
+ * "try again later" answer instead of a generic 500. Every other failure is rethrown unchanged.
  */
 @Slf4j
 public final class AiCallRetrier {
@@ -40,6 +47,10 @@ public final class AiCallRetrier {
 			}
 		}
 
+		if (AiServerUnavailableDetector.isUnavailable(lastError)) {
+			log.warn("{} call failed: AI server unreachable after {} attempt(s): {}", label, maxAttempts, lastError.getMessage());
+			throw new ApiException(ErrorCode.AI_SERVER_UNAVAILABLE, ErrorCode.AI_SERVER_UNAVAILABLE.getMessage(), lastError);
+		}
 		throw lastError;
 	}
 

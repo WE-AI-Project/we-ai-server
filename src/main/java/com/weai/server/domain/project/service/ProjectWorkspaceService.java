@@ -1,5 +1,6 @@
 package com.weai.server.domain.project.service;
 
+import com.weai.server.domain.synchub.service.SyncHubRepositoryService;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
 import com.weai.server.global.storage.ObjectStorageService;
@@ -14,10 +15,13 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,17 +45,33 @@ public class ProjectWorkspaceService {
 	private static final int MAX_ENTRY_COUNT = 20_000;
 	private static final int COPY_BUFFER_SIZE = 8192;
 
+	private static final String SYNCHUB_EXPORT_MARKER_DIRECTORY = ".synchub-exports";
+
 	private final ObjectStorageService objectStorageService;
 	private final StorageProperties storageProperties;
+	private final SyncHubRepositoryService syncHubRepositoryService;
 	private final Path workspaceRoot;
+	private final ConcurrentMap<Long, Object> materializeLocks = new ConcurrentHashMap<>();
 
+	/** Zip-snapshot only (no SyncHub materialization) - kept for tests that exercise the upload path alone. */
 	public ProjectWorkspaceService(
 		ObjectStorageService objectStorageService,
 		StorageProperties storageProperties,
+		String workspaceRoot
+	) {
+		this(objectStorageService, storageProperties, null, workspaceRoot);
+	}
+
+	@Autowired
+	public ProjectWorkspaceService(
+		ObjectStorageService objectStorageService,
+		StorageProperties storageProperties,
+		SyncHubRepositoryService syncHubRepositoryService,
 		@Value("${app.workspace.root:${APP_WORKSPACE_ROOT:./workspace}}") String workspaceRoot
 	) {
 		this.objectStorageService = objectStorageService;
 		this.storageProperties = storageProperties;
+		this.syncHubRepositoryService = syncHubRepositoryService;
 		this.workspaceRoot = Path.of(workspaceRoot).toAbsolutePath().normalize();
 	}
 
@@ -66,6 +86,56 @@ public class ProjectWorkspaceService {
 			throw new ApiException(ErrorCode.PROJECT_WORKSPACE_NOT_FOUND);
 		}
 		return directory;
+	}
+
+	/**
+	 * The directory a build (or stack detection) should run in. When the project's SyncHub
+	 * repository has commits, the default branch's HEAD is exported into {@code {workspaceRoot}/{projectId}}
+	 * first - a fresh, .git-less copy. The export is skipped when that exact commit was already the
+	 * last thing materialized, so a zip snapshot uploaded after the latest push is kept until the
+	 * next push (newest source wins). With no commits in SyncHub this falls back to the uploaded
+	 * zip snapshot, and fails with WORKSPACE_400_6 when neither exists.
+	 */
+	public Path prepareBuildDirectory(Long projectId) {
+		if (syncHubRepositoryService != null) {
+			syncHubRepositoryService.findDefaultHeadCommit(projectId)
+				.ifPresent(commitHash -> materializeSyncHubCommit(projectId, commitHash));
+		}
+		return requireProjectDirectory(projectId);
+	}
+
+	private void materializeSyncHubCommit(Long projectId, String commitHash) {
+		synchronized (materializeLocks.computeIfAbsent(projectId, ignored -> new Object())) {
+			Path targetDirectory = resolveProjectDirectory(projectId);
+			Path markerFile = workspaceRoot.resolve(SYNCHUB_EXPORT_MARKER_DIRECTORY).resolve(projectId + ".commit");
+			try {
+				if (Files.isDirectory(targetDirectory)
+					&& Files.isRegularFile(markerFile)
+					&& commitHash.equals(Files.readString(markerFile, StandardCharsets.UTF_8).trim())) {
+					return;
+				}
+
+				// 새 커밋은 임시 디렉터리에 먼저 펼친 뒤 교체한다 - 내보내기 도중 실패해도 기존 워크스페이스가 반쯤 지워진 채로 남지 않는다.
+				Path stagingDirectory = workspaceRoot.resolve(projectId + ".synchub-staging");
+				if (Files.exists(stagingDirectory)) {
+					deleteRecursively(stagingDirectory);
+				}
+				int fileCount = syncHubRepositoryService.exportCommit(projectId, commitHash, stagingDirectory);
+				if (Files.exists(targetDirectory)) {
+					deleteRecursively(targetDirectory);
+				}
+				Files.move(stagingDirectory, targetDirectory);
+
+				Files.createDirectories(markerFile.getParent());
+				Files.writeString(markerFile, commitHash, StandardCharsets.UTF_8);
+				log.info(
+					"Materialized SyncHub commit {} for projectId={}: {} files exported to {}",
+					commitHash, projectId, fileCount, targetDirectory
+				);
+			} catch (IOException exception) {
+				throw new ApiException(ErrorCode.SYNCHUB_EXPORT_FAILED, exception.getMessage(), exception);
+			}
+		}
 	}
 
 	public ProjectWorkspaceUploadResponse uploadSnapshot(Long projectId, MultipartFile file) {

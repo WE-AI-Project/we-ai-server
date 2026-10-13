@@ -123,7 +123,7 @@ public enum ErrorCode {
 	PROJECT_WORKSPACE_NOT_FOUND(
 		HttpStatus.BAD_REQUEST,
 		"WORKSPACE_400_6",
-		"No workspace snapshot has been uploaded for this project yet."
+		"빌드할 소스가 아직 없습니다. 먼저 SynAIpse 앱에서 변경사항을 커밋한 뒤 SyncHub로 푸시해 주세요. (또는 워크스페이스 스냅샷 zip을 업로드해 주세요.)"
 	),
 	INVALID_SERVER_LOG_LEVEL(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_1", "Server log level is invalid."),
 	INVALID_SERVER_LOG_SOURCE(HttpStatus.BAD_REQUEST, "SERVER_LOG_400_2", "Server log source is invalid."),
@@ -181,6 +181,12 @@ public enum ErrorCode {
 	AI_BACKEND_BASE_URL_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "AI_BACKEND_400_3", "Base URL must be a publicly routable host; private/internal addresses are not allowed."),
 	AI_BACKEND_ENCRYPT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AI_BACKEND_500_1", "Failed to encrypt the AI backend API key."),
 	AI_BACKEND_DECRYPT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AI_BACKEND_500_2", "Failed to decrypt the AI backend API key."),
+	AI_SERVER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI_503_1", "AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+
+	// SyncHub (hosted Git repository) Errors
+	SYNCHUB_REPOSITORY_INIT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SYNCHUB_500_1", "Failed to initialize the SyncHub repository."),
+	SYNCHUB_REPOSITORY_READ_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SYNCHUB_500_2", "Failed to read the SyncHub repository."),
+	SYNCHUB_EXPORT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "SYNCHUB_500_3", "Failed to export the SyncHub repository into the build workspace."),
 
 	// Notification Errors
 	NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_404_1", "The requested notification could not be found."),
