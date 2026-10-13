@@ -1,5 +1,6 @@
 package com.weai.server.domain.project.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.weai.server.domain.project.domain.Project;
@@ -7,12 +8,17 @@ import com.weai.server.domain.project.domain.ProjectDepartment;
 import com.weai.server.domain.project.domain.ProjectMember;
 import com.weai.server.domain.project.repository.ProjectMemberRepository;
 import com.weai.server.domain.project.repository.ProjectRepository;
+import com.weai.server.domain.project.response.BuildTaskExecutionResponse;
 import com.weai.server.domain.user.domain.User;
 import com.weai.server.domain.user.domain.UserRole;
 import com.weai.server.domain.user.repository.UserRepository;
 import com.weai.server.global.error.ErrorCode;
 import com.weai.server.global.exception.ApiException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.stream.Stream;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Both scenarios below must fail before any {@code ProcessBuilder} is started, so this test never
+ * All scenarios below must fail before any {@code ProcessBuilder} is started, so this test never
  * spawns a real OS process.
  */
 @SpringBootTest
@@ -40,6 +46,9 @@ class ProjectBuildExecutionServiceTest {
 
 	@Autowired
 	private UserRepository userRepository;
+
+	@Autowired
+	private ProjectWorkspaceService projectWorkspaceService;
 
 	@Test
 	void nonLeaderMemberCannotExecuteBuildTask() {
@@ -66,6 +75,25 @@ class ProjectBuildExecutionServiceTest {
 			.isInstanceOf(ApiException.class)
 			.extracting("errorCode")
 			.isEqualTo(ErrorCode.PROJECT_WORKSPACE_NOT_FOUND);
+	}
+
+	@Test
+	void buildOnNonJvmProjectExplainsThatOnlyGradleAndMavenAreSupported() throws Exception {
+		TestFixture fixture = createFixture(null);
+		Path workspace = projectWorkspaceService.resolveProjectDirectory(fixture.project().getId());
+		Files.createDirectories(workspace);
+		Files.writeString(workspace.resolve("package.json"), "{}");
+		try {
+			BuildTaskExecutionResponse response =
+				projectBuildExecutionService.executeTask(fixture.leader().getEmail(), fixture.project().getId(), "build");
+
+			assertThat(response.status()).isEqualTo("FAILED");
+			assertThat(response.logs()).anyMatch(line -> line.contains("Gradle/Maven"));
+		} finally {
+			try (Stream<Path> paths = Files.walk(workspace)) {
+				paths.sorted(Comparator.reverseOrder()).forEach(path -> path.toFile().delete());
+			}
+		}
 	}
 
 	private TestFixture createFixture(String localPath) {

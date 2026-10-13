@@ -47,8 +47,32 @@ public class ProjectBuildExecutionService {
 		Project project = getLeaderAccessibleProject(userEmail, projectId);
 		String buildTool = resolveBuildTool(project.getId());
 		File workingDir = resolveWorkingDirectory(project.getId());
+		if (!hasJvmBuildFile(workingDir)) {
+			// 빌드 실행은 Gradle/Maven 프로젝트만 지원한다 - 없는 ./gradlew를 실행해 알아보기 힘든 오류를 내는 대신 이유를 알려준다.
+			validateAndNormalizeTask(rawTaskName);
+			return new BuildTaskExecutionResponse(
+				rawTaskName,
+				"-",
+				"FAILED",
+				1,
+				"0.00s",
+				List.of("[ERROR] Gradle/Maven 빌드 파일(build.gradle, build.gradle.kts, settings.gradle, pom.xml)이 프로젝트 루트에 없습니다.",
+					"[ERROR] 빌드 실행은 현재 Gradle/Maven 프로젝트만 지원합니다."),
+				LocalTime.now().format(TIME_FORMATTER)
+			);
+		}
+		if (new File(workingDir, "pom.xml").exists() && !new File(workingDir, "build.gradle").exists()
+			&& !new File(workingDir, "build.gradle.kts").exists()) {
+			buildTool = "MAVEN";
+		}
 
 		return runProcess(buildTool, rawTaskName, workingDir);
+	}
+
+	private boolean hasJvmBuildFile(File dir) {
+		return List.of("build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "pom.xml", "gradlew", "mvnw")
+			.stream()
+			.anyMatch(name -> new File(dir, name).exists());
 	}
 
 	public BuildTaskExecutionResponse executeSystemTask(String rawTaskName) {
