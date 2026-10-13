@@ -246,7 +246,8 @@ public class AuthController {
 			<head>
 			  <meta charset="utf-8">
 			  <meta name="viewport" content="width=device-width, initial-scale=1">
-			  <title>SYNAIPSE VS Code Login</title>
+			  <title>SynAIpse VS Code Login</title>
+			  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%221.6%200.4%20208.6%20208.6%22%20role%3D%22img%22%20aria-label%3D%22SynAIpse%22%3E%3Crect%20x%3D%221.6%22%20y%3D%220.4%22%20width%3D%22208.6%22%20height%3D%22208.6%22%20rx%3D%2245.9%22%20fill%3D%22%230a0e17%22%2F%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%235b8cff%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M117.9%2098.4%20Q130.3%2098.6%20142.7%2097.5%22%20stroke-width%3D%227.5%22%2F%3E%3Cpath%20d%3D%22M142.7%2097.5%20Q149.4%20102.0%20157.5%20102.9%22%20stroke-width%3D%225.4%22%2F%3E%3Cpath%20d%3D%22M157.5%20102.9%20Q161.8%2097.9%20167.0%2093.7%22%20stroke-width%3D%223.9%22%2F%3E%3Cpath%20d%3D%22M167.0%2093.7%20Q169.7%2090.5%20173.0%2087.8%22%20stroke-width%3D%222.8%22%2F%3E%3Cpath%20d%3D%22M157.5%20102.9%20Q160.4%20108.3%20164.4%20112.8%22%20stroke-width%3D%223.9%22%2F%3E%3Cpath%20d%3D%22M164.4%20112.8%20Q167.7%20114.8%20170.8%20117.2%22%20stroke-width%3D%222.8%22%2F%3E%3Cpath%20d%3D%22M89.0%20114.3%20Q81.9%20124.9%2074.2%20135.0%22%20stroke-width%3D%227.5%22%2F%3E%3Cpath%20d%3D%22M74.2%20135.0%20Q71.7%20142.8%2066.8%20149.5%22%20stroke-width%3D%225.4%22%2F%3E%3Cpath%20d%3D%22M66.8%20149.5%20Q66.9%20154.8%2067.6%20160.1%22%20stroke-width%3D%223.9%22%2F%3E%3Cpath%20d%3D%22M67.6%20160.1%20Q68.7%20164.2%2069.0%20168.5%22%20stroke-width%3D%222.8%22%2F%3E%3Cpath%20d%3D%22M66.8%20149.5%20Q62.3%20152.2%2058.1%20155.3%22%20stroke-width%3D%223.9%22%2F%3E%3Cpath%20d%3D%22M58.1%20155.3%20Q57.9%20158.6%2057.5%20161.8%22%20stroke-width%3D%222.8%22%2F%3E%3Cpath%20d%3D%22M58.1%20155.3%20Q54.9%20155.8%2051.7%20155.4%22%20stroke-width%3D%222.8%22%2F%3E%3Cpath%20d%3D%22M85.9%2088.8%20Q78.1%2079.2%2068.3%2071.4%22%20stroke-width%3D%227.5%22%2F%3E%3Cpath%20d%3D%22M68.3%2071.4%20Q63.6%2065.4%2057.6%2060.7%22%20stroke-width%3D%225.4%22%2F%3E%3Cpath%20d%3D%22M57.6%2060.7%20Q52.3%2060.2%2047.2%2058.6%22%20stroke-width%3D%223.9%22%2F%3E%3Cpath%20d%3D%22M47.2%2058.6%20Q43.0%2058.2%2038.8%2057.5%22%20stroke-width%3D%222.8%22%2F%3E%3Cpath%20d%3D%22M57.6%2060.7%20Q57.0%2055.0%2054.8%2049.7%22%20stroke-width%3D%223.9%22%2F%3E%3Cpath%20d%3D%22M54.8%2049.7%20Q53.2%2045.4%2052.3%2040.9%22%20stroke-width%3D%222.8%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22%235b8cff%22%3E%3Ccircle%20cx%3D%22173.0%22%20cy%3D%2287.8%22%20r%3D%223.9%22%2F%3E%3Ccircle%20cx%3D%22170.8%22%20cy%3D%22117.2%22%20r%3D%223.9%22%2F%3E%3Ccircle%20cx%3D%2269.0%22%20cy%3D%22168.5%22%20r%3D%223.9%22%2F%3E%3Ccircle%20cx%3D%2257.5%22%20cy%3D%22161.8%22%20r%3D%223.9%22%2F%3E%3Ccircle%20cx%3D%2251.7%22%20cy%3D%22155.4%22%20r%3D%223.9%22%2F%3E%3Ccircle%20cx%3D%2238.8%22%20cy%3D%2257.5%22%20r%3D%223.9%22%2F%3E%3Ccircle%20cx%3D%2252.3%22%20cy%3D%2240.9%22%20r%3D%223.9%22%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D%22100%22%20cy%3D%22100%22%20r%3D%2218%22%20fill%3D%22%231fe7b6%22%2F%3E%3Ccircle%20cx%3D%22100%22%20cy%3D%22100%22%20r%3D%2218%22%20fill%3D%22none%22%20stroke%3D%22%230a0e17%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E">
 			  <style>
 			    :root { color-scheme: dark; }
 			    * { box-sizing: border-box; }
@@ -266,6 +267,9 @@ public class AuthController {
 			      gap: 14px;
 			    }
 			    h1 { margin: 0; font-size: 22px; letter-spacing: 0; }
+			    .brand { display: flex; align-items: center; gap: 12px; }
+			    .brand .mark { flex-shrink: 0; }
+			    .brand .ai { color: #1fe7b6; }
 			    p { margin: 0; color: #cbd5e1; line-height: 1.5; }
 			    label { display: grid; gap: 6px; color: #d1d5db; font-size: 13px; }
 			    input {
@@ -299,7 +303,10 @@ public class AuthController {
 			</head>
 			<body>
 			  <main>
-			    <h1>SYNAIPSE 로그인</h1>
+			    <div class="brand">
+			      <svg class="mark" width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="26.9 25.7 158.0 158.0" role="img" aria-label="SynAIpse"><g fill="none" stroke="#5b8cff" stroke-linecap="round" stroke-linejoin="round"><path d="M117.9 98.4 Q130.3 98.6 142.7 97.5" stroke-width="7.5"/><path d="M142.7 97.5 Q149.4 102.0 157.5 102.9" stroke-width="5.4"/><path d="M157.5 102.9 Q161.8 97.9 167.0 93.7" stroke-width="3.9"/><path d="M167.0 93.7 Q169.7 90.5 173.0 87.8" stroke-width="2.8"/><path d="M157.5 102.9 Q160.4 108.3 164.4 112.8" stroke-width="3.9"/><path d="M164.4 112.8 Q167.7 114.8 170.8 117.2" stroke-width="2.8"/><path d="M89.0 114.3 Q81.9 124.9 74.2 135.0" stroke-width="7.5"/><path d="M74.2 135.0 Q71.7 142.8 66.8 149.5" stroke-width="5.4"/><path d="M66.8 149.5 Q66.9 154.8 67.6 160.1" stroke-width="3.9"/><path d="M67.6 160.1 Q68.7 164.2 69.0 168.5" stroke-width="2.8"/><path d="M66.8 149.5 Q62.3 152.2 58.1 155.3" stroke-width="3.9"/><path d="M58.1 155.3 Q57.9 158.6 57.5 161.8" stroke-width="2.8"/><path d="M58.1 155.3 Q54.9 155.8 51.7 155.4" stroke-width="2.8"/><path d="M85.9 88.8 Q78.1 79.2 68.3 71.4" stroke-width="7.5"/><path d="M68.3 71.4 Q63.6 65.4 57.6 60.7" stroke-width="5.4"/><path d="M57.6 60.7 Q52.3 60.2 47.2 58.6" stroke-width="3.9"/><path d="M47.2 58.6 Q43.0 58.2 38.8 57.5" stroke-width="2.8"/><path d="M57.6 60.7 Q57.0 55.0 54.8 49.7" stroke-width="3.9"/><path d="M54.8 49.7 Q53.2 45.4 52.3 40.9" stroke-width="2.8"/></g><g fill="#5b8cff"><circle cx="173.0" cy="87.8" r="3.9"/><circle cx="170.8" cy="117.2" r="3.9"/><circle cx="69.0" cy="168.5" r="3.9"/><circle cx="57.5" cy="161.8" r="3.9"/><circle cx="51.7" cy="155.4" r="3.9"/><circle cx="38.8" cy="57.5" r="3.9"/><circle cx="52.3" cy="40.9" r="3.9"/></g><circle cx="100" cy="100" r="18" fill="#1fe7b6"/><circle cx="100" cy="100" r="18" fill="none" stroke="#111827" stroke-width="4"/></svg>
+			      <h1>Syn<span class="ai">AI</span>pse 로그인</h1>
+			    </div>
 			    <p>로그인을 완료하면 VS Code 확장으로 자동 이동합니다.</p>
 			    <label>
 			      이메일
